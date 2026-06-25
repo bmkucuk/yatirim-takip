@@ -95,9 +95,9 @@
     <td class="{{ 'pos' if p.kar_zarar >= 0 else 'neg' }}">
       {{ ("+" if p.kar_zarar>=0 else "") }}{{ "{:,.0f}".format(p.kar_zarar).replace(",",".") }} {{ para }}
       {% if p.abd_vergi and p.kar_zarar > 0 %}
-      <br><small style="color:var(--text2)">⚠️ Vergi sonradan</small>
+      <br><small style="color:#e8923a;font-weight:600">⚠️ Vergi sonradan</small>
       {% elif not p.vergisiz and not p.abd_vergi and p.kar_zarar > 0 %}
-      <br><small style="color:var(--text2)">Net: {{ "{:,.0f}".format(p.net_kar).replace(",",".") }} {{ para }}</small>
+      <br><small style="color:#e8923a;font-weight:600">Net: {{ "{:,.0f}".format(p.net_kar).replace(",",".") }} {{ para }}</small>
       {% endif %}
     </td>
   </tr>
