@@ -1570,7 +1570,6 @@ if __name__ == "__main__":
 @app.route("/api/son-fiyat")
 @login_required
 def api_son_fiyat():
-    """Bir sembolün fiyatını döndür — önce DB, yoksa canlı çek."""
     sembol = request.args.get("sembol","").strip().upper()
     tur = request.args.get("tur","")
     if not sembol:
@@ -1578,58 +1577,46 @@ def api_son_fiyat():
 
     # 1) DB'de var mı?
     with get_db() as conn:
-        row = conn.execute("""
-            SELECT fiyat, tarih FROM fiyat_gecmisi
-            WHERE sembol=? ORDER BY tarih DESC LIMIT 1
-        """, (sembol,)).fetchone()
+        row = conn.execute(
+            "SELECT fiyat, tarih FROM fiyat_gecmisi WHERE sembol=? ORDER BY tarih DESC LIMIT 1",
+            (sembol,)).fetchone()
     if row:
         return jsonify({"fiyat": row["fiyat"], "tarih": row["tarih"], "kaynak": "db"})
 
-    # 2) Canlı fiyat çek
-    fiyat = None
-    tarih = str(bugun())
-    kaynak = ""
-
-    if tur == "BIST":
-        # İş Yatırım anlık fiyat API
+    # 2) FON ise TEFAS'tan çek
+    if tur == "FON":
         try:
-            import requests as req
-            r = req.get(
-                f"https://www.isyatirim.com.tr/api/data/equity?symbol={sembol}&fields=LSTPRC,PDDMKD",
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://www.isyatirim.com.tr"},
-                timeout=10
-            )
-            if r.status_code == 200:
-                data = r.json()
-                if data and isinstance(data, list):
-                    fiyat = float(data[0].get("LSTPRC", 0))
-                    kaynak = "isyatirim"
-        except Exception:
-            pass
+            from price_fetcher import fetch_tefas_fon, son_is_gunu
+            fiyat = fetch_tefas_fon(sembol, son_is_gunu())
+            if fiyat:
+                tarih = str(bugun())
+                with get_db() as conn:
+                    conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                                 (sembol, tarih, fiyat))
+                return jsonify({"fiyat": round(fiyat,6), "tarih": tarih, "kaynak": "TEFAS"})
+        except Exception as e:
+            app.logger.error(f"TEFAS fiyat hatası {sembol}: {e}")
 
-    if not fiyat and tur in ("ABD", "HISSE"):
+    # 3) BIST/ABD ise Yahoo Finance
+    if tur in ("BIST", "ABD"):
         try:
             import yfinance as yf
-            from price_fetcher import normalize_yahoo_sembol
-            yahoo_sembol = normalize_yahoo_sembol(sembol) if tur == "BIST" else sembol
+            yahoo_sembol = f"{sembol}.IS" if tur == "BIST" else sembol
             ticker = yf.Ticker(yahoo_sembol)
-            hist = ticker.history(period="2d")
+            hist = ticker.history(period="5d")
             if not hist.empty:
                 fiyat = float(hist["Close"].iloc[-1])
                 tarih = str(hist.index[-1].date())
-                kaynak = "yahoo"
-        except Exception:
-            pass
+                with get_db() as conn:
+                    conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                                 (sembol, tarih, fiyat))
+                return jsonify({"fiyat": round(fiyat,4), "tarih": tarih, "kaynak": "Yahoo"})
+            else:
+                app.logger.error(f"Yahoo boş döndü: {yahoo_sembol}")
+        except Exception as e:
+            app.logger.error(f"Yahoo fiyat hatası {sembol}: {e}")
 
-    if fiyat and fiyat > 0:
-        fiyat = round(fiyat, 4)
-        with get_db() as conn:
-            conn.execute(
-                "INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                (sembol, tarih, fiyat))
-        return jsonify({"fiyat": fiyat, "tarih": tarih, "kaynak": kaynak})
-
-    return jsonify({})
+    return jsonify({"hata": f"{sembol} için fiyat bulunamadı", "tur": tur})
 
 @app.route("/api/sembol-ara")
 @login_required
