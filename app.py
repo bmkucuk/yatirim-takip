@@ -1618,11 +1618,17 @@ def api_son_fiyat():
             )
             if r.status_code == 200:
                 data = r.json()
+                meta = data["chart"]["result"][0]["meta"]
                 closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
                 timestamps = data["chart"]["result"][0]["timestamp"]
-                # En son geçerli fiyatı al
                 fiyat = None
                 tarih = None
+                saat = None
+                # regularMarketTime = son işlem saati
+                market_time = meta.get("regularMarketTime")
+                if market_time:
+                    from datetime import datetime as dt
+                    saat = dt.fromtimestamp(market_time, tz=ZoneInfo("Europe/Istanbul")).strftime("%H:%M")
                 for i in range(len(closes)-1, -1, -1):
                     if closes[i] is not None:
                         fiyat = round(float(closes[i]), 4)
@@ -1633,7 +1639,7 @@ def api_son_fiyat():
                     with get_db() as conn:
                         conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
                                      (sembol, tarih, fiyat))
-                    return jsonify({"fiyat": fiyat, "tarih": tarih, "kaynak": "Yahoo"})
+                    return jsonify({"fiyat": fiyat, "tarih": tarih, "saat": saat, "kaynak": "Yahoo"})
         except Exception as e:
             return jsonify({"hata": f"Yahoo: {str(e)[:60]}", "tur": tur})
 

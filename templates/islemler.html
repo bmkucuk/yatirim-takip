@@ -230,7 +230,8 @@ function sonFiyatGetir(sembol, tur) {
     .then(d => {
       if (d.fiyat) {
         fiyatInput.value = d.fiyat;
-        sonFiyatBadge.textContent = `🌐 ${d.tarih}`;
+        const zaman = d.saat || d.tarih || '';
+        sonFiyatBadge.textContent = `🌐 ${zaman}`;
         sonFiyatBadge.style.color = 'var(--text2)';
       } else {
         sonFiyatBadge.textContent = '⚠️ Manuel gir';
