@@ -734,11 +734,9 @@ def fiyat_backfill_debug():
 @app.route("/fiyat-backfill", methods=["POST"])
 @login_required
 def fiyat_backfill():
-    """Son 60 günün eksik fiyatlarını TEFAS'tan çekip doldur — arka planda çalışır."""
-    import threading
+    """Son 60 günün eksik fiyatlarını TEFAS'tan çekip doldur — senkron."""
     from price_fetcher import fetch_tefas_fon
-    from datetime import date, timedelta, datetime as dt
-    from zoneinfo import ZoneInfo
+    from datetime import date, timedelta
     import time as time_mod
 
     user_id = session["user_id"]
@@ -772,59 +770,39 @@ def fiyat_backfill():
         gun += timedelta(days=1)
 
     if not eksikler:
-        flash("Eksik fiyat bulunamadı, tüm günler dolu.", "success")
+        flash("✅ Eksik fiyat yok, tüm günler dolu.", "success")
         return redirect(url_for("fiyatlar"))
 
     toplam = sum(len(v) for v in eksikler.values())
+    eklenen = 0
+    hatalar = 0
 
-    # Thread'e ihtiyaç duyduğu her şeyi kopyala
-    _eksikler = dict(eksikler)
-    _toplam = toplam
-    _db_path = DB_PATH
-
-    def backfill_thread():
-        import sqlite3, time as tm
-        from datetime import date as d_cls, datetime as dt2
-        from zoneinfo import ZoneInfo as ZI
-        from price_fetcher import fetch_tefas_fon as _fetch
-
-        eklenen = 0
-        hatalar = []
-
-        for tarih_str, semboller in sorted(_eksikler.items()):
-            hedef = d_cls.fromisoformat(tarih_str)
-            for sembol in semboller:
-                try:
-                    fiyat = _fetch(sembol, hedef)
-                    if fiyat:
-                        conn = sqlite3.connect(_db_path)
+    for tarih_str, semboller in sorted(eksikler.items()):
+        hedef = date.fromisoformat(tarih_str)
+        for sembol in semboller:
+            try:
+                fiyat = fetch_tefas_fon(sembol, hedef)
+                if fiyat:
+                    with get_db() as conn:
                         conn.execute(
                             "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
                             (sembol, tarih_str, fiyat))
-                        conn.commit()
-                        conn.close()
-                        eklenen += 1
-                    else:
-                        hatalar.append(f"{sembol}/{tarih_str}:veri_yok")
-                except Exception as e:
-                    hatalar.append(f"{sembol}/{tarih_str}:{str(e)[:30]}")
-                tm.sleep(1)
+                    eklenen += 1
+                else:
+                    hatalar += 1
+            except Exception:
+                hatalar += 1
+            time_mod.sleep(0.5)
 
-        simdi = dt2.now(ZI("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
-        hata_str = f" | Hata:{len(hatalar)}" if hatalar else ""
-        conn = sqlite3.connect(_db_path)
+    simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
+    with get_db() as conn:
         conn.execute(
             "INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
             (simdi, "Backfill-TEFAS",
-             f"{eklenen}/{_toplam} fiyat dolduruldu ({len(_eksikler)} gün){hata_str}"))
-        conn.commit()
-        conn.close()
+             f"{eklenen}/{toplam} fiyat dolduruldu ({len(eksikler)} gün, {hatalar} hata)"))
 
-    t = threading.Thread(target=backfill_thread, daemon=True)
-    t.start()
-
-    flash(f"⏳ {toplam} eksik fiyat dolduruluyor ({len(eksikler)} gün). Sayfa otomatik yenileniyor.", "success")
-    return redirect(url_for("fiyatlar") + "?backfill=1")
+    flash(f"✅ {eklenen}/{toplam} eksik fiyat dolduruldu ({len(eksikler)} gün).", "success")
+    return redirect(url_for("fiyatlar"))
 
 @app.route("/import-fiyatlar", methods=["GET","POST"])
 @login_required
