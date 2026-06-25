@@ -1885,7 +1885,7 @@ def kiyaslama_kalem_ekle():
         kalem_sayi = conn.execute(
             "SELECT COUNT(*) as c FROM kiyaslama_kalem WHERE portfoy_id=?", (portfoy_id,)
         ).fetchone()["c"]
-        if kalem_sayi >= 10:
+        if kalem_sayi >= 50:
             flash("Portföye en fazla 10 kalem eklenebilir.", "error")
             return redirect(url_for("kiyaslama"))
 
