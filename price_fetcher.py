@@ -1,19 +1,31 @@
 # -*- coding: utf-8 -*-
 """
 Fiyat çekme modülü.
-FON:   1) TEFAS BindHistoryInfo  2) TEFAS FonAnaliz sayfası scrape  3) collectapi.com
+FON:   TEFAS fonGnlBlgSiraliGetir (mevcut çalışan script'ten alındı)
 HISSE: Yahoo Finance (.IS suffix)
 """
-import requests
-from datetime import datetime, timedelta
+import requests, time
+from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
+
+TEFAS_API_URL = "https://www.tefas.gov.tr/api/funds/fonGnlBlgSiraliGetir"
+TEFAS_HEADERS = {
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Origin": "https://www.tefas.gov.tr",
+    "Referer": "https://www.tefas.gov.tr/tr/fon-verileri",
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/146.0.0.0 Safari/537.36"
+    ),
+}
 
 def bugun_str():
     return str(datetime.now(ZoneInfo("Europe/Istanbul")).date())
 
 def son_is_gunu():
-    """Bugün veya önceki son iş günü."""
-    d = datetime.now(ZoneInfo("Europe/Istanbul"))
+    d = datetime.now(ZoneInfo("Europe/Istanbul")).date()
     while d.weekday() >= 5:
         d -= timedelta(days=1)
     return d
@@ -23,144 +35,78 @@ def normalize_yahoo_sembol(sembol):
         return sembol
     return f"{sembol.split('.')[0]}.IS"
 
-# ── TEFAS Yöntem 1: Resmi API ─────────────────────────────────────────────────
+# ── TEFAS ────────────────────────────────────────────────────────────────────
 
-def fetch_tefas_api(semboller):
-    """TEFAS BindHistoryInfo POST API."""
-    if not semboller:
-        return {}, None
+def fetch_tefas_fon(fon_kodu, hedef_tarih=None):
+    """
+    Tek bir fon için bugünkü (veya hedef_tarih) fiyatı çeker.
+    Başarılıysa float, değilse None döner.
+    """
+    if hedef_tarih is None:
+        hedef_tarih = son_is_gunu()
 
-    d = son_is_gunu()
-    tarih_str = d.strftime("%d.%m.%Y")
-    results = {}
+    bas = hedef_tarih.strftime("%Y%m%d")
+    bit = hedef_tarih.strftime("%Y%m%d")
 
-    sess = requests.Session()
-    sess.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Accept-Language": "tr-TR,tr;q=0.9",
-        "X-Requested-With": "XMLHttpRequest",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "Origin": "https://www.tefas.gov.tr",
-        "Referer": "https://www.tefas.gov.tr/FonAnaliz.aspx",
-    })
+    body = {
+        "fonTipi": "YAT",
+        "fonKodu": fon_kodu,
+        "aramaMetni": fon_kodu,
+        "fonTurKod": None,
+        "fonGrubu": None,
+        "sfonTurKod": None,
+        "fonTurAciklama": None,
+        "kurucuKod": None,
+        "basTarih": bas,
+        "bitTarih": bit,
+        "basSira": 1,
+        "bitSira": 100,
+        "dil": "TR",
+        "sFonTurKod": "",
+        "fonKod": "",
+        "fonGrup": "",
+        "fonUnvanTip": "",
+    }
 
-    try:
-        # Cookie edinmek için önce ana sayfa
-        sess.get("https://www.tefas.gov.tr/FonAnaliz.aspx", timeout=15)
+    for deneme in range(3):
+        try:
+            r = requests.post(
+                TEFAS_API_URL,
+                json=body,
+                headers=TEFAS_HEADERS,
+                timeout=20
+            )
+            if r.status_code == 429:
+                time.sleep(15)
+                continue
+            if r.status_code != 200 or not r.text.strip():
+                time.sleep(3)
+                continue
 
-        for sembol in semboller:
-            try:
-                r = sess.post(
-                    "https://www.tefas.gov.tr/api/DB/BindHistoryInfo",
-                    data={"fontip":"YAT","sfonkod":sembol,
-                          "bastarih":tarih_str,"bittarih":tarih_str,"fonturkod":""},
-                    timeout=15
-                )
-                if r.status_code == 200:
-                    j = r.json()
-                    lst = j.get("data", [])
-                    if lst:
-                        fiyat = float(lst[0].get("FIYAT", 0))
-                        if fiyat > 0:
-                            results[sembol] = fiyat
-            except Exception:
-                pass
-
-        return results, "TEFAS-API" if results else None
-    except Exception:
-        return {}, None
-
-# ── TEFAS Yöntem 2: FonAnaliz sayfası scrape ─────────────────────────────────
-
-def fetch_tefas_scrape(semboller):
-    """TEFAS FonAnaliz.aspx sayfasından fiyat parse et."""
-    if not semboller:
-        return {}, None
-    results = {}
-    try:
-        for sembol in semboller:
-            try:
-                r = requests.get(
-                    f"https://www.tefas.gov.tr/FonAnaliz.aspx?FonKod={sembol}",
-                    headers={"User-Agent": "Mozilla/5.0"},
-                    timeout=15
-                )
-                if r.status_code == 200:
-                    # Fiyat genellikle "Birim Pay Değeri" sonrası geliyor
-                    import re
-                    m = re.search(r'Birim Pay De[ğg]eri.*?(\d[\d\.,]+)', r.text, re.DOTALL)
-                    if not m:
-                        m = re.search(r'"FIYAT"\s*:\s*"?([\d\.]+)"?', r.text)
-                    if m:
-                        try:
-                            fiyat = float(m.group(1).replace(',','.'))
-                            if fiyat > 0:
-                                results[sembol] = fiyat
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-        return results, "TEFAS-scrape" if results else None
-    except Exception:
-        return {}, None
-
-# ── collectapi.com ────────────────────────────────────────────────────────────
-
-def fetch_collectapi(semboller):
-    """collectapi.com - ücretsiz tier (günde 100 istek)."""
-    if not semboller:
-        return {}, None
-    results = {}
-    try:
-        for sembol in semboller:
-            try:
-                r = requests.get(
-                    f"https://api.collectapi.com/economy/fund?fonCode={sembol}",
-                    headers={
-                        "authorization": "apikey 6P5SkOesMnfrqMNd3NpwXX:6gSGMiNJuSfq1rGHLIYHXq",
-                        "content-type": "application/json"
-                    },
-                    timeout=10
-                )
-                if r.status_code == 200:
-                    j = r.json()
-                    if j.get("success") and j.get("result"):
-                        fiyat = float(j["result"][0].get("price", 0))
-                        if fiyat > 0:
-                            results[sembol] = fiyat
-            except Exception:
-                pass
-        return results, "collectapi.com" if results else None
-    except Exception:
-        return {}, None
-
-# ── FON Ana Fonksiyon ─────────────────────────────────────────────────────────
+            for row in r.json().get("resultList", []):
+                fiyat = row.get("fiyat")
+                if fiyat is not None:
+                    return float(fiyat)
+            return None  # Veri geldi ama boş (tatil günü vs.)
+        except Exception:
+            time.sleep(3)
+    return None
 
 def fetch_fon_fiyatlari(semboller):
+    """Tüm fon sembollerinin bugünkü fiyatını çeker."""
     if not semboller:
         return {}, "yok"
 
-    for fn, name in [(fetch_tefas_api, "TEFAS-API"),
-                     (fetch_tefas_scrape, "TEFAS-scrape"),
-                     (fetch_collectapi, "collectapi")]:
-        results, method = fn(semboller)
-        if results:
-            # Eksik kalanları bir sonraki yöntemle tamamla
-            eksik = [s for s in semboller if s not in results]
-            if eksik:
-                for fn2, _ in [(fetch_tefas_api, ""), (fetch_tefas_scrape, ""),
-                               (fetch_collectapi, "")]:
-                    if fn2 == fn:
-                        continue
-                    r2, _ = fn2(eksik)
-                    results.update(r2)
-                    eksik = [s for s in eksik if s not in results]
-                    if not eksik:
-                        break
-            return results, method
+    hedef = son_is_gunu()
+    results = {}
 
-    return {}, "başarısız"
+    for sembol in semboller:
+        fiyat = fetch_tefas_fon(sembol, hedef)
+        if fiyat:
+            results[sembol] = fiyat
+        time.sleep(2)  # Rate limit koruması
+
+    return results, "TEFAS" if results else None
 
 # ── Borsa/ETF (Yahoo Finance) ────────────────────────────────────────────────
 
