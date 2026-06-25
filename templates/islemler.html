@@ -10,17 +10,11 @@
 <div class="card form-card">
   <h3>➕ Yeni İşlem Ekle</h3>
   <form method="POST" action="{{ url_for('islem_ekle') }}" class="islem-form">
+    <input type="hidden" name="tur" id="tur-hidden" value="FON">
     <div class="form-row">
+
       <div class="form-group">
-        <label>Tür</label>
-        <select name="tur" id="tur-select" required>
-          <option value="FON">📊 Yatırım Fonu</option>
-          <option value="BIST">📈 Borsa TR (BIST)</option>
-          <option value="ABD">🇺🇸 Borsa USA</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Sembol <span class="hint" id="sembol-hint">(örn: PHE, TP2)</span></label>
+        <label>Sembol <span class="hint">(örn: PHE, THYAO, AAPL)</span></label>
         <div class="sembol-wrapper">
           <input type="text" name="sembol" id="sembol-input" placeholder="Kod yaz..."
             required autocomplete="off" style="text-transform:uppercase;width:100%">
@@ -211,65 +205,46 @@ document.getElementById('tur-select').addEventListener('change', function() {
 document.querySelector('input[name="tarih"]').value = new Date().toISOString().split('T')[0];
 
 // Sembol Autocomplete
-const turSelect = document.getElementById('tur-select');
 const sembolInput = document.getElementById('sembol-input');
 const sembolDd = document.getElementById('sembol-dropdown');
 const fiyatInput = document.getElementById('fiyat-input');
 const sonFiyatBadge = document.getElementById('son-fiyat-badge');
-let acTimer;
+const turHidden = document.getElementById('tur-hidden');
+let acTimer, secilenPiyasa = '';
 
-turSelect.addEventListener('change', function() {
-  const hint = document.getElementById('sembol-hint');
-  if (this.value === 'FON') hint.textContent = '(örn: PHE, TP2, PRY, TLY)';
-  else if (this.value === 'BIST') hint.textContent = '(örn: THYAO, GARAN, SASA)';
-  else hint.textContent = '(örn: AAPL, MSFT, NVDA)';
-  sembolInput.value = '';
-  fiyatInput.value = '';
-  sonFiyatBadge.style.display = 'none';
-});
-
-// Bugünün tarihi
-document.querySelector('input[name="tarih"]').value = new Date().toISOString().split('T')[0];
-
-// Sembol seçilince son fiyatı çek
-function sonFiyatGetir(sembol) {
+function sonFiyatGetir(sembol, tur) {
   if (!sembol) return;
-  const tur = turSelect.value;
   sonFiyatBadge.textContent = '⏳ Çekiliyor...';
   sonFiyatBadge.style.display = 'inline';
-  fetch(`/api/son-fiyat?sembol=${encodeURIComponent(sembol)}&tur=${tur}`)
+  fetch(`/api/son-fiyat?sembol=${encodeURIComponent(sembol)}&tur=${tur||turHidden.value}`)
     .then(r => r.json())
     .then(d => {
       if (d.fiyat) {
         fiyatInput.value = d.fiyat;
-        const kaynakIcon = d.kaynak === 'db' ? '💾' : '🌐';
-        sonFiyatBadge.textContent = `${kaynakIcon} ${d.fiyat} ₺ (${d.tarih})`;
-        sonFiyatBadge.style.display = 'inline';
+        const icon = d.kaynak === 'db' ? '💾' : '🌐';
+        sonFiyatBadge.textContent = `${icon} ${d.fiyat} (${d.tarih})`;
         sonFiyatBadge.style.color = 'var(--pos)';
       } else {
-        sonFiyatBadge.textContent = d.hata || '❌ Fiyat bulunamadı — manuel gir';
-        sonFiyatBadge.style.color = 'var(--neg)';
+        sonFiyatBadge.textContent = '⚠️ Fiyat bulunamadı — manuel gir';
+        sonFiyatBadge.style.color = 'var(--text2)';
       }
-    }).catch(e => {
+    }).catch(() => {
       sonFiyatBadge.textContent = '❌ Bağlantı hatası';
       sonFiyatBadge.style.color = 'var(--neg)';
     });
 }
 
-// Autocomplete
 sembolInput.addEventListener('input', function() {
   clearTimeout(acTimer);
   const q = this.value.trim();
   if (q.length < 1) { sembolDd.innerHTML = ''; sembolDd.style.display='none'; return; }
-  const piyasaMap = {'FON':'FON','BIST':'BIST','ABD':'ABD'};
-  const piyasa = piyasaMap[turSelect.value] || '';
   acTimer = setTimeout(() => {
-    fetch(`/api/sembol-ara?q=${encodeURIComponent(q)}&piyasa=${piyasa}`)
+    fetch(`/api/sembol-ara?q=${encodeURIComponent(q)}`)
       .then(r => r.json())
       .then(data => {
         if (!data.length) { sembolDd.style.display='none'; return; }
         sembolDd.innerHTML = data.map(d =>
-          `<div class="sembol-item" data-kod="${d.kod}">
+          `<div class="sembol-item" data-kod="${d.kod}" data-piyasa="${d.piyasa}">
             <strong>${d.kod}</strong>
             <span>${d.ad}</span>
             <span class="sembol-piyasa">${d.piyasa}</span>
@@ -279,10 +254,10 @@ sembolInput.addEventListener('input', function() {
         sembolDd.querySelectorAll('.sembol-item').forEach(el => {
           el.addEventListener('click', () => {
             sembolInput.value = el.dataset.kod;
+            secilenPiyasa = el.dataset.piyasa;
+            turHidden.value = secilenPiyasa;
             sembolDd.style.display = 'none';
-            sonFiyatBadge.textContent = '⏳ Fiyat çekiliyor...';
-            sonFiyatBadge.style.display = 'inline';
-            sonFiyatGetir(el.dataset.kod);
+            sonFiyatGetir(el.dataset.kod, secilenPiyasa);
           });
         });
       });
@@ -292,7 +267,7 @@ sembolInput.addEventListener('input', function() {
 sembolInput.addEventListener('blur', function() {
   setTimeout(() => { sembolDd.style.display = 'none'; }, 200);
   const val = this.value.trim().toUpperCase();
-  if (val.length >= 2) sonFiyatGetir(val);
+  if (val.length >= 2) sonFiyatGetir(val, turHidden.value);
 });
 
 sembolInput.addEventListener('keydown', function(e) {
@@ -300,7 +275,7 @@ sembolInput.addEventListener('keydown', function(e) {
     e.preventDefault();
     sembolDd.style.display = 'none';
     const val = this.value.trim().toUpperCase();
-    if (val.length >= 2) sonFiyatGetir(val);
+    if (val.length >= 2) sonFiyatGetir(val, turHidden.value);
   }
 });
 

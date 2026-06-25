@@ -1583,9 +1583,12 @@ def api_son_fiyat():
     if row:
         return jsonify({"fiyat": row["fiyat"], "tarih": row["tarih"], "kaynak": "db"})
 
-    import requests as req
-
-    # 2) FON → TEFAS
+    # Eğer tur gelmemişse DB'den bul
+    if not tur:
+        with get_db() as conn:
+            s = conn.execute("SELECT piyasa FROM semboller WHERE kod=? LIMIT 1", (sembol,)).fetchone()
+            if s:
+                tur = s["piyasa"]  # FON, BIST, ABD
     if tur == "FON":
         try:
             from price_fetcher import fetch_tefas_fon, son_is_gunu
