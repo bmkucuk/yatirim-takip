@@ -213,7 +213,7 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
                     "SELECT MAX(tarih) FROM islemler WHERE user_id=? AND sembol=? AND alissat='Alış'",
                     (user_id, sembol)
                 ).fetchone()[0]
-            gunluk_sifir = (son_alis == dun_str)
+            gunluk_sifir = son_alis in (bugun_str, dun_str)
         else:
             gunluk_sifir = False
         if gunluk_sifir:
