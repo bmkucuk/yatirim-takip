@@ -4,9 +4,15 @@
 
 <div class="page-header">
   <h2>📋 Fiyat Geçmişi</h2>
-  <form method="POST" action="{{ url_for('fiyat_guncelle') }}" style="display:inline">
-    <button type="submit" class="btn-primary">🔄 Fiyatları Otomatik Güncelle</button>
-  </form>
+  <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+    <form method="POST" action="{{ url_for('fiyat_guncelle') }}" style="display:inline">
+      <button type="submit" class="btn-primary">🔄 Bugünü Güncelle</button>
+    </form>
+    <form method="POST" action="{{ url_for('fiyat_backfill') }}" style="display:inline"
+      onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='⏳ Doldurulüyor...'">
+      <button type="submit" class="btn-secondary">📅 Eksik Günleri Doldur (60 gün)</button>
+    </form>
+  </div>
 </div>
 
 <!-- Güncelleme Logları -->

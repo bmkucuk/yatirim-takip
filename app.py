@@ -673,7 +673,78 @@ def import_excel():
     return render_template("import_excel.html", count=len(excel_islemler))
 
 
-@app.route("/import-fiyatlar", methods=["GET","POST"])
+@app.route("/fiyat-backfill", methods=["POST"])
+@login_required
+def fiyat_backfill():
+    """Son 60 günün eksik fiyatlarını TEFAS'tan çekip doldur."""
+    from price_fetcher import fetch_tefas_fon, son_is_gunu
+    from datetime import date, timedelta
+    import time as time_mod
+
+    user_id = session["user_id"]
+    with get_db() as conn:
+        fon_sembolleri = [r["sembol"] for r in conn.execute(
+            "SELECT DISTINCT sembol FROM islemler WHERE user_id=? AND tur='FON'",
+            (user_id,)).fetchall()]
+
+    if not fon_sembolleri:
+        flash("Hiç fon işlemi bulunamadı.", "error")
+        return redirect(url_for("fiyatlar"))
+
+    bugun = date.today()
+    baslangic = bugun - timedelta(days=60)
+
+    # Mevcut fiyatları çek
+    with get_db() as conn:
+        mevcut = set()
+        for r in conn.execute(
+            "SELECT sembol, tarih FROM fiyat_gecmisi WHERE sembol IN ({})".format(
+                ",".join("?"*len(fon_sembolleri))), fon_sembolleri).fetchall():
+            mevcut.add((r["sembol"], r["tarih"]))
+
+    # Eksik gün+sembol kombinasyonlarını bul
+    eksikler = {}  # tarih -> [sembol]
+    gun = baslangic
+    while gun <= bugun:
+        if gun.weekday() < 5:  # İş günü
+            tarih_str = str(gun)
+            for s in fon_sembolleri:
+                if (s, tarih_str) not in mevcut:
+                    eksikler.setdefault(tarih_str, []).append(s)
+        gun += timedelta(days=1)
+
+    if not eksikler:
+        flash("Eksik fiyat bulunamadı, tüm günler dolu.", "success")
+        return redirect(url_for("fiyatlar"))
+
+    # Eksik günleri TEFAS'tan çek
+    eklenen = 0
+    toplam_eksik = sum(len(v) for v in eksikler.items())
+
+    for tarih_str, semboller in sorted(eksikler.items()):
+        hedef = date.fromisoformat(tarih_str)
+        for sembol in semboller:
+            fiyat = fetch_tefas_fon(sembol, hedef)
+            if fiyat:
+                with get_db() as conn:
+                    conn.execute("""
+                        INSERT OR REPLACE INTO fiyat_gecmisi (sembol, tarih, fiyat)
+                        VALUES (?,?,?)
+                    """, (sembol, tarih_str, fiyat))
+                eklenen += 1
+            time_mod.sleep(1)
+
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO price_fetch_log (tarih, sonuc, detay)
+            VALUES (?,?,?)
+        """, (str(bugun()), "Backfill-TEFAS",
+              f"{eklenen} eksik fiyat dolduruldu ({len(eksikler)} gün tarandı)"))
+
+    flash(f"✅ {eklenen} eksik fiyat dolduruldu ({len(eksikler)} gün tarandı).", "success")
+    return redirect(url_for("fiyatlar"))
+
+, methods=["GET","POST"])
 @login_required
 def import_fiyatlar():
     """Excel'den fiyat geçmişini yükle."""
@@ -1313,6 +1384,43 @@ def api_portfoy():
     portfoy = hesapla_portfoy(session["user_id"])
     return jsonify(portfoy)
 
-if __name__ == "__main__":
+@app.route("/cron/guncelle")
+def cron_guncelle():
+    """
+    Render Cron Job bu endpoint'i çağırır.
+    CRON_KEY env var ile korunur.
+    """
+    import os
+    key = request.args.get("key","")
+    if key != os.environ.get("CRON_KEY",""):
+        return "yetkisiz", 403
+
+    with get_db() as conn:
+        tum = conn.execute("SELECT DISTINCT sembol, tur FROM islemler").fetchall()
+
+    fon_sembolleri = [r["sembol"] for r in tum if r["tur"] == "FON"]
+    hisse_sembolleri = [r["sembol"] for r in tum if r["tur"] == "HISSE"]
+
+    sonuc = fetch_all_prices(fon_sembolleri, hisse_sembolleri)
+
+    basarili = 0
+    for sembol, tarih, fiyat in sonuc.get("prices", []):
+        with get_db() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO fiyat_gecmisi (sembol, tarih, fiyat)
+                VALUES (?,?,?)
+            """, (sembol, tarih, fiyat))
+        basarili += 1
+
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO price_fetch_log (tarih, sonuc, detay)
+            VALUES (?,?,?)
+        """, (str(bugun()), sonuc.get("method","?"),
+              f"{basarili} fiyat güncellendi (cron). {sonuc.get('errors','')}"))
+
+    return f"OK: {basarili} fiyat güncellendi. {sonuc.get('method')}", 200
+
+
     init_db()
     app.run(debug=True)
