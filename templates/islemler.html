@@ -83,12 +83,32 @@
 </div>
 
 <!-- Filtre -->
-<div class="filter-bar">
-  <span>Sembol filtresi:</span>
-  <a href="{{ url_for('islemler') }}" class="filter-btn {% if not filtre %}active{% endif %}">Tümü</a>
-  {% for s in semboller %}
+<div class="filter-bar" style="flex-wrap:wrap;gap:0.5rem">
+  <a href="{{ url_for('islemler') }}" class="filter-btn {% if not filtre and not tur_filtre %}active{% endif %}">Tümü</a>
+
+  {% if fon_semboller %}
+  <span class="filter-label">📊 Fon:</span>
+  <a href="?tur=FON" class="filter-btn {% if tur_filtre=='FON' and not filtre %}active{% endif %}">Hepsi</a>
+  {% for s in fon_semboller %}
   <a href="?sembol={{ s }}" class="filter-btn {% if filtre==s %}active{% endif %}">{{ s }}</a>
   {% endfor %}
+  {% endif %}
+
+  {% if bist_semboller %}
+  <span class="filter-label">📈 BIST:</span>
+  <a href="?tur=BIST" class="filter-btn {% if tur_filtre=='BIST' and not filtre %}active{% endif %}">Hepsi</a>
+  {% for s in bist_semboller %}
+  <a href="?sembol={{ s }}" class="filter-btn {% if filtre==s %}active{% endif %}">{{ s }}</a>
+  {% endfor %}
+  {% endif %}
+
+  {% if abd_semboller %}
+  <span class="filter-label">🇺🇸 ABD:</span>
+  <a href="?tur=ABD" class="filter-btn {% if tur_filtre=='ABD' and not filtre %}active{% endif %}">Hepsi</a>
+  {% for s in abd_semboller %}
+  <a href="?sembol={{ s }}" class="filter-btn {% if filtre==s %}active{% endif %}">{{ s }}</a>
+  {% endfor %}
+  {% endif %}
 </div>
 
 <!-- İşlemler Tablosu -->

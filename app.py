@@ -407,22 +407,34 @@ def dashboard():
 def islemler():
     user_id = session["user_id"]
     filtre = request.args.get("sembol","")
+    tur_filtre = request.args.get("tur","")
     with get_db() as conn:
         hesaplar = [r["ad"] for r in conn.execute("SELECT ad FROM hesaplar WHERE user_id=?", (user_id,)).fetchall()]
         aracilar = [r["ad"] for r in conn.execute("SELECT ad FROM aracilar WHERE user_id=?", (user_id,)).fetchall()]
         if filtre:
-            rows = conn.execute("""
-                SELECT * FROM islemler WHERE user_id=? AND sembol=?
-                ORDER BY tarih DESC
-            """, (user_id, filtre.upper())).fetchall()
+            rows = conn.execute("SELECT * FROM islemler WHERE user_id=? AND sembol=? ORDER BY tarih DESC",
+                                (user_id, filtre.upper())).fetchall()
+        elif tur_filtre:
+            rows = conn.execute("SELECT * FROM islemler WHERE user_id=? AND tur=? ORDER BY tarih DESC",
+                                (user_id, tur_filtre)).fetchall()
         else:
-            rows = conn.execute("""
-                SELECT * FROM islemler WHERE user_id=?
-                ORDER BY tarih DESC
-            """, (user_id,)).fetchall()
-    semboller = sorted(set(r["sembol"] for r in rows))
-    return render_template("islemler.html", islemler=rows, hesaplar=hesaplar,
-                           aracilar=aracilar, filtre=filtre, semboller=semboller)
+            rows = conn.execute("SELECT * FROM islemler WHERE user_id=? ORDER BY tarih DESC",
+                                (user_id,)).fetchall()
+
+        # Tüm semboller türe göre gruplu (filtre barı için)
+        tum = conn.execute("SELECT DISTINCT sembol, tur FROM islemler WHERE user_id=? ORDER BY tur, sembol",
+                           (user_id,)).fetchall()
+
+    fon_semboller  = [r["sembol"] for r in tum if r["tur"] == "FON"]
+    bist_semboller = [r["sembol"] for r in tum if r["tur"] == "BIST"]
+    abd_semboller  = [r["sembol"] for r in tum if r["tur"] == "ABD"]
+
+    return render_template("islemler.html",
+        islemler=rows, hesaplar=hesaplar, aracilar=aracilar,
+        filtre=filtre, tur_filtre=tur_filtre,
+        fon_semboller=fon_semboller,
+        bist_semboller=bist_semboller,
+        abd_semboller=abd_semboller)
 
 @app.route("/islem-ekle", methods=["POST"])
 @login_required
