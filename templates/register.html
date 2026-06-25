@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kayıt Ol — Yatırım Takip</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="auth-page">
+<div class="auth-card">
+  <div class="auth-logo">📈</div>
+  <h1>Hesap Oluştur</h1>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="flash flash-{{ cat }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <form method="POST">
+    <div class="form-group">
+      <label>Kullanıcı Adı</label>
+      <input type="text" name="username" required autofocus>
+    </div>
+    <div class="form-group">
+      <label>E-posta (opsiyonel)</label>
+      <input type="email" name="email">
+    </div>
+    <div class="form-group">
+      <label>Şifre (en az 6 karakter)</label>
+      <input type="password" name="password" required>
+    </div>
+    <button type="submit" class="btn-primary btn-full">Kayıt Ol</button>
+  </form>
+  <p class="auth-link">Zaten hesabın var mı? <a href="{{ url_for('login') }}">Giriş Yap</a></p>
+</div>
+</body>
+</html>

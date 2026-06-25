@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: yatirim-takip
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash start.sh
+    plan: starter
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DB_PATH
+        value: /data/yatirim.db
+    disk:
+      name: yatirim-data
+      mountPath: /data
+      sizeGB: 1

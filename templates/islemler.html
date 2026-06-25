@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}İşlemler — Yatırım Takip{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h2>💹 İşlem Geçmişi</h2>
+</div>
+
+<!-- Yeni İşlem Formu -->
+<div class="card form-card">
+  <h3>➕ Yeni İşlem Ekle</h3>
+  <form method="POST" action="{{ url_for('islem_ekle') }}" class="islem-form">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Tür</label>
+        <select name="tur" id="tur-select" required>
+          <option value="FON">📊 Yatırım Fonu</option>
+          <option value="HISSE">📈 Borsa Hissesi</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Sembol <span class="hint" id="sembol-hint">(örn: PHE, TP2)</span></label>
+        <input type="text" name="sembol" placeholder="PHE" required style="text-transform:uppercase">
+      </div>
+      <div class="form-group">
+        <label>Al / Sat</label>
+        <select name="alissat" required>
+          <option value="Alış">Alış</option>
+          <option value="Satış">Satış</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Hesap</label>
+        <select name="hesap">
+          {% for h in hesaplar %}
+          <option value="{{ h }}">{{ h }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Aracı Kurum</label>
+        <select name="araciKurum">
+          {% for a in aracilar %}
+          <option value="{{ a }}">{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Tarih</label>
+        <input type="date" name="tarih" required value="{{ today }}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Adet (Pay Sayısı)</label>
+        <input type="number" name="adet" step="any" min="0" placeholder="100000" required>
+      </div>
+      <div class="form-group">
+        <label>Fiyat (₺)</label>
+        <input type="number" name="fiyat" step="any" min="0" placeholder="2.50" required>
+      </div>
+      <div class="form-group form-group-action">
+        <label>&nbsp;</label>
+        <button type="submit" class="btn-primary">İşlemi Kaydet</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Filtre -->
+<div class="filter-bar">
+  <span>Sembol filtresi:</span>
+  <a href="{{ url_for('islemler') }}" class="filter-btn {% if not filtre %}active{% endif %}">Tümü</a>
+  {% set semboller = islemler | map(attribute='sembol') | unique | list %}
+  {% for s in semboller %}
+  <a href="?sembol={{ s }}" class="filter-btn {% if filtre==s %}active{% endif %}">{{ s }}</a>
+  {% endfor %}
+</div>
+
+<!-- İşlemler Tablosu -->
+{% if islemler %}
+<div class="table-wrap">
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Tarih</th>
+      <th>Sembol</th>
+      <th>Tür</th>
+      <th>Al/Sat</th>
+      <th>Hesap</th>
+      <th>Aracı Kurum</th>
+      <th>Adet</th>
+      <th>Fiyat</th>
+      <th>Tutar</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for i in islemler %}
+  <tr>
+    <td>{{ i.tarih }}</td>
+    <td><strong>{{ i.sembol }}</strong></td>
+    <td><span class="badge badge-{{ i.tur|lower }}">{{ i.tur }}</span></td>
+    <td class="{{ 'pos' if i.alissat=='Alış' else 'neg' }}"><strong>{{ i.alissat }}</strong></td>
+    <td>{{ i.hesap or '—' }}</td>
+    <td>{{ i.araciKurum or '—' }}</td>
+    <td>{{ "{:,.0f}".format(i.adet).replace(",",".") }}</td>
+    <td>{{ "{:.6f}".format(i.fiyat).replace(".",",") }}</td>
+    <td>{{ "{:,.2f}".format(i.tutar).replace(",","X").replace(".",",").replace("X",".") }} ₺</td>
+    <td>
+      <a href="{{ url_for('islem_sil', islem_id=i.id) }}"
+         onclick="return confirm('Bu işlemi silmek istediğinize emin misiniz?')"
+         class="btn-del">Sil</a>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty-state">Henüz işlem yok.</div>
+{% endif %}
+
+<script>
+document.getElementById('tur-select').addEventListener('change', function() {
+  const hint = document.getElementById('sembol-hint');
+  if (this.value === 'FON') hint.textContent = '(örn: PHE, TP2, PRY, TLY)';
+  else hint.textContent = '(örn: THYAO, GARAN, SASA)';
+});
+// Bugünün tarihi
+document.querySelector('input[name="tarih"]').value = new Date().toISOString().split('T')[0];
+</script>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Fiyat Geçmişi — Yatırım Takip{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h2>📋 Fiyat Geçmişi</h2>
+  <form method="POST" action="{{ url_for('fiyat_guncelle') }}" style="display:inline">
+    <button type="submit" class="btn-primary">🔄 Fiyatları Otomatik Güncelle</button>
+  </form>
+</div>
+
+<!-- Güncelleme Logları -->
+{% if logs %}
+<div class="card" style="margin-bottom:1rem">
+  <h4>Son Güncellemeler</h4>
+  {% for log in logs %}
+  <div class="log-row">
+    <span class="log-date">{{ log.tarih }}</span>
+    <span class="log-method">{{ log.sonuc }}</span>
+    <span class="log-detail">{{ log.detay }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Manuel Fiyat Ekleme -->
+<div class="card form-card">
+  <h3>✏️ Manuel Fiyat Ekle / Güncelle</h3>
+  <form method="POST" action="{{ url_for('fiyat_ekle') }}" class="islem-form">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Sembol</label>
+        {% if semboller %}
+        <select name="sembol">
+          {% for s in semboller %}
+          <option value="{{ s }}">{{ s }}</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <input type="text" name="sembol" placeholder="PHE" style="text-transform:uppercase" required>
+        {% endif %}
+      </div>
+      <div class="form-group">
+        <label>Tarih</label>
+        <input type="date" name="tarih" required>
+      </div>
+      <div class="form-group">
+        <label>Fiyat (₺)</label>
+        <input type="number" name="fiyat" step="any" placeholder="2.5000" required>
+      </div>
+      <div class="form-group form-group-action">
+        <label>&nbsp;</label>
+        <button type="submit" class="btn-secondary">Kaydet</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Fiyat Tablosu -->
+{% if rows %}
+<div class="table-wrap">
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Tarih</th>
+      <th>Sembol</th>
+      <th>Fiyat (₺)</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.tarih }}</td>
+    <td><strong>{{ r.sembol }}</strong></td>
+    <td>{{ "{:.6f}".format(r.fiyat).replace(".",",") }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty-state">Henüz fiyat verisi yok. Otomatik güncelle butonuna tıkla veya manuel gir.</div>
+{% endif %}
+
+<script>
+document.querySelector('input[name="tarih"]').value = new Date().toISOString().split('T')[0];
+</script>
+{% endblock %}
