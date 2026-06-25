@@ -572,6 +572,83 @@ def bulk_import():
 
     return jsonify({"ok": True, "eklenen": eklenen})
 
+@app.route("/import-excel", methods=["GET","POST"])
+@login_required
+def import_excel():
+    """Tek tıkla Excel işlemlerini yükle."""
+    import os
+    IMPORT_KEY = os.environ.get("IMPORT_KEY","")
+
+    excel_islemler = [
+        {"sembol":"PRY","hesap":"Murat","araciKurum":"Murat Midas","alissat":"Alış","adet":230972.0,"fiyat":2.16834,"tarih":"2025-10-30"},
+        {"sembol":"PRY","hesap":"Berrin","araciKurum":"Berrin Denizbank","alissat":"Alış","adet":225687.0,"fiyat":2.171141,"tarih":"2025-10-31"},
+        {"sembol":"PRY","hesap":"Murat","araciKurum":"Murat Midas","alissat":"Alış","adet":287867.0,"fiyat":2.171141,"tarih":"2025-10-31"},
+        {"sembol":"PRY","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Alış","adet":2012766.0,"fiyat":2.171141,"tarih":"2025-10-31"},
+        {"sembol":"PRY","hesap":"Murat","araciKurum":"Murat Midas","alissat":"Alış","adet":458221.0,"fiyat":2.182357,"tarih":"2025-11-04"},
+        {"sembol":"PRY","hesap":"Murat","araciKurum":"Murat Midas","alissat":"Alış","adet":306472.0,"fiyat":2.185182,"tarih":"2025-11-05"},
+        {"sembol":"PRY","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Satış","adet":2012766.0,"fiyat":2.204968,"tarih":"2025-11-12"},
+        {"sembol":"TP2","hesap":"Murat","araciKurum":"Murat Midas","alissat":"Alış","adet":662037.0,"fiyat":1.508628,"tarih":"2025-11-13"},
+        {"sembol":"TP2","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Alış","adet":1605417.0,"fiyat":1.510512,"tarih":"2025-11-14"},
+        {"sembol":"TP2","hesap":"Murat","araciKurum":"Murat Midas","alissat":"Alış","adet":662.0,"fiyat":1.510512,"tarih":"2025-11-14"},
+        {"sembol":"TP2","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Satış","adet":35016.0,"fiyat":1.713539,"tarih":"2026-02-17"},
+        {"sembol":"TP2","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Alış","adet":738829.0,"fiyat":1.827211,"tarih":"2026-04-09"},
+        {"sembol":"TP2","hesap":"Murat","araciKurum":"Murat Midas","alissat":"Satış","adet":662699.0,"fiyat":1.839223,"tarih":"2026-04-14"},
+        {"sembol":"PRY","hesap":"Murat","araciKurum":"Murat Midas","alissat":"Satış","adet":1283532.0,"fiyat":2.684218,"tarih":"2026-04-14"},
+        {"sembol":"TP2","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Alış","adet":814264.0,"fiyat":1.842151,"tarih":"2026-04-15"},
+        {"sembol":"PRY","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Alış","adet":1524885.0,"fiyat":2.688726,"tarih":"2026-04-15"},
+        {"sembol":"TP2","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Alış","adet":54283.0,"fiyat":1.842151,"tarih":"2026-04-15"},
+        {"sembol":"PRY","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Satış","adet":184243.0,"fiyat":2.713819,"tarih":"2026-04-22"},
+        {"sembol":"TP2","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Satış","adet":268940.0,"fiyat":1.859155,"tarih":"2026-04-22"},
+        {"sembol":"PRY","hesap":"Berrin","araciKurum":"Berrin Denizbank","alissat":"Satış","adet":36849.0,"fiyat":2.713819,"tarih":"2026-04-22"},
+        {"sembol":"TLY","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Alış","adet":98.0,"fiyat":5216.385597,"tarih":"2026-04-28"},
+        {"sembol":"PHE","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Alış","adet":175068.0,"fiyat":2.856028,"tarih":"2026-04-28"},
+        {"sembol":"TLY","hesap":"Berrin","araciKurum":"Berrin Denizbank","alissat":"Alış","adet":9.0,"fiyat":5216.385597,"tarih":"2026-04-28"},
+        {"sembol":"PHE","hesap":"Berrin","araciKurum":"Berrin Denizbank","alissat":"Alış","adet":17506.0,"fiyat":2.856028,"tarih":"2026-04-28"},
+        {"sembol":"TP2","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Satış","adet":253020.0,"fiyat":1.976129,"tarih":"2026-06-09"},
+        {"sembol":"PRY","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Satış","adet":173395.0,"fiyat":2.883597,"tarih":"2026-06-09"},
+        {"sembol":"PRY","hesap":"Berrin","araciKurum":"Berrin Denizbank","alissat":"Satış","adet":34679.0,"fiyat":2.883597,"tarih":"2026-06-09"},
+        {"sembol":"PHE","hesap":"Berrin","araciKurum":"Berrin Denizbank","alissat":"Alış","adet":30367.0,"fiyat":3.292996,"tarih":"2026-06-11"},
+        {"sembol":"PHE","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Alış","adet":182204.0,"fiyat":3.292996,"tarih":"2026-06-11"},
+        {"sembol":"TLY","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Alış","adet":57.0,"fiyat":6063.543833,"tarih":"2026-06-11"},
+        {"sembol":"TLY","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Satış","adet":155.0,"fiyat":6523.1441,"tarih":"2026-06-16"},
+        {"sembol":"PHE","hesap":"Murat","araciKurum":"Murat Denizbank","alissat":"Satış","adet":357272.0,"fiyat":3.49162,"tarih":"2026-06-16"},
+        {"sembol":"PHE","hesap":"Berrin","araciKurum":"Berrin Denizbank","alissat":"Satış","adet":47873.0,"fiyat":3.49162,"tarih":"2026-06-16"},
+        {"sembol":"TLY","hesap":"Berrin","araciKurum":"Berrin Denizbank","alissat":"Satış","adet":9.0,"fiyat":6523.1441,"tarih":"2026-06-17"},
+    ]
+
+    if request.method == "POST":
+        key = request.form.get("key","")
+        if not IMPORT_KEY or key != IMPORT_KEY:
+            flash("Import key hatalı.", "error")
+            return redirect(url_for("import_excel"))
+
+        user_id = session["user_id"]
+        with get_db() as conn:
+            conn.execute("DELETE FROM islemler WHERE user_id=? AND tur='FON'", (user_id,))
+
+        eklenen = 0
+        with get_db() as conn:
+            for i in excel_islemler:
+                tutar = i["adet"] * i["fiyat"]
+                conn.execute("""
+                    INSERT INTO islemler
+                    (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)
+                """, (user_id, i["sembol"], "FON", i["hesap"], i["araciKurum"],
+                      i["alissat"], i["adet"], i["fiyat"], tutar, i["tarih"]))
+                conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                             (i["sembol"], i["tarih"], i["fiyat"]))
+                conn.execute("INSERT OR IGNORE INTO hesaplar (user_id,ad) VALUES (?,?)",
+                             (user_id, i["hesap"]))
+                conn.execute("INSERT OR IGNORE INTO aracilar (user_id,ad) VALUES (?,?)",
+                             (user_id, i["araciKurum"]))
+                eklenen += 1
+
+        flash(f"✅ {eklenen} işlem başarıyla yüklendi!", "success")
+        return redirect(url_for("islemler"))
+
+    return render_template("import_excel.html", count=len(excel_islemler))
+
 @app.route("/api/portfoy")
 @login_required
 def api_portfoy():

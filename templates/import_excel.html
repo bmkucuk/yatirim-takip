@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Excel İmport — Yatırım Takip{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h2>📥 Excel'den İşlem Yükle</h2>
+</div>
+
+<div class="card" style="max-width:500px">
+  <h3>Onay</h3>
+  <p style="color:var(--text2);margin:0.75rem 0">
+    Excel'deki <strong style="color:var(--accent)">{{ count }} fon işlemi</strong> hesabına yüklenecek.<br>
+    Mevcut FON işlemlerin silinip Excel'dekiler eklenecek.
+    (HISSE işlemlerin dokunulmaz.)
+  </p>
+
+  <form method="POST">
+    <div class="form-group" style="margin-bottom:1rem">
+      <label>Import Key (Render'da IMPORT_KEY env var'ı)</label>
+      <input type="password" name="key" placeholder="••••••••" required autofocus>
+    </div>
+    <button type="submit" class="btn-primary btn-full">
+      ✅ {{ count }} İşlemi Yükle
+    </button>
+  </form>
+</div>
+
+{% endblock %}
