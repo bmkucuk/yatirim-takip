@@ -97,13 +97,17 @@
           <th style="text-align:right;padding:4px 8px;min-width:70px">Ağırlık</th>
           <th style="text-align:right;padding:4px 8px;min-width:90px">İlk Fiyat</th>
           <th style="text-align:right;padding:4px 8px;min-width:90px">Son Fiyat</th>
-          <th style="text-align:right;padding:4px 8px;min-width:100px">Getiri</th>
+          <th style="text-align:right;padding:4px 8px;min-width:60px">Vergi %</th>
+          <th style="text-align:right;padding:4px 8px;min-width:100px">Brüt Getiri</th>
+          <th style="text-align:right;padding:4px 8px;min-width:100px">Net Getiri</th>
           <th style="padding:4px 6px"></th>
         </tr>
       </thead>
       <tbody>
       {% for k in kl %}
         {% set getiri = ((k.son_fiyat / k.ilk_fiyat - 1) * 100) if k.son_fiyat and k.ilk_fiyat else none %}
+        {% set vergi = k.vergi_orani if k.vergi_orani else 0 %}
+        {% set net_getiri = (getiri * (1 - vergi/100)) if getiri is not none else none %}
         <tr id="kalem-row-{{ k.id }}" style="border-bottom:1px solid var(--border)">
           <td style="padding:5px 8px;min-width:110px"><strong>{{ k.sembol }}</strong></td>
           <td style="padding:5px 8px;text-align:right;min-width:70px">%{{ "{:.2f}".format(k.agirlik).replace(".",",") }}</td>
@@ -113,9 +117,20 @@
           <td style="padding:5px 8px;text-align:right;min-width:90px">
             {{ "{:.4f}".format(k.son_fiyat).rstrip('0').rstrip('.') if k.son_fiyat else "—" }}
           </td>
+          <td style="padding:5px 8px;text-align:right;min-width:60px;color:var(--text2)">
+            {% if vergi %}%{{ "{:.1f}".format(vergi).replace(".",",") }}{% else %}—{% endif %}
+          </td>
           <td style="padding:5px 8px;text-align:right;font-weight:600;min-width:100px"
               class="{{ 'pos' if getiri and getiri>=0 else 'neg' if getiri else '' }}">
             {% if getiri is not none %}
+              {{ ("▲ %" if getiri>=0 else "▼ %") }}{{ "{:.2f}".format(getiri|abs).replace(".",",") }}
+            {% else %}—{% endif %}
+          </td>
+          <td style="padding:5px 8px;text-align:right;font-weight:700;min-width:100px"
+              class="{{ 'pos' if net_getiri and net_getiri>=0 else 'neg' if net_getiri else '' }}">
+            {% if net_getiri is not none and vergi %}
+              {{ ("▲ %" if net_getiri>=0 else "▼ %") }}{{ "{:.2f}".format(net_getiri|abs).replace(".",",") }}
+            {% elif getiri is not none %}
               {{ ("▲ %" if getiri>=0 else "▼ %") }}{{ "{:.2f}".format(getiri|abs).replace(".",",") }}
             {% else %}—{% endif %}
           </td>
@@ -154,6 +169,12 @@
                 <label style="font-size:0.7rem;color:var(--text2);display:block">Son Fiyat</label>
                 <input type="text" name="son_fiyat" id="edit-son-{{ k.id }}" value="{{ k.son_fiyat or '' }}"
                   style="width:90px;background:var(--card);border:1px solid var(--border);color:var(--text);
+                         padding:5px 7px;border-radius:5px;font-size:0.82rem">
+              </div>
+              <div>
+                <label style="font-size:0.7rem;color:var(--text2);display:block">Vergi %</label>
+                <input type="number" name="vergi_orani" value="{{ k.vergi_orani or 0 }}" step="any" min="0" max="100"
+                  style="width:70px;background:var(--card);border:1px solid var(--border);color:var(--text);
                          padding:5px 7px;border-radius:5px;font-size:0.82rem">
               </div>
               <button type="submit" class="btn-primary" style="font-size:0.78rem;padding:5px 10px">Kaydet</button>
@@ -206,6 +227,12 @@
           <label style="font-size:0.72rem;color:var(--text2)">Son Fiyat (opsiyonel)</label>
           <input type="text" name="son_fiyat" placeholder="DB'den çekilir"
             style="width:100%;background:var(--card2);border:1px solid var(--border);
+                   color:var(--text);padding:6px 8px;border-radius:6px;font-size:0.82rem;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:0.72rem;color:var(--text2)">Vergi %</label>
+          <input type="number" name="vergi_orani" placeholder="0" min="0" max="100" step="any" value="0"
+            style="width:70px;background:var(--card2);border:1px solid var(--border);
                    color:var(--text);padding:6px 8px;border-radius:6px;font-size:0.82rem;box-sizing:border-box">
         </div>
         <button type="submit" class="btn-primary" style="font-size:0.8rem;padding:6px 12px">Ekle</button>

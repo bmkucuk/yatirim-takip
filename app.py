@@ -99,9 +99,16 @@ def init_db():
             agirlik REAL NOT NULL,
             ilk_fiyat REAL,
             son_fiyat REAL,
+            vergi_orani REAL DEFAULT 0,
             FOREIGN KEY(portfoy_id) REFERENCES kiyaslama_portfoy(id)
         );
         """)
+    # Migration: mevcut tablolara eksik kolonları ekle
+    try:
+        conn.execute("ALTER TABLE kiyaslama_kalem ADD COLUMN vergi_orani REAL DEFAULT 0")
+    except Exception:
+        pass
+
 
 def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
@@ -1910,10 +1917,15 @@ def kiyaslama_kalem_ekle():
         except:
             pass
 
+    vergi_str = request.form.get("vergi_orani", "0").replace(",", ".").strip()
+    try:
+        vergi_orani = float(vergi_str) if vergi_str else 0
+    except:
+        vergi_orani = 0
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO kiyaslama_kalem (portfoy_id,sembol,agirlik,ilk_fiyat,son_fiyat) VALUES (?,?,?,?,?)",
-            (portfoy_id, sembol, agirlik, ilk_fiyat, son_fiyat)
+            "INSERT INTO kiyaslama_kalem (portfoy_id,sembol,agirlik,ilk_fiyat,son_fiyat,vergi_orani) VALUES (?,?,?,?,?,?)",
+            (portfoy_id, sembol, agirlik, ilk_fiyat, son_fiyat, vergi_orani)
         )
     return redirect(url_for("kiyaslama"))
 
@@ -1927,6 +1939,7 @@ def kiyaslama_kalem_duzenle():
     agirlik = float(request.form["agirlik"].replace(",", "."))
     ilk_fiyat_str = request.form.get("ilk_fiyat", "").replace(",", ".").strip()
     son_fiyat_str = request.form.get("son_fiyat", "").replace(",", ".").strip()
+    vergi_str = request.form.get("vergi_orani", "0").replace(",", ".").strip()
     try:
         ilk_fiyat = float(ilk_fiyat_str) if ilk_fiyat_str else None
     except:
@@ -1935,15 +1948,19 @@ def kiyaslama_kalem_duzenle():
         son_fiyat = float(son_fiyat_str) if son_fiyat_str else None
     except:
         son_fiyat = None
+    try:
+        vergi_orani = float(vergi_str) if vergi_str else 0
+    except:
+        vergi_orani = 0
     with get_db() as conn:
         k = conn.execute("SELECT portfoy_id FROM kiyaslama_kalem WHERE id=?", (kid,)).fetchone()
         if k:
             p = conn.execute("SELECT user_id FROM kiyaslama_portfoy WHERE id=?", (k["portfoy_id"],)).fetchone()
             if p and p["user_id"] == user_id:
                 conn.execute("""
-                    UPDATE kiyaslama_kalem SET sembol=?, agirlik=?, ilk_fiyat=?, son_fiyat=?
+                    UPDATE kiyaslama_kalem SET sembol=?, agirlik=?, ilk_fiyat=?, son_fiyat=?, vergi_orani=?
                     WHERE id=?
-                """, (sembol, agirlik, ilk_fiyat, son_fiyat, kid))
+                """, (sembol, agirlik, ilk_fiyat, son_fiyat, vergi_orani, kid))
     return redirect(url_for("kiyaslama"))
 
 
