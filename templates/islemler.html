@@ -11,26 +11,30 @@
   <h3>➕ Yeni İşlem Ekle</h3>
   <form method="POST" action="{{ url_for('islem_ekle') }}" class="islem-form">
     <input type="hidden" name="tur" id="tur-hidden" value="FON">
-    <div class="form-row">
+    <div class="form-row" style="flex-wrap:wrap;align-items:flex-end">
 
-      <div class="form-group">
-        <label>Sembol <span class="hint">(örn: PHE, THYAO, AAPL)</span></label>
+      <!-- Sembol + Ad -->
+      <div class="form-group" style="flex:2;min-width:180px">
+        <label>Sembol</label>
         <div class="sembol-wrapper">
-          <input type="text" name="sembol" id="sembol-input" placeholder="Kod yaz..."
+          <input type="text" name="sembol" id="sembol-input" placeholder="PHE, THYAO, AAPL..."
             required autocomplete="off" style="text-transform:uppercase;width:100%">
           <div id="sembol-dropdown" class="sembol-dropdown"></div>
         </div>
+        <div id="sembol-ad" style="font-size:0.75rem;color:var(--accent);margin-top:0.2rem;min-height:1rem"></div>
       </div>
-      <div class="form-group">
+
+      <!-- Al/Sat -->
+      <div class="form-group" style="flex:1;min-width:100px">
         <label>Al / Sat</label>
         <select name="alissat" required>
           <option value="Alış">Alış</option>
           <option value="Satış">Satış</option>
         </select>
       </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
+
+      <!-- Hesap -->
+      <div class="form-group" style="flex:1;min-width:110px">
         <label>Hesap</label>
         <select name="hesap">
           {% for h in hesaplar %}
@@ -38,7 +42,9 @@
           {% endfor %}
         </select>
       </div>
-      <div class="form-group">
+
+      <!-- Aracı Kurum -->
+      <div class="form-group" style="flex:1;min-width:120px">
         <label>Aracı Kurum</label>
         <select name="araciKurum">
           {% for a in aracilar %}
@@ -46,24 +52,31 @@
           {% endfor %}
         </select>
       </div>
-      <div class="form-group">
+
+      <!-- Tarih -->
+      <div class="form-group" style="flex:1;min-width:120px">
         <label>Tarih</label>
-        <input type="date" name="tarih" required value="{{ today }}">
+        <input type="date" name="tarih" required>
       </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Adet (Pay Sayısı)</label>
+
+      <!-- Adet -->
+      <div class="form-group" style="flex:1;min-width:110px">
+        <label>Adet</label>
         <input type="number" name="adet" step="any" min="0" placeholder="100000" required>
       </div>
-      <div class="form-group">
+
+      <!-- Fiyat -->
+      <div class="form-group" style="flex:1;min-width:120px">
         <label>Fiyat (₺) <span id="son-fiyat-badge" class="hint" style="display:none"></span></label>
         <input type="number" name="fiyat" id="fiyat-input" step="any" min="0" placeholder="2.50" required>
       </div>
-      <div class="form-group form-group-action">
+
+      <!-- Kaydet -->
+      <div class="form-group" style="flex:0 0 auto">
         <label>&nbsp;</label>
         <button type="submit" class="btn-primary">İşlemi Kaydet</button>
       </div>
+
     </div>
   </form>
 </div>
@@ -239,7 +252,7 @@ sembolInput.addEventListener('input', function() {
       .then(data => {
         if (!data.length) { sembolDd.style.display='none'; return; }
         sembolDd.innerHTML = data.map(d =>
-          `<div class="sembol-item" data-kod="${d.kod}" data-piyasa="${d.piyasa}">
+          `<div class="sembol-item" data-kod="${d.kod}" data-piyasa="${d.piyasa}" data-ad="${d.ad}">
             <strong>${d.kod}</strong>
             <span>${d.ad}</span>
             <span class="sembol-piyasa">${d.piyasa}</span>
@@ -251,6 +264,7 @@ sembolInput.addEventListener('input', function() {
             sembolInput.value = el.dataset.kod;
             secilenPiyasa = el.dataset.piyasa;
             turHidden.value = secilenPiyasa;
+            document.getElementById('sembol-ad').textContent = el.dataset.ad || '';
             sembolDd.style.display = 'none';
             sonFiyatGetir(el.dataset.kod, secilenPiyasa);
           });
