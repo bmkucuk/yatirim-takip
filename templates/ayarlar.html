@@ -11,6 +11,7 @@
   <button class="tab-btn active" onclick="sekmeAc('hesaplar', this)">👤 Hesaplar</button>
   <button class="tab-btn" onclick="sekmeAc('aracilar', this)">🏦 Aracı Kurumlar</button>
   <button class="tab-btn" onclick="sekmeAc('semboller', this)">🔍 Sembol Listesi</button>
+  <button class="tab-btn" onclick="sekmeAc('nakit', this)">💵 Nakit Bakiye</button>
   <button class="tab-btn" onclick="sekmeAc('sifre', this)">🔒 Şifre Değiştir</button>
 </div>
 
@@ -66,6 +67,35 @@
   <p class="card-desc">TEFAS fonları, BIST ve ABD hisselerini günceller. İşlem formunda otomatik tamamlama için gerekli.</p>
   <form method="POST" action="{{ url_for('sembol_guncelle') }}">
     <button type="submit" class="btn-secondary">🔄 Sembol Listesini Güncelle</button>
+  </form>
+</div>
+
+<!-- Nakit Bakiye -->
+<div id="tab-nakit" class="tab-content card" style="display:none">
+  <h3>💵 Nakit Bakiye</h3>
+  <p class="card-desc">Hesabınızdaki bekleyen nakit tutarları girin. Toplam portföye otomatik eklenir.</p>
+  <form method="POST" action="{{ url_for('ayarlar') }}">
+    <input type="hidden" name="action" value="nakit_guncelle">
+    <div class="form-row" style="gap:1.5rem;align-items:flex-end">
+      <div class="form-group">
+        <label>USD Nakit ($)</label>
+        <input type="number" name="nakit_USD" step="0.01" min="0"
+          value="{{ nakit.get('USD', 0) }}"
+          style="background:var(--card2);border:1px solid var(--border);color:var(--text);
+                 padding:8px 12px;border-radius:7px;font-size:14px;width:160px">
+      </div>
+      <div class="form-group">
+        <label>TRY Nakit (₺)</label>
+        <input type="number" name="nakit_TRY" step="0.01" min="0"
+          value="{{ nakit.get('TRY', 0) }}"
+          style="background:var(--card2);border:1px solid var(--border);color:var(--text);
+                 padding:8px 12px;border-radius:7px;font-size:14px;width:160px">
+      </div>
+      <div class="form-group">
+        <label>&nbsp;</label>
+        <button type="submit" class="btn-primary">Kaydet</button>
+      </div>
+    </div>
   </form>
 </div>
 

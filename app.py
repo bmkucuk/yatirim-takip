@@ -76,6 +76,13 @@ def init_db():
             piyasa TEXT NOT NULL,
             UNIQUE(kod, piyasa)
         );
+        CREATE TABLE IF NOT EXISTS nakit_bakiye (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            para_birimi TEXT NOT NULL,
+            tutar REAL NOT NULL DEFAULT 0,
+            UNIQUE(user_id, para_birimi)
+        );
         """)
 
 def hash_pw(pw):
@@ -431,6 +438,13 @@ def dashboard():
             "SELECT MAX(tarih) as t FROM fiyat_gecmisi").fetchone()["t"] or "-"
         son_log = conn.execute(
             "SELECT * FROM price_fetch_log ORDER BY id DESC LIMIT 1").fetchone()
+        nakit_rows = conn.execute(
+            "SELECT para_birimi, tutar FROM nakit_bakiye WHERE user_id=?", (user_id,)).fetchall()
+    nakit = {r["para_birimi"]: r["tutar"] for r in nakit_rows}
+    nakit_usd = nakit.get("USD", 0.0)
+    nakit_try = nakit.get("TRY", 0.0)
+    nakit_usd_tl = nakit_usd * usd_try if usd_try else 0
+    genel_toplam_tl = fon_deger + bist_deger + abd_deger_tl + nakit_usd_tl + nakit_try
 
     return render_template("dashboard.html",
         fon_portfoy=fon_portfoy, bist_portfoy=bist_portfoy, abd_portfoy=abd_portfoy,
@@ -441,6 +455,7 @@ def dashboard():
         genel_kar_tl=genel_kar_tl,
         fon_kar=fon_kar, bist_kar=bist_kar,
         abd_kar_usd=abd_kar_usd, abd_kar_tl=abd_kar_tl,
+        nakit_usd=nakit_usd, nakit_try=nakit_try, nakit_usd_tl=nakit_usd_tl,
         hesaplar=hesaplar, hesap_filtre=hesap_filtre,
         aylik=aylik, son_fiyat_tarihi=son_fiyat_tarihi, son_log=son_log,
     )
@@ -716,6 +731,20 @@ def ayarlar():
             aid = request.form["aracilar_id"]
             with get_db() as conn:
                 conn.execute("DELETE FROM aracilar WHERE id=? AND user_id=?", (aid, user_id))
+        elif action == "nakit_guncelle":
+            for pb in ["USD", "TRY"]:
+                tutar_str = request.form.get(f"nakit_{pb}", "0").replace(",", ".").strip()
+                try:
+                    tutar = float(tutar_str)
+                except ValueError:
+                    tutar = 0.0
+                with get_db() as conn:
+                    conn.execute("""
+                        INSERT INTO nakit_bakiye (user_id, para_birimi, tutar)
+                        VALUES (?,?,?)
+                        ON CONFLICT(user_id, para_birimi) DO UPDATE SET tutar=excluded.tutar
+                    """, (user_id, pb, tutar))
+            flash("Nakit bakiyeler güncellendi.", "success")
         elif action == "sifre":
             eski = request.form.get("eski_sifre","")
             yeni = request.form.get("yeni_sifre","")
@@ -750,7 +779,10 @@ def ayarlar():
         hesaplar = conn.execute("SELECT * FROM hesaplar WHERE user_id=? ORDER BY ad", (user_id,)).fetchall()
         aracilar = conn.execute("SELECT * FROM aracilar WHERE user_id=? ORDER BY ad", (user_id,)).fetchall()
 
-    return render_template("ayarlar.html", hesaplar=hesaplar, aracilar=aracilar)
+    with get_db() as conn:
+        nakit_rows = conn.execute("SELECT para_birimi, tutar FROM nakit_bakiye WHERE user_id=?", (user_id,)).fetchall()
+    nakit = {r["para_birimi"]: r["tutar"] for r in nakit_rows}
+    return render_template("ayarlar.html", hesaplar=hesaplar, aracilar=aracilar, nakit=nakit)
 
 # ── API ──────────────────────────────────────────────────────────────────────
 
