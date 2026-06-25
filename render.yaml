@@ -10,30 +10,7 @@ services:
         generateValue: true
       - key: DB_PATH
         value: /data/yatirim.db
-      - key: IMPORT_KEY
-        sync: false
-      - key: CRON_KEY
-        sync: false
     disk:
       name: yatirim-data
       mountPath: /data
       sizeGB: 1
-
-  - type: cron
-    name: yatirim-fiyat-guncelle
-    env: python
-    buildCommand: pip install requests
-    schedule: "0 7 * * 1-5"
-    startCommand: >
-      python3 -c "
-      import requests, os
-      key = os.environ.get('CRON_KEY','')
-      url = os.environ.get('APP_URL','https://yatirim-takip.onrender.com')
-      r = requests.get(f'{url}/cron/guncelle?key={key}', timeout=120)
-      print(r.text)
-      "
-    envVars:
-      - key: CRON_KEY
-        sync: false
-      - key: APP_URL
-        value: https://yatirim-takip.onrender.com
