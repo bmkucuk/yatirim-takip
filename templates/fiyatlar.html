@@ -15,8 +15,15 @@
 </div>
 
 <!-- Güncelleme Logları -->
-{% if logs %}
-<div class="card" style="margin-bottom:1rem">
+{% if logs and logs[0].sonuc == 'Backfill-TEFAS' and '/' in logs[0].detay %}
+{# Backfill tamamlandı, refresh yok #}
+{% elif request.args.get('backfill') == '1' %}
+<meta http-equiv="refresh" content="15;url={{ url_for('fiyatlar') }}?backfill=1">
+<div class="flash flash-success" style="margin-bottom:1rem">
+  ⏳ Eksik günler dolduruluyor... Sayfa 15 saniyede bir yenileniyor.
+  <a href="{{ url_for('fiyatlar') }}" style="margin-left:1rem;color:var(--accent)">Durdur</a>
+</div>
+{% endif %}
   <h4>Son Güncellemeler</h4>
   {% for log in logs %}
   <div class="log-row">

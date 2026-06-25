@@ -823,10 +823,8 @@ def fiyat_backfill():
     t = threading.Thread(target=backfill_thread, daemon=True)
     t.start()
 
-    flash(f"⏳ {toplam} eksik fiyat arka planda dolduruluyor "
-          f"({len(eksikler)} gün, ~{toplam*2//60+1} dk). "
-          f"Birkaç dakika sonra sayfayı yenile.", "success")
-    return redirect(url_for("fiyatlar"))
+    flash(f"⏳ {toplam} eksik fiyat dolduruluyor ({len(eksikler)} gün). Sayfa otomatik yenileniyor.", "success")
+    return redirect(url_for("fiyatlar") + "?backfill=1")
 
 @app.route("/import-fiyatlar", methods=["GET","POST"])
 @login_required
