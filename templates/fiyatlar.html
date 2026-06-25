@@ -2,40 +2,36 @@
 {% block title %}Fiyat Geçmişi — Yatırım Takip{% endblock %}
 {% block content %}
 
+{% if request.args.get('backfill') == '1' %}
+<meta http-equiv="refresh" content="15;url={{ url_for('fiyatlar') }}?backfill=1">
+<div class="flash flash-success">⏳ Eksik günler dolduruluyor... Sayfa 15 saniyede bir yenileniyor.
+  <a href="{{ url_for('fiyatlar') }}" style="margin-left:1rem;color:var(--accent)">Durdur</a>
+</div>
+{% endif %}
+
 <div class="page-header">
   <h2>📋 Fiyat Geçmişi</h2>
 </div>
 
 <!-- Araç Çubuğu -->
 <div class="fiyat-toolbar">
-
-  <!-- 1: Bugünü Güncelle -->
   <form method="POST" action="{{ url_for('fiyat_guncelle') }}">
     <button type="submit" class="btn-primary">🔄 Bugünü Güncelle</button>
   </form>
-
   <div class="toolbar-divider"></div>
-
-  <!-- 2: Tarih Aralığı Fiyat Çek -->
   <form method="POST" action="{{ url_for('fiyat_backfill') }}" class="toolbar-group">
-    <span class="toolbar-label">📅 Tarih Arası Fiyat Çek</span>
-    <input type="date" name="baslangic" id="bf-bas"
-      class="toolbar-date">
+    <span class="toolbar-label">📅 Tarih Arası Çek</span>
+    <input type="date" name="baslangic" id="bf-bas" class="toolbar-date">
     <span style="color:var(--text2)">→</span>
-    <input type="date" name="bitis" id="bf-bit"
-      class="toolbar-date">
+    <input type="date" name="bitis" id="bf-bit" class="toolbar-date">
     <button type="submit" class="btn-secondary">Çek</button>
   </form>
-
   <div class="toolbar-divider"></div>
-
-  <!-- 3: Son 2 Ay -->
   <form method="POST" action="{{ url_for('fiyat_backfill') }}">
     <input type="hidden" name="baslangic" id="son2ay-bas">
     <input type="hidden" name="bitis" id="son2ay-bit">
     <button type="submit" class="btn-secondary">📆 Son 2 Ayı Çek</button>
   </form>
-
 </div>
 
 {% if logs %}
@@ -51,15 +47,16 @@
 </div>
 {% endif %}
 
+<!-- Manuel Fiyat Ekle -->
 <div class="card form-card">
-  <h3>✏️ Manuel Fiyat Ekle / Güncelle</h3>
+  <h3>✏️ Manuel Fiyat Ekle</h3>
   <form method="POST" action="{{ url_for('fiyat_ekle') }}">
     <div class="form-row">
       <div class="form-group">
         <label>Sembol</label>
-        {% if semboller %}
+        {% if tum_semboller %}
         <select name="sembol">
-          {% for s in semboller %}
+          {% for s in tum_semboller %}
           <option value="{{ s }}">{{ s }}</option>
           {% endfor %}
         </select>
@@ -72,7 +69,7 @@
         <input type="date" name="tarih" id="fiyat-tarih" required>
       </div>
       <div class="form-group">
-        <label>Fiyat (₺)</label>
+        <label>Fiyat</label>
         <input type="number" name="fiyat" step="any" placeholder="2.5000" required>
       </div>
       <div class="form-group form-group-action">
@@ -83,55 +80,75 @@
   </form>
 </div>
 
-{% if tablo %}
-<div class="table-wrap">
-<table class="data-table">
-  <thead>
+<!-- Sekmeli Fiyat Tabloları -->
+{% if fon_semboller or bist_semboller or abd_semboller %}
+<div class="tab-menu">
+  {% if fon_semboller %}<button class="tab-btn active" onclick="sekmeAc('fon',this)">📊 Yatırım Fonları</button>{% endif %}
+  {% if bist_semboller %}<button class="tab-btn {% if not fon_semboller %}active{% endif %}" onclick="sekmeAc('bist',this)">📈 BIST</button>{% endif %}
+  {% if abd_semboller %}<button class="tab-btn {% if not fon_semboller and not bist_semboller %}active{% endif %}" onclick="sekmeAc('abd',this)">🇺🇸 ABD (USD)</button>{% endif %}
+</div>
+
+{% macro fiyat_tablo(semboller, tablo, tab_id, para) %}
+<div id="tab-{{ tab_id }}" class="tab-content" style="{{ 'display:none' if (tab_id != 'fon' or not semboller) else '' }}">
+  {% if tablo %}
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Tarih</th>
+        {% for s in semboller %}<th>{{ s }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+    {% for satir in tablo %}
     <tr>
-      <th>Tarih</th>
+      <td><strong class="tr-tarih">{{ satir.tarih }}</strong></td>
       {% for s in semboller %}
-      <th>{{ s }}</th>
+      <td>
+        {% if satir[s] is not none %}
+          {{ "{:.6f}".format(satir[s]).rstrip('0').rstrip('.') | replace(".", ",") }} {{ para }}
+        {% else %}<span style="color:var(--border)">—</span>{% endif %}
+      </td>
       {% endfor %}
     </tr>
-  </thead>
-  <tbody>
-  {% for satir in tablo %}
-  <tr>
-    <td><strong class="tr-tarih">{{ satir.tarih }}</strong></td>
-    {% for s in semboller %}
-    <td>
-      {% if satir[s] is not none %}
-        {{ "{:.6f}".format(satir[s]).rstrip('0').rstrip('.') | replace(".", ",") }}
-      {% else %}
-        <span style="color:var(--border)">—</span>
-      {% endif %}
-    </td>
     {% endfor %}
-  </tr>
-  {% endfor %}
-  </tbody>
-</table>
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-state">Fiyat verisi yok. Güncelle butonuna bas.</div>
+  {% endif %}
 </div>
+{% endmacro %}
+
+{{ fiyat_tablo(fon_semboller, fon_tablo, 'fon', '₺') }}
+{{ fiyat_tablo(bist_semboller, bist_tablo, 'bist', '₺') }}
+{{ fiyat_tablo(abd_semboller, abd_tablo, 'abd', '$') }}
+
 {% else %}
-<div class="empty-state">
-  Henüz fiyat verisi yok. Otomatik güncelle butonuna tıkla veya manuel gir.
-</div>
+<div class="empty-state">Henüz fiyat verisi yok.</div>
 {% endif %}
 
 <script>
 const today = new Date();
 const fmt = d => d.toISOString().split('T')[0];
-
 document.getElementById('fiyat-tarih').value = fmt(today);
-
-// Tarih arası: varsayılan son 30 gün
 const d30 = new Date(); d30.setDate(d30.getDate()-30);
 document.getElementById('bf-bas').value = fmt(d30);
 document.getElementById('bf-bit').value = fmt(today);
-
-// Son 2 ay hidden inputs
 const d60 = new Date(); d60.setDate(d60.getDate()-60);
 document.getElementById('son2ay-bas').value = fmt(d60);
 document.getElementById('son2ay-bit').value = fmt(today);
+
+function sekmeAc(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.style.display='none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const el = document.getElementById('tab-'+id);
+  if (el) el.style.display='block';
+  btn.classList.add('active');
+}
+// İlk sekmeyi aç
+const ilk = document.querySelector('.tab-btn');
+if (ilk) ilk.click();
 </script>
 {% endblock %}

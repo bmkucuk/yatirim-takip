@@ -52,6 +52,7 @@ def init_db():
             fiyat REAL NOT NULL,
             tutar REAL NOT NULL,
             tarih TEXT NOT NULL,
+            para_birimi TEXT DEFAULT 'TRY',
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
         CREATE TABLE IF NOT EXISTS fiyat_gecmisi (
@@ -88,7 +89,25 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
-def bugun():
+def get_usd_try():
+    """Güncel USD/TRY kurunu Yahoo Finance'den çek."""
+    try:
+        import requests as req
+        r = req.get(
+            "https://query1.finance.yahoo.com/v8/finance/chart/USDTRY=X?interval=1d&range=2d",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=8
+        )
+        if r.status_code == 200:
+            closes = r.json()["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+            for c in reversed(closes):
+                if c:
+                    return round(float(c), 4)
+    except Exception:
+        pass
+    return None
+
+
     return datetime.now(ZoneInfo("Europe/Istanbul")).date()
 
 # ── Getiri Hesaplama ──────────────────────────────────────────────────────────
@@ -117,23 +136,23 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
     with get_db() as conn:
         if hesap_filtre == "Hepsi":
             rows = conn.execute("""
-                SELECT sembol, alissat, SUM(adet) as toplam_adet, SUM(tutar) as toplam_tutar
+                SELECT sembol, tur, alissat, SUM(adet) as toplam_adet, SUM(tutar) as toplam_tutar
                 FROM islemler WHERE user_id=?
-                GROUP BY sembol, alissat
+                GROUP BY sembol, tur, alissat
             """, (user_id,)).fetchall()
         else:
             rows = conn.execute("""
-                SELECT sembol, alissat, SUM(adet) as toplam_adet, SUM(tutar) as toplam_tutar
+                SELECT sembol, tur, alissat, SUM(adet) as toplam_adet, SUM(tutar) as toplam_tutar
                 FROM islemler WHERE user_id=? AND hesap=?
-                GROUP BY sembol, alissat
+                GROUP BY sembol, tur, alissat
             """, (user_id, hesap_filtre)).fetchall()
 
-    # Sembol bazında topla
     pozisyonlar = {}
     for r in rows:
         s = r["sembol"]
         if s not in pozisyonlar:
-            pozisyonlar[s] = {"alis_adet": 0, "alis_tutar": 0, "satis_adet": 0, "satis_tutar": 0}
+            pozisyonlar[s] = {"alis_adet": 0, "alis_tutar": 0, "satis_adet": 0,
+                              "satis_tutar": 0, "tur": r["tur"]}
         if r["alissat"] == "Alış":
             pozisyonlar[s]["alis_adet"] += r["toplam_adet"]
             pozisyonlar[s]["alis_tutar"] += r["toplam_tutar"]
@@ -157,16 +176,16 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
         if not son_fiyat:
             continue
 
+        tur = p["tur"]
+        para_birimi = "USD" if tur == "ABD" else "TRY"
         mevcut_deger = kalan_adet * son_fiyat
         maliyet = p["alis_tutar"] - p["satis_tutar"]
         kar_zarar = mevcut_deger - maliyet
 
-        # Günlük getiri
         dun_fiyat = get_fiyat(sembol, dun_str)
         gunluk_tl = (son_fiyat - dun_fiyat) * kalan_adet if dun_fiyat else 0
         gunluk_yuzde = ((son_fiyat / dun_fiyat) - 1) * 100 if dun_fiyat else 0
 
-        # Dönemsel getiriler
         def donemsel(ref_str):
             ref_fiyat = get_fiyat(sembol, ref_str)
             if not ref_fiyat or ref_fiyat == 0:
@@ -182,6 +201,8 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
 
         sonuclar.append({
             "sembol": sembol,
+            "tur": tur,
+            "para_birimi": para_birimi,
             "kalan_adet": kalan_adet,
             "alis_maliyet": maliyet,
             "son_fiyat": son_fiyat,
@@ -295,7 +316,6 @@ def dashboard():
     hesap_filtre = request.args.get("hesap", "Hepsi")
 
     with get_db() as conn:
-        # Sadece gerçek hesapları getir (işlemlerde kullanılan)
         hesaplar = [r["hesap"] for r in conn.execute("""
             SELECT DISTINCT hesap FROM islemler
             WHERE user_id=? AND hesap IS NOT NULL AND hesap != ''
@@ -304,12 +324,36 @@ def dashboard():
 
     portfoy = hesapla_portfoy(user_id, hesap_filtre)
 
-    toplam_deger = sum(p["mevcut_deger"] for p in portfoy)
-    toplam_gunluk_tl = sum(p["gunluk_tl"] for p in portfoy)
-    toplam_gunluk_pct = (toplam_gunluk_tl / (toplam_deger - toplam_gunluk_tl) * 100) if (toplam_deger - toplam_gunluk_tl) else 0
-    toplam_kar = sum(p["kar_zarar"] for p in portfoy)
-    toplam_maliyet = sum(p["alis_maliyet"] for p in portfoy)
-    toplam_getiri_pct = (toplam_kar / toplam_maliyet * 100) if toplam_maliyet else 0
+    fon_portfoy  = [p for p in portfoy if p["tur"] == "FON"]
+    bist_portfoy = [p for p in portfoy if p["tur"] == "BIST"]
+    abd_portfoy  = [p for p in portfoy if p["tur"] == "ABD"]
+
+    usd_try = get_usd_try()
+
+    for p in abd_portfoy:
+        p["mevcut_deger_tl"] = p["mevcut_deger"] * usd_try if usd_try else None
+        p["kar_zarar_tl"]    = p["kar_zarar"]    * usd_try if usd_try else None
+        p["gunluk_tl_tl"]    = p["gunluk_tl"]    * usd_try if usd_try else None
+
+    def s(lst, k): return sum(p[k] for p in lst if p.get(k) is not None)
+
+    fon_deger       = s(fon_portfoy,  "mevcut_deger")
+    bist_deger      = s(bist_portfoy, "mevcut_deger")
+    abd_deger_usd   = s(abd_portfoy,  "mevcut_deger")
+    abd_deger_tl    = abd_deger_usd * usd_try if usd_try else 0
+    genel_toplam_tl = fon_deger + bist_deger + abd_deger_tl
+
+    fon_gunluk      = s(fon_portfoy,  "gunluk_tl")
+    bist_gunluk     = s(bist_portfoy, "gunluk_tl")
+    abd_gunluk_usd  = s(abd_portfoy,  "gunluk_tl")
+    abd_gunluk_tl   = abd_gunluk_usd * usd_try if usd_try else 0
+    genel_gunluk_tl = fon_gunluk + bist_gunluk + abd_gunluk_tl
+
+    fon_kar         = s(fon_portfoy,  "kar_zarar")
+    bist_kar        = s(bist_portfoy, "kar_zarar")
+    abd_kar_usd     = s(abd_portfoy,  "kar_zarar")
+    abd_kar_tl      = abd_kar_usd * usd_try if usd_try else 0
+    genel_kar_tl    = fon_kar + bist_kar + abd_kar_tl
 
     aylik = get_aylik_getiri(user_id)
 
@@ -320,17 +364,16 @@ def dashboard():
             "SELECT * FROM price_fetch_log ORDER BY id DESC LIMIT 1").fetchone()
 
     return render_template("dashboard.html",
-        portfoy=portfoy,
-        toplam_deger=toplam_deger,
-        toplam_gunluk_tl=toplam_gunluk_tl,
-        toplam_gunluk_pct=toplam_gunluk_pct,
-        toplam_kar=toplam_kar,
-        toplam_getiri_pct=toplam_getiri_pct,
-        hesaplar=hesaplar,
-        hesap_filtre=hesap_filtre,
-        aylik=aylik,
-        son_fiyat_tarihi=son_fiyat_tarihi,
-        son_log=son_log,
+        fon_portfoy=fon_portfoy, bist_portfoy=bist_portfoy, abd_portfoy=abd_portfoy,
+        usd_try=usd_try,
+        fon_deger=fon_deger, bist_deger=bist_deger,
+        abd_deger_usd=abd_deger_usd, abd_deger_tl=abd_deger_tl,
+        genel_toplam_tl=genel_toplam_tl, genel_gunluk_tl=genel_gunluk_tl,
+        genel_kar_tl=genel_kar_tl,
+        fon_kar=fon_kar, bist_kar=bist_kar,
+        abd_kar_usd=abd_kar_usd, abd_kar_tl=abd_kar_tl,
+        hesaplar=hesaplar, hesap_filtre=hesap_filtre,
+        aylik=aylik, son_fiyat_tarihi=son_fiyat_tarihi, son_log=son_log,
     )
 
 # ── İşlemler ────────────────────────────────────────────────────────────────
@@ -434,39 +477,46 @@ def islem_sil(islem_id):
 @login_required
 def fiyatlar():
     user_id = session["user_id"]
+
     with get_db() as conn:
-        semboller = sorted([r["sembol"] for r in conn.execute(
-            "SELECT DISTINCT sembol FROM islemler WHERE user_id=?", (user_id,)).fetchall()])
-
-        if semboller:
-            ph = ",".join("?"*len(semboller))
-            raw = conn.execute(f"""
-                SELECT tarih, sembol, fiyat FROM fiyat_gecmisi
-                WHERE sembol IN ({ph})
-                ORDER BY tarih DESC
-            """, semboller).fetchall()
-        else:
-            raw = []
-
+        # Tüm sembolleri tur bilgisiyle al
+        islem_rows = conn.execute(
+            "SELECT DISTINCT sembol, tur FROM islemler WHERE user_id=?", (user_id,)).fetchall()
         logs = conn.execute(
             "SELECT * FROM price_fetch_log ORDER BY id DESC LIMIT 4").fetchall()
 
-    # Pivot: {tarih: {sembol: fiyat}}
-    pivot = {}
-    for r in raw:
-        pivot.setdefault(r["tarih"], {})[r["sembol"]] = r["fiyat"]
+    # Türe göre grupla
+    tur_map = {r["sembol"]: r["tur"] for r in islem_rows}
+    fon_sembolleri  = sorted([s for s,t in tur_map.items() if t == "FON"])
+    bist_sembolleri = sorted([s for s,t in tur_map.items() if t == "BIST"])
+    abd_sembolleri  = sorted([s for s,t in tur_map.items() if t == "ABD"])
 
-    # Tarihleri sıralı liste olarak hazırla (yeniden eskiye)
-    tarihler = sorted(pivot.keys(), reverse=True)
-    tablo = []
-    for t in tarihler:
-        satir = {"tarih": t}
-        for s in semboller:
-            satir[s] = pivot[t].get(s)
-        tablo.append(satir)
+    def pivot_yap(semboller):
+        if not semboller:
+            return [], []
+        with get_db() as conn:
+            ph = ",".join("?"*len(semboller))
+            raw = conn.execute(f"""
+                SELECT tarih, sembol, fiyat FROM fiyat_gecmisi
+                WHERE sembol IN ({ph}) ORDER BY tarih DESC
+            """, semboller).fetchall()
+        pivot = {}
+        for r in raw:
+            pivot.setdefault(r["tarih"], {})[r["sembol"]] = r["fiyat"]
+        tarihler = sorted(pivot.keys(), reverse=True)
+        tablo = [{"tarih": t, **{s: pivot[t].get(s) for s in semboller}} for t in tarihler]
+        return semboller, tablo
+
+    fon_semboller, fon_tablo   = pivot_yap(fon_sembolleri)
+    bist_semboller, bist_tablo = pivot_yap(bist_sembolleri)
+    abd_semboller, abd_tablo   = pivot_yap(abd_sembolleri)
+    tum_semboller = fon_sembolleri + bist_sembolleri + abd_sembolleri
 
     return render_template("fiyatlar.html",
-        semboller=semboller, tablo=tablo, logs=logs)
+        fon_semboller=fon_semboller, fon_tablo=fon_tablo,
+        bist_semboller=bist_semboller, bist_tablo=bist_tablo,
+        abd_semboller=abd_semboller, abd_tablo=abd_tablo,
+        tum_semboller=tum_semboller, logs=logs)
 
 @app.route("/fiyat-ekle", methods=["POST"])
 @login_required
@@ -485,39 +535,68 @@ def fiyat_ekle():
 @app.route("/fiyat-guncelle", methods=["POST"])
 @login_required
 def fiyat_guncelle():
-    """Tüm aktif sembollerin fiyatlarını otomatik çek."""
-    user_id = session["user_id"]
+    """FON, BIST ve ABD fiyatlarını güncelle."""
+    import requests as req
+    from price_fetcher import fetch_fon_fiyatlari
+
     with get_db() as conn:
-        semboller = [r["sembol"] for r in conn.execute("""
-            SELECT DISTINCT sembol, tur FROM islemler WHERE user_id=?
-        """, (user_id,)).fetchall()]
-        tum_semboller = list(conn.execute(
-            "SELECT DISTINCT sembol, tur FROM islemler").fetchall())
+        tum = conn.execute("SELECT DISTINCT sembol, tur FROM islemler").fetchall()
 
-    # Tüm kullanıcıların sembollerini güncelle (fiyat geçmişi ortak)
-    fon_sembolleri = [r["sembol"] for r in tum_semboller if r["tur"] == "FON"]
-    hisse_sembolleri = [r["sembol"] for r in tum_semboller if r["tur"] == "HISSE"]
+    fon_sembolleri  = [r["sembol"] for r in tum if r["tur"] == "FON"]
+    bist_sembolleri = [r["sembol"] for r in tum if r["tur"] == "BIST"]
+    abd_sembolleri  = [r["sembol"] for r in tum if r["tur"] == "ABD"]
 
-    sonuc = fetch_all_prices(fon_sembolleri, hisse_sembolleri)
-
-    basarili = 0
-    for sembol, tarih, fiyat in sonuc.get("prices", []):
-        with get_db() as conn:
-            conn.execute("""
-                INSERT OR REPLACE INTO fiyat_gecmisi (sembol, tarih, fiyat)
-                VALUES (?,?,?)
-            """, (sembol, tarih, fiyat))
-        basarili += 1
-
+    bugun_str = str(bugun())
     simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
-    with get_db() as conn:
-        conn.execute("""
-            INSERT INTO price_fetch_log (tarih, sonuc, detay)
-            VALUES (?,?,?)
-        """, (simdi, sonuc.get("method","?"),
-              f"{basarili} fiyat güncellendi. {sonuc.get('errors','')}"))
+    basarili = 0
+    hatalar = []
 
-    flash(f"{basarili} fiyat güncellendi. Kaynak: {sonuc.get('method','?')}", "success")
+    # FON → TEFAS
+    if fon_sembolleri:
+        fon_prices, _ = fetch_fon_fiyatlari(fon_sembolleri)
+        for sembol, fiyat in fon_prices.items():
+            with get_db() as conn:
+                conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                             (sembol, bugun_str, fiyat))
+            basarili += 1
+        eksik = [s for s in fon_sembolleri if s not in fon_prices]
+        if eksik:
+            hatalar.append(f"FON alınamadı: {','.join(eksik)}")
+
+    # BIST + ABD → Yahoo Finance
+    def yahoo_fiyat(sembol, tur):
+        yahoo_s = f"{sembol}.IS" if tur == "BIST" else sembol
+        try:
+            r = req.get(
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_s}?interval=1d&range=2d",
+                headers={"User-Agent": "Mozilla/5.0"}, timeout=10
+            )
+            if r.status_code == 200:
+                closes = r.json()["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+                for c in reversed(closes):
+                    if c is not None:
+                        return round(float(c), 4)
+        except Exception:
+            pass
+        return None
+
+    for sembol in bist_sembolleri + abd_sembolleri:
+        tur = "BIST" if sembol in bist_sembolleri else "ABD"
+        fiyat = yahoo_fiyat(sembol, tur)
+        if fiyat:
+            with get_db() as conn:
+                conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                             (sembol, bugun_str, fiyat))
+            basarili += 1
+        else:
+            hatalar.append(sembol)
+
+    with get_db() as conn:
+        conn.execute("INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
+                     (simdi, "Güncelleme",
+                      f"{basarili} fiyat güncellendi. " + (f"Hata: {','.join(hatalar)}" if hatalar else "")))
+
+    flash(f"✅ {basarili} fiyat güncellendi.", "success")
     return redirect(url_for("fiyatlar"))
 
 # ── Ayarlar ──────────────────────────────────────────────────────────────────

@@ -6,9 +6,8 @@
   <h2>📊 Portföy Dashboard</h2>
   <div class="header-meta">
     Son fiyat: <strong class="tr-tarih">{{ son_fiyat_tarihi }}</strong>
-    {% if son_log %}
-      · Kaynak: <em>{{ son_log.sonuc }}</em>
-    {% endif %}
+    {% if usd_try %} · 💵 1 USD = <strong>{{ "{:.2f}".format(usd_try).replace(".",",") }} ₺</strong>{% endif %}
+    {% if son_log %} · <em>{{ son_log.sonuc }}</em>{% endif %}
   </div>
 </div>
 
@@ -21,31 +20,34 @@
   {% endfor %}
 </div>
 
-<!-- Özet Kartlar -->
-<div class="summary-grid">
+<!-- Genel Özet -->
+<div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
   <div class="summary-card">
-    <div class="card-label">💰 Toplam Portföy Değeri</div>
-    <div class="card-value">{{ "{:,.2f}".format(toplam_deger).replace(",","X").replace(".",",").replace("X",".") }} ₺</div>
+    <div class="card-label">💰 Toplam Portföy (TL)</div>
+    <div class="card-value">{{ "{:,.0f}".format(genel_toplam_tl).replace(",",".") }} ₺</div>
   </div>
   <div class="summary-card">
     <div class="card-label">📊 Günlük Getiri</div>
-    <div class="card-value {{ 'pos' if toplam_gunluk_tl >= 0 else 'neg' }}">
-      {{ ("+" if toplam_gunluk_tl>=0 else "") }}{{ "{:,.2f}".format(toplam_gunluk_tl).replace(",","X").replace(".",",").replace("X",".") }} ₺
-      <span class="pct">{{ ("▲" if toplam_gunluk_pct>=0 else "▼") }} %{{ "{:.2f}".format(toplam_gunluk_pct|abs).replace(".",",") }}</span>
+    <div class="card-value {{ 'pos' if genel_gunluk_tl >= 0 else 'neg' }}">
+      {{ ("+" if genel_gunluk_tl>=0 else "") }}{{ "{:,.0f}".format(genel_gunluk_tl).replace(",",".") }} ₺
     </div>
   </div>
   <div class="summary-card">
     <div class="card-label">📈 Toplam Kar/Zarar</div>
-    <div class="card-value {{ 'pos' if toplam_kar >= 0 else 'neg' }}">
-      {{ ("+" if toplam_kar>=0 else "") }}{{ "{:,.2f}".format(toplam_kar).replace(",","X").replace(".",",").replace("X",".") }} ₺
-      <span class="pct">{{ ("▲" if toplam_getiri_pct>=0 else "▼") }} %{{ "{:.2f}".format(toplam_getiri_pct|abs).replace(".",",") }}</span>
+    <div class="card-value {{ 'pos' if genel_kar_tl >= 0 else 'neg' }}">
+      {{ ("+" if genel_kar_tl>=0 else "") }}{{ "{:,.0f}".format(genel_kar_tl).replace(",",".") }} ₺
     </div>
   </div>
 </div>
 
-<!-- Pozisyonlar Tablosu -->
-{% if portfoy %}
-<div class="section-title">Pozisyonlar</div>
+{% macro portfoy_tablosu(pozisyonlar, para, baslik, renk) %}
+{% if pozisyonlar %}
+<div class="section-header" style="border-left:3px solid {{ renk }};padding-left:0.75rem;margin:1.5rem 0 0.75rem">
+  <span style="font-weight:700;font-size:1rem">{{ baslik }}</span>
+  <span style="color:var(--text2);font-size:0.85rem;margin-left:1rem">
+    {{ pozisyonlar|length }} pozisyon
+  </span>
+</div>
 <div class="table-wrap">
 <table class="data-table">
   <thead>
@@ -54,7 +56,7 @@
       <th>Son Fiyat</th>
       <th>Adet</th>
       <th>Maliyet</th>
-      <th>Günlük TL</th>
+      <th>Günlük</th>
       <th>Günlük %</th>
       <th>Haftalık</th>
       <th>Aylık</th>
@@ -65,14 +67,14 @@
     </tr>
   </thead>
   <tbody>
-  {% for p in portfoy %}
+  {% for p in pozisyonlar %}
   <tr>
     <td><strong>{{ p.sembol }}</strong></td>
-    <td>{{ "{:.6f}".format(p.son_fiyat).rstrip('0').rstrip('.') | replace(".", ",") }}</td>
+    <td>{{ "{:.4f}".format(p.son_fiyat).rstrip('0').rstrip('.') | replace(".",",") }} {{ para }}</td>
     <td>{{ "{:,.0f}".format(p.kalan_adet).replace(",",".") }}</td>
-    <td>{{ "{:,.2f}".format(p.alis_maliyet).replace(",","X").replace(".",",").replace("X",".") }} ₺</td>
+    <td>{{ "{:,.0f}".format(p.alis_maliyet).replace(",",".") }} {{ para }}</td>
     <td class="{{ 'pos' if p.gunluk_tl >= 0 else 'neg' }}">
-      {{ ("+" if p.gunluk_tl>=0 else "") }}{{ "{:,.2f}".format(p.gunluk_tl).replace(",","X").replace(".",",").replace("X",".") }} ₺
+      {{ ("+" if p.gunluk_tl>=0 else "") }}{{ "{:,.0f}".format(p.gunluk_tl).replace(",",".") }} {{ para }}
     </td>
     <td class="{{ 'pos' if p.gunluk_yuzde >= 0 else 'neg' }}">
       {{ ("▲" if p.gunluk_yuzde>=0 else "▼") }} %{{ "{:.2f}".format(p.gunluk_yuzde|abs).replace(".",",") }}
@@ -89,16 +91,47 @@
     <td class="{{ 'pos' if p.yb_pct and p.yb_pct >= 0 else 'neg' if p.yb_pct else '' }}">
       {% if p.yb_pct is not none %}{{ ("▲" if p.yb_pct>=0 else "▼") }} %{{ "{:.2f}".format(p.yb_pct|abs).replace(".",",") }}{% else %}—{% endif %}
     </td>
-    <td>{{ "{:,.2f}".format(p.mevcut_deger).replace(",","X").replace(".",",").replace("X",".") }} ₺</td>
+    <td><strong>{{ "{:,.0f}".format(p.mevcut_deger).replace(",",".") }} {{ para }}</strong></td>
     <td class="{{ 'pos' if p.kar_zarar >= 0 else 'neg' }}">
-      {{ ("+" if p.kar_zarar>=0 else "") }}{{ "{:,.2f}".format(p.kar_zarar).replace(",","X").replace(".",",").replace("X",".") }} ₺
+      {{ ("+" if p.kar_zarar>=0 else "") }}{{ "{:,.0f}".format(p.kar_zarar).replace(",",".") }} {{ para }}
     </td>
   </tr>
   {% endfor %}
   </tbody>
 </table>
 </div>
-{% else %}
+{% endif %}
+{% endmacro %}
+
+<!-- Yatırım Fonları -->
+{{ portfoy_tablosu(fon_portfoy, "₺", "📊 Yatırım Fonları", "var(--accent)") }}
+{% if fon_portfoy %}
+<div style="text-align:right;color:var(--text2);font-size:0.85rem;margin-top:0.25rem">
+  Toplam: <strong>{{ "{:,.0f}".format(fon_deger).replace(",",".") }} ₺</strong>
+  · Kar/Zarar: <strong class="{{ 'pos' if fon_kar>=0 else 'neg' }}">{{ ("+" if fon_kar>=0 else "") }}{{ "{:,.0f}".format(fon_kar).replace(",",".") }} ₺</strong>
+</div>
+{% endif %}
+
+<!-- BIST -->
+{{ portfoy_tablosu(bist_portfoy, "₺", "📈 Borsa TR (BIST)", "var(--pos)") }}
+{% if bist_portfoy %}
+<div style="text-align:right;color:var(--text2);font-size:0.85rem;margin-top:0.25rem">
+  Toplam: <strong>{{ "{:,.0f}".format(bist_deger).replace(",",".") }} ₺</strong>
+  · Kar/Zarar: <strong class="{{ 'pos' if bist_kar>=0 else 'neg' }}">{{ ("+" if bist_kar>=0 else "") }}{{ "{:,.0f}".format(bist_kar).replace(",",".") }} ₺</strong>
+</div>
+{% endif %}
+
+<!-- ABD -->
+{{ portfoy_tablosu(abd_portfoy, "$", "🇺🇸 Borsa USA", "#58a6ff") }}
+{% if abd_portfoy %}
+<div style="text-align:right;color:var(--text2);font-size:0.85rem;margin-top:0.25rem">
+  Toplam: <strong>{{ "{:,.2f}".format(abd_deger_usd).replace(",",".") }} $</strong>
+  {% if usd_try %}= <strong>{{ "{:,.0f}".format(abd_deger_tl).replace(",",".") }} ₺</strong>{% endif %}
+  · Kar/Zarar: <strong class="{{ 'pos' if abd_kar_usd>=0 else 'neg' }}">{{ ("+" if abd_kar_usd>=0 else "") }}{{ "{:,.2f}".format(abd_kar_usd).replace(",",".") }} $</strong>
+</div>
+{% endif %}
+
+{% if not fon_portfoy and not bist_portfoy and not abd_portfoy %}
 <div class="empty-state">
   Henüz işlem girilmemiş. <a href="{{ url_for('islemler') }}">İşlem ekle →</a>
 </div>
@@ -106,14 +139,13 @@
 
 <!-- Aylık Getiri Grafiği -->
 {% if aylik %}
-<div class="section-title">Aylık Getiri</div>
+<div class="section-title" style="margin-top:2rem">Aylık Getiri (TL)</div>
 <div class="chart-wrap">
   <canvas id="aylikChart"></canvas>
 </div>
 <script>
 const aylikData = {{ aylik | tojson }};
-const ctx = document.getElementById('aylikChart').getContext('2d');
-new Chart(ctx, {
+new Chart(document.getElementById('aylikChart').getContext('2d'), {
   type: 'bar',
   data: {
     labels: aylikData.map(d => d.ay),
@@ -122,28 +154,13 @@ new Chart(ctx, {
       data: aylikData.map(d => d.kazanc),
       backgroundColor: aylikData.map(d => d.kazanc >= 0 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)'),
       borderColor: aylikData.map(d => d.kazanc >= 0 ? '#16a34a' : '#dc2626'),
-      borderWidth: 1,
-      borderRadius: 4,
+      borderWidth: 1, borderRadius: 4,
     }]
   },
   options: {
     responsive: true,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (ctx) => {
-            const v = ctx.parsed.y;
-            return (v >= 0 ? '+' : '') + v.toLocaleString('tr-TR', {minimumFractionDigits:2}) + ' ₺';
-          }
-        }
-      }
-    },
-    scales: {
-      y: {
-        ticks: { callback: v => v.toLocaleString('tr-TR') + ' ₺' }
-      }
-    }
+    plugins: { legend: { display: false } },
+    scales: { y: { ticks: { callback: v => v.toLocaleString('tr-TR') + ' ₺' } } }
   }
 });
 </script>
