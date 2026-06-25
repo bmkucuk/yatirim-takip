@@ -1634,13 +1634,12 @@ def fiyat_guncelle_manuel():
     sonuc = fetch_all_prices(fon_sembolleri, hisse_sembolleri, tur_map=tur_map)
 
     basarili = 0
-    bugun = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d")
     for sembol, tarih, fiyat in sonuc.get("prices", []):
         with get_db() as conn:
             conn.execute("""
                 INSERT OR REPLACE INTO fiyat_gecmisi (sembol, tarih, fiyat)
                 VALUES (?,?,?)
-            """, (sembol, bugun, fiyat))
+            """, (sembol, tarih, fiyat))
         basarili += 1
 
     return jsonify({"ok": True, "guncellenen": basarili, "kaynak": sonuc.get("method","?")})
