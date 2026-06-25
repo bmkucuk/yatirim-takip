@@ -73,7 +73,6 @@
 <div class="filter-bar">
   <span>Sembol filtresi:</span>
   <a href="{{ url_for('islemler') }}" class="filter-btn {% if not filtre %}active{% endif %}">Tümü</a>
-  {% set semboller = islemler | map(attribute='sembol') | unique | list %}
   {% for s in semboller %}
   <a href="?sembol={{ s }}" class="filter-btn {% if filtre==s %}active{% endif %}">{{ s }}</a>
   {% endfor %}

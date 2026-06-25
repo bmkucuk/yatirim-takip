@@ -341,8 +341,9 @@ def islemler():
                 SELECT * FROM islemler WHERE user_id=?
                 ORDER BY tarih DESC
             """, (user_id,)).fetchall()
+    semboller = sorted(set(r["sembol"] for r in rows))
     return render_template("islemler.html", islemler=rows, hesaplar=hesaplar,
-                           aracilar=aracilar, filtre=filtre)
+                           aracilar=aracilar, filtre=filtre, semboller=semboller)
 
 @app.route("/islem-ekle", methods=["POST"])
 @login_required
