@@ -215,3 +215,50 @@ def cek_abd_etfleri():
 if __name__ == "__main__":
     n = sembolleri_guncelle("/data/yatirim.db")
     print(f"Toplam {n} sembol güncellendi.")
+
+def sembolleri_guncelle(db_path=None):
+    if db_path is None:
+        db_path = DB_PATH
+
+    init_sembol_tablosu(db_path)
+    conn = sqlite3.connect(db_path)
+    toplam = 0
+
+    print("ABD ETF'leri ekleniyor...")
+    etfler = cek_abd_etfleri()
+    for item in etfler:
+        conn.execute("INSERT OR REPLACE INTO semboller (kod,ad,tur,piyasa) VALUES (?,?,?,?)", item)
+        toplam += 1
+    conn.commit()
+
+    print("TEFAS fonları çekiliyor...")
+    fonlar = cek_tefas_fonlari()
+    print(f"  {len(fonlar)} fon bulundu")
+    for item in fonlar:
+        conn.execute("INSERT OR REPLACE INTO semboller (kod,ad,tur,piyasa) VALUES (?,?,?,?)", item)
+        toplam += 1
+    conn.commit()
+    time.sleep(2)
+
+    print("BIST hisseleri çekiliyor...")
+    bist = cek_bist_hisseleri()
+    print(f"  {len(bist)} hisse bulundu")
+    for item in bist:
+        conn.execute("INSERT OR REPLACE INTO semboller (kod,ad,tur,piyasa) VALUES (?,?,?,?)", item)
+        toplam += 1
+    conn.commit()
+
+    print("ABD hisseleri çekiliyor...")
+    abd = cek_abd_hisseleri()
+    print(f"  {len(abd)} hisse bulundu")
+    for item in abd:
+        conn.execute("INSERT OR REPLACE INTO semboller (kod,ad,tur,piyasa) VALUES (?,?,?,?)", item)
+        toplam += 1
+    conn.commit()
+    conn.close()
+
+    return toplam
+
+if __name__ == "__main__":
+    n = sembolleri_guncelle("/data/yatirim.db")
+    print(f"Toplam {n} sembol güncellendi.")
