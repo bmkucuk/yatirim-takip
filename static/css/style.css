@@ -422,3 +422,33 @@ a:hover { color: var(--accent2); }
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
+
+/* ── Light Theme ── */
+body.light {
+  --bg: #f0f2f5;
+  --card: #ffffff;
+  --card2: #f8f9fa;
+  --border: #d0d7de;
+  --accent: #b08a2a;
+  --accent2: #c9a84c;
+  --text: #1a1f2e;
+  --text2: #57606a;
+  --pos: #1a7f37;
+  --neg: #cf222e;
+}
+body.light .navbar { background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+body.light .data-table th { background: #f6f8fa; }
+body.light .btn-logout { background: rgba(207,34,46,0.08); }
+
+/* ── Theme Toggle ── */
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  cursor: pointer;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  transition: all 0.15s;
+}
+.theme-toggle:hover { border-color: var(--accent); color: var(--accent); }

@@ -17,6 +17,7 @@
     <a href="{{ url_for('fiyatlar') }}" class="{% if request.endpoint=='fiyatlar' %}active{% endif %}">Fiyatlar</a>
     <a href="{{ url_for('ayarlar') }}" class="{% if request.endpoint=='ayarlar' %}active{% endif %}">Ayarlar</a>
     <span class="nav-user">👤 {{ session.username }}</span>
+    <button class="theme-toggle" id="themeToggle" title="Tema değiştir">🌙</button>
     <a href="{{ url_for('logout') }}" class="btn-logout">Çıkış</a>
   </div>
 </nav>
@@ -37,5 +38,18 @@
 </main>
 
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+// Tema toggle
+const btn = document.getElementById('themeToggle');
+if (btn) {
+  const saved = localStorage.getItem('theme') || 'dark';
+  if (saved === 'light') { document.body.classList.add('light'); btn.textContent = '☀️'; }
+  btn.addEventListener('click', () => {
+    const isLight = document.body.classList.toggle('light');
+    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+    btn.textContent = isLight ? '☀️' : '🌙';
+  });
+}
+</script>
 </body>
 </html>

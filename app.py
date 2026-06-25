@@ -553,8 +553,19 @@ def ayarlar():
         return redirect(url_for("ayarlar"))
 
     with get_db() as conn:
-        hesaplar = conn.execute("SELECT * FROM hesaplar WHERE user_id=?", (user_id,)).fetchall()
-        aracilar = conn.execute("SELECT * FROM aracilar WHERE user_id=?", (user_id,)).fetchall()
+        # Tekrarlı kayıtları temizle, sadece unique olanları tut
+        conn.execute("""
+            DELETE FROM hesaplar WHERE id NOT IN (
+                SELECT MIN(id) FROM hesaplar WHERE user_id=? GROUP BY ad
+            ) AND user_id=?
+        """, (user_id, user_id))
+        conn.execute("""
+            DELETE FROM aracilar WHERE id NOT IN (
+                SELECT MIN(id) FROM aracilar WHERE user_id=? GROUP BY ad
+            ) AND user_id=?
+        """, (user_id, user_id))
+        hesaplar = conn.execute("SELECT * FROM hesaplar WHERE user_id=? ORDER BY ad", (user_id,)).fetchall()
+        aracilar = conn.execute("SELECT * FROM aracilar WHERE user_id=? ORDER BY ad", (user_id,)).fetchall()
 
     return render_template("ayarlar.html", hesaplar=hesaplar, aracilar=aracilar)
 
@@ -1505,3 +1516,66 @@ def cron_guncelle():
 
     init_db()
     app.run(debug=True)
+
+@app.route("/cron/backfill")
+def cron_backfill():
+    """Backfill'i HTTP üzerinden tetikle — CRON_KEY gerekir."""
+    import os, time as tm
+    from price_fetcher import fetch_tefas_fon
+    from datetime import date, timedelta
+
+    key = request.args.get("key","")
+    if key != os.environ.get("CRON_KEY",""):
+        return "yetkisiz", 403
+
+    with get_db() as conn:
+        fon_sembolleri = list(set(r["sembol"] for r in conn.execute(
+            "SELECT DISTINCT sembol FROM islemler WHERE tur='FON'").fetchall()))
+
+    if not fon_sembolleri:
+        return "Fon yok", 200
+
+    with get_db() as conn:
+        mevcut = set((r["sembol"], r["tarih"]) for r in conn.execute(
+            "SELECT sembol, tarih FROM fiyat_gecmisi WHERE sembol IN ({})".format(
+                ",".join("?"*len(fon_sembolleri))), fon_sembolleri).fetchall())
+
+    bugun_d = date.today()
+    eksikler = {}
+    gun = bugun_d - timedelta(days=60)
+    while gun <= bugun_d:
+        if gun.weekday() < 5:
+            ts = str(gun)
+            for s in fon_sembolleri:
+                if (s, ts) not in mevcut:
+                    eksikler.setdefault(ts, []).append(s)
+        gun += timedelta(days=1)
+
+    if not eksikler:
+        return "Eksik yok", 200
+
+    toplam = sum(len(v) for v in eksikler.values())
+    eklenen = 0
+    log_lines = [f"Toplam eksik: {toplam}"]
+
+    for tarih_str, semboller in sorted(eksikler.items()):
+        hedef = date.fromisoformat(tarih_str)
+        for sembol in semboller:
+            fiyat = fetch_tefas_fon(sembol, hedef)
+            if fiyat:
+                with get_db() as conn:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                        (sembol, tarih_str, fiyat))
+                eklenen += 1
+                log_lines.append(f"OK {sembol} {tarih_str}: {fiyat}")
+            else:
+                log_lines.append(f"-- {sembol} {tarih_str}: veri yok")
+            tm.sleep(0.5)
+
+    simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
+    with get_db() as conn:
+        conn.execute("INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
+                     (simdi, "Backfill-TEFAS", f"{eklenen}/{toplam} dolduruldu"))
+
+    return "\n".join(log_lines), 200
