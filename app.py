@@ -1866,17 +1866,53 @@ def kiyaslama_portfoy_ekle():
 @app.route("/kiyaslama/portfoy-duzenle", methods=["POST"])
 @login_required
 def kiyaslama_portfoy_duzenle():
+    from price_fetcher import fetch_fon_fiyatlari as _tefas, fetch_hisse_fiyatlari as _yahoo
+
+    def _piyasa_bul(sembol):
+        with get_db() as c:
+            r = c.execute("SELECT piyasa FROM semboller WHERE kod=? LIMIT 1", (sembol,)).fetchone()
+            if r: return r["piyasa"]
+            r2 = c.execute("SELECT tur FROM islemler WHERE sembol=? LIMIT 1", (sembol,)).fetchone()
+            return r2["tur"] if r2 else "BIST"
+
+    def _fiyat_cek(sembol, tarih):
+        f = get_fiyat(sembol, tarih)
+        if f: return f
+        piyasa = _piyasa_bul(sembol)
+        if piyasa == "FON":
+            prices, _ = _tefas([sembol])
+            return prices.get(sembol)
+        else:
+            tur_map = {sembol: piyasa}
+            prices, _ = _yahoo([sembol], tur_map=tur_map)
+            gun_dict = prices.get(sembol, {})
+            return gun_dict.get(tarih) or (list(gun_dict.values())[-1] if gun_dict else None)
+
     user_id = session["user_id"]
     pid = int(request.form["portfoy_id"])
     ad = request.form["ad"].strip()
     ilk_tarih = request.form["ilk_tarih"]
     son_tarih = request.form["son_tarih"]
     toplam_para = float(request.form["toplam_para"].replace(".", "").replace(",", "."))
+
     with get_db() as conn:
         conn.execute("""
             UPDATE kiyaslama_portfoy SET ad=?, ilk_tarih=?, son_tarih=?, toplam_para=?
             WHERE id=? AND user_id=?
         """, (ad, ilk_tarih, son_tarih, toplam_para, pid, user_id))
+        kalemler = conn.execute(
+            "SELECT id, sembol FROM kiyaslama_kalem WHERE portfoy_id=?", (pid,)
+        ).fetchall()
+
+    # Her kalemi yeni tarihlere göre güncelle
+    for k in kalemler:
+        ilk_fiyat = _fiyat_cek(k["sembol"], ilk_tarih)
+        son_fiyat = _fiyat_cek(k["sembol"], son_tarih)
+        with get_db() as conn:
+            conn.execute("""
+                UPDATE kiyaslama_kalem SET ilk_fiyat=?, son_fiyat=? WHERE id=?
+            """, (ilk_fiyat, son_fiyat, k["id"]))
+
     return redirect(url_for("kiyaslama"))
 
 
