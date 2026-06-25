@@ -1570,7 +1570,7 @@ if __name__ == "__main__":
 @app.route("/api/son-fiyat")
 @login_required
 def api_son_fiyat():
-    """Bir sembolün fiyatını döndür — önce DB, yoksa Yahoo Finance'den canlı çek."""
+    """Bir sembolün fiyatını döndür — önce DB, yoksa canlı çek."""
     sembol = request.args.get("sembol","").strip().upper()
     tur = request.args.get("tur","")
     if not sembol:
@@ -1585,8 +1585,29 @@ def api_son_fiyat():
     if row:
         return jsonify({"fiyat": row["fiyat"], "tarih": row["tarih"], "kaynak": "db"})
 
-    # 2) Yoksa Yahoo Finance'den çek (BIST ve ABD hisseleri için)
-    if tur in ("BIST", "ABD", "HISSE"):
+    # 2) Canlı fiyat çek
+    fiyat = None
+    tarih = str(bugun())
+    kaynak = ""
+
+    if tur == "BIST":
+        # İş Yatırım anlık fiyat API
+        try:
+            import requests as req
+            r = req.get(
+                f"https://www.isyatirim.com.tr/api/data/equity?symbol={sembol}&fields=LSTPRC,PDDMKD",
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://www.isyatirim.com.tr"},
+                timeout=10
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if data and isinstance(data, list):
+                    fiyat = float(data[0].get("LSTPRC", 0))
+                    kaynak = "isyatirim"
+        except Exception:
+            pass
+
+    if not fiyat and tur in ("ABD", "HISSE"):
         try:
             import yfinance as yf
             from price_fetcher import normalize_yahoo_sembol
@@ -1596,14 +1617,17 @@ def api_son_fiyat():
             if not hist.empty:
                 fiyat = float(hist["Close"].iloc[-1])
                 tarih = str(hist.index[-1].date())
-                # DB'ye de kaydet
-                with get_db() as conn:
-                    conn.execute(
-                        "INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                        (sembol, tarih, fiyat))
-                return jsonify({"fiyat": round(fiyat, 4), "tarih": tarih, "kaynak": "yahoo"})
+                kaynak = "yahoo"
         except Exception:
             pass
+
+    if fiyat and fiyat > 0:
+        fiyat = round(fiyat, 4)
+        with get_db() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                (sembol, tarih, fiyat))
+        return jsonify({"fiyat": fiyat, "tarih": tarih, "kaynak": kaynak})
 
     return jsonify({})
 

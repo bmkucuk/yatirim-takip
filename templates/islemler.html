@@ -276,6 +276,8 @@ sembolInput.addEventListener('input', function() {
           el.addEventListener('click', () => {
             sembolInput.value = el.dataset.kod;
             sembolDd.style.display = 'none';
+            sonFiyatBadge.textContent = '⏳ Fiyat çekiliyor...';
+            sonFiyatBadge.style.display = 'inline';
             sonFiyatGetir(el.dataset.kod);
           });
         });
@@ -285,7 +287,17 @@ sembolInput.addEventListener('input', function() {
 
 sembolInput.addEventListener('blur', function() {
   setTimeout(() => { sembolDd.style.display = 'none'; }, 200);
-  if (this.value.length >= 2) sonFiyatGetir(this.value.toUpperCase());
+  const val = this.value.trim().toUpperCase();
+  if (val.length >= 2) sonFiyatGetir(val);
+});
+
+sembolInput.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sembolDd.style.display = 'none';
+    const val = this.value.trim().toUpperCase();
+    if (val.length >= 2) sonFiyatGetir(val);
+  }
 });
 
 document.addEventListener('click', e => {
