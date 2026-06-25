@@ -532,6 +532,46 @@ def ayarlar():
 
 # ── API ──────────────────────────────────────────────────────────────────────
 
+@app.route("/api/bulk-import", methods=["POST"])
+@login_required
+def bulk_import():
+    """Excel'den toplu işlem yükleme — JSON body bekler."""
+    import os
+    key = request.json.get("key","")
+    if key != os.environ.get("IMPORT_KEY",""):
+        return jsonify({"error": "yetkisiz"}), 403
+
+    user_id = request.json.get("user_id", session["user_id"])
+    islemler = request.json.get("islemler", [])
+
+    # Önce mevcut excel işlemlerini temizle (manuel girilen ZPX30 vs kalır)
+    with get_db() as conn:
+        conn.execute("DELETE FROM islemler WHERE user_id=? AND tur='FON'", (user_id,))
+
+    eklenen = 0
+    with get_db() as conn:
+        for i in islemler:
+            tutar = i["adet"] * i["fiyat"]
+            conn.execute("""
+                INSERT INTO islemler
+                (user_id, sembol, tur, hesap, araciKurum, alissat, adet, fiyat, tutar, tarih)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+            """, (user_id, i["sembol"], "FON", i["hesap"], i["araciKurum"],
+                  i["alissat"], i["adet"], i["fiyat"], tutar, i["tarih"]))
+            # Fiyat geçmişine de ekle
+            conn.execute("""
+                INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat)
+                VALUES (?,?,?)
+            """, (i["sembol"], i["tarih"], i["fiyat"]))
+            # Hesap ve aracı otomatik oluştur
+            conn.execute("INSERT OR IGNORE INTO hesaplar (user_id, ad) VALUES (?,?)",
+                         (user_id, i["hesap"]))
+            conn.execute("INSERT OR IGNORE INTO aracilar (user_id, ad) VALUES (?,?)",
+                         (user_id, i["araciKurum"]))
+            eklenen += 1
+
+    return jsonify({"ok": True, "eklenen": eklenen})
+
 @app.route("/api/portfoy")
 @login_required
 def api_portfoy():
