@@ -456,6 +456,7 @@ def dashboard():
         fon_kar=fon_kar, bist_kar=bist_kar,
         abd_kar_usd=abd_kar_usd, abd_kar_tl=abd_kar_tl,
         nakit_usd=nakit_usd, nakit_try=nakit_try, nakit_usd_tl=nakit_usd_tl,
+        abd_gunluk_tl=abd_gunluk_tl,
         hesaplar=hesaplar, hesap_filtre=hesap_filtre,
         aylik=aylik, son_fiyat_tarihi=son_fiyat_tarihi, son_log=son_log,
     )
