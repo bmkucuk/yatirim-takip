@@ -680,7 +680,8 @@ def fiyat_backfill():
     """Son 60 günün eksik fiyatlarını TEFAS'tan çekip doldur — arka planda çalışır."""
     import threading
     from price_fetcher import fetch_tefas_fon
-    from datetime import date, timedelta
+    from datetime import date, timedelta, datetime as dt
+    from zoneinfo import ZoneInfo
     import time as time_mod
 
     user_id = session["user_id"]
@@ -696,7 +697,6 @@ def fiyat_backfill():
     bugun_d = date.today()
     baslangic = bugun_d - timedelta(days=60)
 
-    # Mevcut fiyatları çek
     with get_db() as conn:
         mevcut = set()
         for r in conn.execute(
@@ -704,7 +704,6 @@ def fiyat_backfill():
                 ",".join("?"*len(fon_sembolleri))), fon_sembolleri).fetchall():
             mevcut.add((r["sembol"], r["tarih"]))
 
-    # Eksik kombinasyonları bul
     eksikler = {}
     gun = baslangic
     while gun <= bugun_d:
@@ -721,35 +720,55 @@ def fiyat_backfill():
 
     toplam = sum(len(v) for v in eksikler.values())
 
+    # Thread'e ihtiyaç duyduğu her şeyi kopyala
+    _eksikler = dict(eksikler)
+    _toplam = toplam
+    _db_path = DB_PATH
+
     def backfill_thread():
+        import sqlite3, time as tm
+        from datetime import date as d_cls, datetime as dt2
+        from zoneinfo import ZoneInfo as ZI
+        from price_fetcher import fetch_tefas_fon as _fetch
+
         eklenen = 0
-        for tarih_str, semboller in sorted(eksikler.items()):
-            hedef = date.fromisoformat(tarih_str)
+        hatalar = []
+
+        for tarih_str, semboller in sorted(_eksikler.items()):
+            hedef = d_cls.fromisoformat(tarih_str)
             for sembol in semboller:
                 try:
-                    fiyat = fetch_tefas_fon(sembol, hedef)
+                    fiyat = _fetch(sembol, hedef)
                     if fiyat:
-                        with get_db() as conn:
-                            conn.execute(
-                                "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                                (sembol, tarih_str, fiyat))
+                        conn = sqlite3.connect(_db_path)
+                        conn.execute(
+                            "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                            (sembol, tarih_str, fiyat))
+                        conn.commit()
+                        conn.close()
                         eklenen += 1
-                except Exception:
-                    pass
-                time_mod.sleep(1)
+                    else:
+                        hatalar.append(f"{sembol}/{tarih_str}:veri_yok")
+                except Exception as e:
+                    hatalar.append(f"{sembol}/{tarih_str}:{str(e)[:30]}")
+                tm.sleep(1)
 
-        simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
-        with get_db() as conn:
-            conn.execute(
-                "INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
-                (simdi, "Backfill-TEFAS",
-                 f"{eklenen}/{toplam} fiyat dolduruldu ({len(eksikler)} gün)"))
+        simdi = dt2.now(ZI("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
+        hata_str = f" | Hata:{len(hatalar)}" if hatalar else ""
+        conn = sqlite3.connect(_db_path)
+        conn.execute(
+            "INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
+            (simdi, "Backfill-TEFAS",
+             f"{eklenen}/{_toplam} fiyat dolduruldu ({len(_eksikler)} gün){hata_str}"))
+        conn.commit()
+        conn.close()
 
     t = threading.Thread(target=backfill_thread, daemon=True)
     t.start()
 
-    flash(f"⏳ {toplam} eksik fiyat arka planda dolduruluyor ({len(eksikler)} gün). "
-          f"2-3 dakika sonra sayfayı yenile.", "success")
+    flash(f"⏳ {toplam} eksik fiyat arka planda dolduruluyor "
+          f"({len(eksikler)} gün, ~{toplam*2//60+1} dk). "
+          f"Birkaç dakika sonra sayfayı yenile.", "success")
     return redirect(url_for("fiyatlar"))
 
 @app.route("/import-fiyatlar", methods=["GET","POST"])
