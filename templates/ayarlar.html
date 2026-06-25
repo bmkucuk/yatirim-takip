@@ -64,8 +64,11 @@
       <button type="submit" class="btn-secondary">🔄 Sembol Listesini Güncelle</button>
     </form>
   </div>
+
+  <!-- Şifre -->
+  <div class="card">
     <h3>🔒 Şifre Değiştir</h3>
-    <form method="POST">
+    <form method="POST" action="{{ url_for('ayarlar') }}">
       <input type="hidden" name="action" value="sifre">
       <div class="form-group">
         <label>Mevcut Şifre</label>
