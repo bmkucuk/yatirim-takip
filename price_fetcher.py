@@ -123,17 +123,23 @@ def fetch_hisse_fiyatlari(semboller, tur_map=None):
         try:
             r = req.get(
                 f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_sembol}"
-                f"?interval=1d&range=5d",
+                f"?interval=1d&range=30d",
                 headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
                 timeout=10
             )
             if r.status_code == 200:
                 data = r.json()
-                closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
-                for c in reversed(closes):
+                result = data["chart"]["result"][0]
+                timestamps = result.get("timestamp", [])
+                closes = result["indicators"]["quote"][0]["close"]
+                # Tüm günleri kaydet
+                for ts, c in zip(timestamps, closes):
                     if c is not None:
-                        results[sembol] = round(float(c), 4)
-                        break
+                        from datetime import datetime as _dt
+                        tarih = _dt.utcfromtimestamp(ts).strftime("%Y-%m-%d")
+                        if sembol not in results:
+                            results[sembol] = {}
+                        results[sembol][tarih] = round(float(c), 4)
         except Exception:
             pass
     return results, "Yahoo-Finance" if results else None
@@ -151,8 +157,9 @@ def fetch_all_prices(fon_sembolleri, hisse_sembolleri, tur_map=None):
             errors.append(f"Fon alınamadı:{','.join(fon_sembolleri)}")
     if hisse_sembolleri:
         hisse_prices, hisse_method = fetch_hisse_fiyatlari(hisse_sembolleri, tur_map=tur_map)
-        for s, f in hisse_prices.items():
-            prices.append((s, today, f))
+        for s, gun_dict in hisse_prices.items():
+            for tarih, fiyat in gun_dict.items():
+                prices.append((s, tarih, fiyat))
         if hisse_prices:
             methods.append(f"Hisse:{hisse_method}")
         else:
