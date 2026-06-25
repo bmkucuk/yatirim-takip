@@ -40,6 +40,29 @@
   </div>
 </div>
 
+{% macro bolum_ozet(deger, kar, gunluk, para, deger_tl, kar_tl) %}
+<div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:0.75rem">
+  <div class="summary-card" style="padding:0.6rem 1rem">
+    <div class="card-label" style="font-size:0.72rem">Toplam Değer</div>
+    <div class="card-value" style="font-size:1rem">{{ "{:,.2f}".format(deger).replace(",",".") }} {{ para }}</div>
+    {% if deger_tl is not none %}<div style="font-size:0.72rem;color:var(--text2)">≈ {{ "{:,.0f}".format(deger_tl).replace(",",".") }} ₺</div>{% endif %}
+  </div>
+  <div class="summary-card" style="padding:0.6rem 1rem">
+    <div class="card-label" style="font-size:0.72rem">Günlük Getiri</div>
+    <div class="card-value {{ 'pos' if gunluk >= 0 else 'neg' }}" style="font-size:1rem">
+      {{ ("+" if gunluk>=0 else "") }}{{ "{:,.2f}".format(gunluk).replace(",",".") }} {{ para }}
+    </div>
+  </div>
+  <div class="summary-card" style="padding:0.6rem 1rem">
+    <div class="card-label" style="font-size:0.72rem">Toplam Kar/Zarar</div>
+    <div class="card-value {{ 'pos' if kar >= 0 else 'neg' }}" style="font-size:1rem">
+      {{ ("+" if kar>=0 else "") }}{{ "{:,.2f}".format(kar).replace(",",".") }} {{ para }}
+    </div>
+    {% if kar_tl is not none %}<div style="font-size:0.72rem;color:{{ '#3fb950' if kar_tl>=0 else '#f85149' }}">≈ {{ ("+" if kar_tl>=0 else "") }}{{ "{:,.0f}".format(kar_tl).replace(",",".") }} ₺</div>{% endif %}
+  </div>
+</div>
+{% endmacro %}
+
 {% macro portfoy_tablosu(pozisyonlar, para, baslik, renk) %}
 {% if pozisyonlar %}
 <div class="section-header" style="border-left:3px solid {{ renk }};padding-left:0.75rem;margin:1.5rem 0 0.75rem">
@@ -111,29 +134,19 @@
 <!-- Yatırım Fonları -->
 {{ portfoy_tablosu(fon_portfoy, "₺", "📊 Yatırım Fonları", "var(--accent)") }}
 {% if fon_portfoy %}
-<div style="text-align:right;color:var(--text2);font-size:0.85rem;margin-top:0.25rem">
-  Toplam: <strong>{{ "{:,.0f}".format(fon_deger).replace(",",".") }} ₺</strong>
-  · Kar/Zarar: <strong class="{{ 'pos' if fon_kar>=0 else 'neg' }}">{{ ("+" if fon_kar>=0 else "") }}{{ "{:,.0f}".format(fon_kar).replace(",",".") }} ₺</strong>
-</div>
+{{ bolum_ozet(fon_deger, fon_kar, fon_portfoy|sum(attribute='gunluk_tl'), "₺", none, none) }}
 {% endif %}
 
 <!-- BIST -->
 {{ portfoy_tablosu(bist_portfoy, "₺", "📈 Borsa TR (BIST)", "var(--pos)") }}
 {% if bist_portfoy %}
-<div style="text-align:right;color:var(--text2);font-size:0.85rem;margin-top:0.25rem">
-  Toplam: <strong>{{ "{:,.0f}".format(bist_deger).replace(",",".") }} ₺</strong>
-  · Kar/Zarar: <strong class="{{ 'pos' if bist_kar>=0 else 'neg' }}">{{ ("+" if bist_kar>=0 else "") }}{{ "{:,.0f}".format(bist_kar).replace(",",".") }} ₺</strong>
-</div>
+{{ bolum_ozet(bist_deger, bist_kar, bist_portfoy|sum(attribute='gunluk_tl'), "₺", none, none) }}
 {% endif %}
 
 <!-- ABD -->
 {{ portfoy_tablosu(abd_portfoy, "$", "🇺🇸 Borsa USA", "#58a6ff") }}
 {% if abd_portfoy %}
-<div style="text-align:right;color:var(--text2);font-size:0.85rem;margin-top:0.25rem">
-  Toplam: <strong>{{ "{:,.2f}".format(abd_deger_usd).replace(",",".") }} $</strong>
-  {% if usd_try %}= <strong>{{ "{:,.0f}".format(abd_deger_tl).replace(",",".") }} ₺</strong>{% endif %}
-  · Kar/Zarar: <strong class="{{ 'pos' if abd_kar_usd>=0 else 'neg' }}">{{ ("+" if abd_kar_usd>=0 else "") }}{{ "{:,.2f}".format(abd_kar_usd).replace(",",".") }} $</strong>
-</div>
+{{ bolum_ozet(abd_deger_usd, abd_kar_usd, abd_portfoy|sum(attribute='gunluk_tl'), "$", abd_deger_tl, abd_kar_tl) }}
 {% endif %}
 
 {% if not fon_portfoy and not bist_portfoy and not abd_portfoy %}
