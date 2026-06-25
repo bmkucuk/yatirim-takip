@@ -128,7 +128,7 @@
     <td>{{ "{:,.0f}".format(p.kalan_adet).replace(",",".") }}</td>
     <td>{{ "{:,.0f}".format(p.alis_maliyet).replace(",",".") }} {{ para }}</td>
     <td class="{{ 'pos' if p.gunluk_tl >= 0 else 'neg' }}">
-      {{ ("+" if p.gunluk_tl>=0 else "") }}{{ "{:,.0f}".format(p.gunluk_tl).replace(",",".") }} {{ para }}
+      {{ ("▲ " if p.gunluk_tl>=0 else "▼ ") }}{{ "{:,.0f}".format(p.gunluk_tl|abs).replace(",",".") }} {{ para }}
     </td>
     <td class="{{ 'pos' if p.gunluk_yuzde >= 0 else 'neg' }}">
       {{ ("▲" if p.gunluk_yuzde>=0 else "▼") }} %{{ "{:.2f}".format(p.gunluk_yuzde|abs).replace(".",",") }}
