@@ -1,32 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — Yatırım Takip<script>
-async function fiyatlariGuncelle() {
-  const btn = document.getElementById('guncelle-btn');
-  const sonuc = document.getElementById('guncelle-sonuc');
-  btn.disabled = true;
-  btn.textContent = '⏳ Güncelleniyor...';
-  sonuc.textContent = '';
-  try {
-    const r = await fetch('/api/fiyat-guncelle-manuel', { method: 'POST' });
-    const d = await r.json();
-    if (d.ok) {
-      sonuc.textContent = `✅ ${d.guncellenen} fiyat güncellendi`;
-      sonuc.style.color = 'var(--accent)';
-      setTimeout(() => location.reload(), 1200);
-    } else {
-      sonuc.textContent = '⚠️ Hata oluştu';
-      sonuc.style.color = '#f87171';
-    }
-  } catch(e) {
-    sonuc.textContent = '⚠️ Bağlantı hatası';
-    sonuc.style.color = '#f87171';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🔄 Fiyatları Güncelle';
-  }
-}
-</script>
-{% endblock %}
+{% block title %}Dashboard — Yatırım Takip{% endblock %}
 {% block content %}
 
 <div class="page-header">
@@ -216,5 +189,33 @@ new Chart(document.getElementById('aylikChart').getContext('2d'), {
 });
 </script>
 {% endif %}
+
+<script>
+async function fiyatlariGuncelle() {
+  const btn = document.getElementById('guncelle-btn');
+  const sonuc = document.getElementById('guncelle-sonuc');
+  btn.disabled = true;
+  btn.textContent = '⏳ Güncelleniyor...';
+  sonuc.textContent = '';
+  try {
+    const r = await fetch('/api/fiyat-guncelle-manuel', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      sonuc.textContent = `✅ ${d.guncellenen} fiyat güncellendi`;
+      sonuc.style.color = 'var(--accent)';
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      sonuc.textContent = '⚠️ Hata oluştu';
+      sonuc.style.color = '#f87171';
+    }
+  } catch(e) {
+    sonuc.textContent = '⚠️ Bağlantı hatası';
+    sonuc.style.color = '#f87171';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Fiyatları Güncelle';
+  }
+}
+</script>
 
 {% endblock %}
