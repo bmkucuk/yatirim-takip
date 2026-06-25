@@ -134,7 +134,40 @@ def cek_abd_hisseleri():
 
     return semboller
 
-def sembolleri_guncelle(db_path=None):
+def cek_abd_etfleri():
+    """Popüler ABD ETF'leri."""
+    etfler = [
+        # Sektör ETF'leri
+        ("SMH","VanEck Semiconductor ETF"), ("SOXX","iShares Semiconductor ETF"),
+        ("XLK","Technology Select Sector SPDR"), ("QQQ","Invesco NASDAQ 100 ETF"),
+        ("SPY","SPDR S&P 500 ETF"), ("IVV","iShares Core S&P 500 ETF"),
+        ("VOO","Vanguard S&P 500 ETF"), ("VTI","Vanguard Total Stock Market ETF"),
+        ("ARKK","ARK Innovation ETF"), ("ARKG","ARK Genomic Revolution ETF"),
+        ("ARKW","ARK Next Generation Internet ETF"), ("ARKF","ARK Fintech Innovation ETF"),
+        ("XLF","Financial Select Sector SPDR"), ("XLE","Energy Select Sector SPDR"),
+        ("XLV","Health Care Select Sector SPDR"), ("XLI","Industrial Select Sector SPDR"),
+        ("XLP","Consumer Staples Select Sector SPDR"), ("XLY","Consumer Discretionary SPDR"),
+        ("XLU","Utilities Select Sector SPDR"), ("XLRE","Real Estate Select Sector SPDR"),
+        ("XLB","Materials Select Sector SPDR"), ("XLC","Communication Services SPDR"),
+        # Altın & Emtia
+        ("GLD","SPDR Gold Shares"), ("IAU","iShares Gold Trust"),
+        ("SLV","iShares Silver Trust"), ("USO","United States Oil Fund"),
+        # Tahvil
+        ("TLT","iShares 20+ Year Treasury Bond ETF"), ("IEF","iShares 7-10 Year Treasury ETF"),
+        ("HYG","iShares iBoxx High Yield Corporate Bond ETF"),
+        # Kaldıraçlı
+        ("TQQQ","ProShares UltraPro QQQ"), ("SQQQ","ProShares UltraPro Short QQQ"),
+        ("SPXL","Direxion Daily S&P 500 Bull 3X"), ("SPXS","Direxion Daily S&P 500 Bear 3X"),
+        ("SOXL","Direxion Daily Semiconductor Bull 3X"), ("SOXS","Direxion Daily Semiconductor Bear 3X"),
+        # Diğer popüler
+        ("VNQ","Vanguard Real Estate ETF"), ("EEM","iShares MSCI Emerging Markets ETF"),
+        ("EFA","iShares MSCI EAFE ETF"), ("AGG","iShares Core U.S. Aggregate Bond ETF"),
+        ("IBIT","iShares Bitcoin Trust"), ("FBTC","Fidelity Wise Origin Bitcoin Fund"),
+        ("BITO","ProShares Bitcoin ETF"), ("MCHI","iShares MSCI China ETF"),
+        ("KWEB","KraneShares CSI China Internet ETF"), ("FXI","iShares China Large-Cap ETF"),
+    ]
+    return [(k, a, "HISSE", "ABD") for k, a in etfler]
+
     if db_path is None:
         db_path = DB_PATH
     
@@ -161,6 +194,13 @@ def sembolleri_guncelle(db_path=None):
         toplam += 1
     conn.commit()
     
+    print("ABD ETF'leri ekleniyor...")
+    etfler = cek_abd_etfleri()
+    for item in etfler:
+        conn.execute("INSERT OR REPLACE INTO semboller (kod,ad,tur,piyasa) VALUES (?,?,?,?)", item)
+        toplam += 1
+    conn.commit()
+
     print("ABD hisseleri çekiliyor...")
     abd = cek_abd_hisseleri()
     print(f"  {len(abd)} hisse bulundu")
