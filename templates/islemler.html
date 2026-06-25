@@ -111,7 +111,7 @@
     <td>{{ i.hesap or '—' }}</td>
     <td>{{ i.araciKurum or '—' }}</td>
     <td>{{ "{:,.0f}".format(i.adet).replace(",",".") }}</td>
-    <td>{{ "{:.6f}".format(i.fiyat).replace(".",",") }}</td>
+    <td>{{ "{:.6f}".format(i.fiyat).rstrip('0').rstrip('.') | replace(".", ",") }}</td>
     <td>{{ "{:,.2f}".format(i.tutar).replace(",","X").replace(".",",").replace("X",".") }} ₺</td>
     <td style="display:flex;gap:0.4rem">
       <button class="btn-edit"

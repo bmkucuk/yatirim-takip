@@ -68,7 +68,7 @@
   {% for p in portfoy %}
   <tr>
     <td><strong>{{ p.sembol }}</strong></td>
-    <td>{{ "{:.4f}".format(p.son_fiyat).replace(".",",") }}</td>
+    <td>{{ "{:.6f}".format(p.son_fiyat).rstrip('0').rstrip('.') | replace(".", ",") }}</td>
     <td>{{ "{:,.0f}".format(p.kalan_adet).replace(",",".") }}</td>
     <td>{{ "{:,.2f}".format(p.alis_maliyet).replace(",","X").replace(".",",").replace("X",".") }} ₺</td>
     <td class="{{ 'pos' if p.gunluk_tl >= 0 else 'neg' }}">
