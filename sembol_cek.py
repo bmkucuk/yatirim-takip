@@ -31,24 +31,36 @@ def cek_tefas_fonlari():
         "Referer": "https://www.tefas.gov.tr/tr/fon-verileri",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/146.0.0.0 Safari/537.36",
     }
+    from datetime import date, timedelta
+    bugun = date.today()
+    bas = (bugun - timedelta(days=2)).strftime("%Y%m%d")
+    bit = bugun.strftime("%Y%m%d")
     body = {
         "fonTipi": "YAT", "fonKodu": "", "aramaMetni": "",
         "fonTurKod": None, "fonGrubu": None, "sfonTurKod": None,
         "fonTurAciklama": None, "kurucuKod": None,
-        "basTarih": None, "bitTarih": None,
+        "basTarih": bas, "bitTarih": bit,
         "basSira": 1, "bitSira": 99999,
         "dil": "TR", "sFonTurKod": "", "fonKod": "", "fonGrup": "", "fonUnvanTip": "",
     }
     try:
         r = requests.post(url, json=body, headers=headers, timeout=30)
-        if r.status_code == 200:
-            fonlar = []
-            for row in r.json().get("resultList", []):
-                kod = row.get("fonKodu") or row.get("kod")
-                ad = row.get("fonUnvani") or row.get("ad") or ""
-                if kod:
-                    fonlar.append((kod.strip(), ad.strip(), "FON", "TEFAS"))
-            return fonlar
+        if r.status_code != 200:
+            print(f"TEFAS HTTP {r.status_code}")
+            return []
+        j = r.json()
+        rows = j.get("resultList") or j.get("data") or []
+        if not rows:
+            print(f"TEFAS bos doendi, anahtarlar: {list(j.keys())}")
+            return []
+        fonlar = []
+        for row in rows:
+            kod = (row.get("fonKodu") or row.get("FONKODU") or row.get("kod") or "").strip()
+            ad = (row.get("fonUnvani") or row.get("FONUNVANI") or row.get("ad") or "").strip()
+            if kod:
+                fonlar.append((kod, ad, "FON", "FON"))
+        print(f"TEFAS: {len(fonlar)} fon bulundu")
+        return fonlar
     except Exception as e:
         print(f"TEFAS hata: {e}")
     return []
