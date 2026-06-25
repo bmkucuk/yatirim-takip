@@ -30,7 +30,9 @@
 <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
   <div class="summary-card" style="text-align:center">
     <div class="card-label">💰 Toplam Portföy (TL)</div>
-    <div class="card-value">{{ "{:,.0f}".format(genel_toplam_tl).replace(",",".") }} ₺</div>
+    <div class="card-value" style="color:var(--accent);font-weight:800">
+      {{ "{:,.0f}".format(genel_toplam_tl).replace(",",".") }} ₺
+    </div>
   </div>
   <div class="summary-card" style="text-align:center">
     <div class="card-label">📊 Günlük Getiri</div>
@@ -38,7 +40,7 @@
       {{ ("▲ " if genel_gunluk_tl>=0 else "▼ ") }}{{ "{:,.0f}".format(genel_gunluk_tl|abs).replace(",",".") }} ₺
     </div>
     {% if genel_toplam_tl > 0 %}
-    <div style="font-size:1rem;font-weight:600;color:{{ '#3fb950' if genel_gunluk_tl>=0 else '#f85149' }}">
+    <div class="card-value {{ 'pos' if genel_gunluk_tl>=0 else 'neg' }}" style="margin-top:0.2rem">
       %{{ "{:.2f}".format((genel_gunluk_tl / genel_toplam_tl * 100)|abs).replace(".",",") }}
     </div>
     {% endif %}
@@ -49,7 +51,7 @@
       {{ ("▲ " if genel_kar_tl>=0 else "▼ ") }}{{ "{:,.0f}".format(genel_kar_tl|abs).replace(",",".") }} ₺
     </div>
     {% if genel_toplam_tl > 0 %}
-    <div style="font-size:1rem;font-weight:600;color:{{ '#3fb950' if genel_kar_tl>=0 else '#f85149' }}">
+    <div class="card-value {{ 'pos' if genel_kar_tl>=0 else 'neg' }}" style="margin-top:0.2rem">
       %{{ "{:.2f}".format((genel_kar_tl / genel_toplam_tl * 100)|abs).replace(".",",") }}
     </div>
     {% endif %}
@@ -60,8 +62,14 @@
 <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:0.75rem">
   <div class="summary-card" style="padding:0.6rem 1rem;text-align:center">
     <div class="card-label" style="font-size:0.72rem">Toplam Değer</div>
-    <div class="card-value" style="font-size:1rem">{{ "{:,.2f}".format(deger).replace(",",".") }} {{ para }}</div>
-    {% if deger_tl is not none %}<div style="font-size:0.78rem;color:var(--text2)">≈ {{ "{:,.0f}".format(deger_tl).replace(",",".") }} ₺</div>{% endif %}
+    <div class="card-value" style="font-size:1rem;color:var(--accent);font-weight:800">
+      {{ "{:,.2f}".format(deger).replace(",",".") }} {{ para }}
+    </div>
+    {% if deger_tl is not none %}
+    <div class="card-value" style="font-size:1rem;color:var(--accent);font-weight:800;margin-top:0.2rem">
+      ≈ {{ "{:,.0f}".format(deger_tl).replace(",",".") }} ₺
+    </div>
+    {% endif %}
   </div>
   <div class="summary-card" style="padding:0.6rem 1rem;text-align:center">
     <div class="card-label" style="font-size:0.72rem">Günlük Getiri</div>
@@ -69,12 +77,12 @@
       {{ ("▲ " if gunluk>=0 else "▼ ") }}{{ "{:,.2f}".format(gunluk|abs).replace(",",".") }} {{ para }}
     </div>
     {% if deger > 0 %}
-    <div style="font-size:0.95rem;font-weight:600;color:{{ '#3fb950' if gunluk>=0 else '#f85149' }}">
+    <div class="card-value {{ 'pos' if gunluk>=0 else 'neg' }}" style="font-size:1rem;margin-top:0.2rem">
       %{{ "{:.2f}".format((gunluk / deger * 100)|abs).replace(".",",") }}
     </div>
     {% endif %}
     {% if gunluk_tl is not none %}
-    <div style="font-size:0.78rem;color:{{ '#3fb950' if gunluk_tl>=0 else '#f85149' }}">
+    <div class="card-value {{ 'pos' if gunluk_tl>=0 else 'neg' }}" style="font-size:0.9rem;margin-top:0.2rem">
       ≈ {{ ("▲ " if gunluk_tl>=0 else "▼ ") }}{{ "{:,.0f}".format(gunluk_tl|abs).replace(",",".") }} ₺
     </div>
     {% endif %}
@@ -85,12 +93,12 @@
       {{ ("▲ " if kar>=0 else "▼ ") }}{{ "{:,.2f}".format(kar|abs).replace(",",".") }} {{ para }}
     </div>
     {% if deger > 0 %}
-    <div style="font-size:0.95rem;font-weight:600;color:{{ '#3fb950' if kar>=0 else '#f85149' }}">
+    <div class="card-value {{ 'pos' if kar>=0 else 'neg' }}" style="font-size:1rem;margin-top:0.2rem">
       %{{ "{:.2f}".format((kar / deger * 100)|abs).replace(".",",") }}
     </div>
     {% endif %}
     {% if kar_tl is not none %}
-    <div style="font-size:0.78rem;color:{{ '#3fb950' if kar_tl>=0 else '#f85149' }}">
+    <div class="card-value {{ 'pos' if kar_tl>=0 else 'neg' }}" style="font-size:0.9rem;margin-top:0.2rem">
       ≈ {{ ("▲ " if kar_tl>=0 else "▼ ") }}{{ "{:,.0f}".format(kar_tl|abs).replace(",",".") }} ₺
     </div>
     {% endif %}
