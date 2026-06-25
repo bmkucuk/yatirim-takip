@@ -529,3 +529,16 @@ body.light .btn-logout { background: rgba(207,34,46,0.08); }
   flex: 0 !important;
 }
 .form-group { position: relative; }
+
+/* ── Sembol dropdown fix ── */
+.sembol-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 140px;
+}
+.sembol-wrapper .sembol-dropdown {
+  top: 100%;
+  left: 0;
+  right: 0;
+  min-width: unset;
+}

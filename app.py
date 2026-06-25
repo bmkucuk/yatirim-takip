@@ -1565,12 +1565,13 @@ if __name__ == "__main__":
 @app.route("/api/sembol-ara")
 @login_required
 def sembol_ara():
-    """Autocomplete için sembol arama."""
     q = request.args.get("q","").strip().upper()
-    tur = request.args.get("tur","")  # FON, HISSE
+    tur = request.args.get("tur","")
     if len(q) < 1:
         return jsonify([])
+
     with get_db() as conn:
+        # Önce semboller tablosuna bak
         if tur == "FON":
             rows = conn.execute("""
                 SELECT kod, ad, piyasa FROM semboller
@@ -1589,7 +1590,19 @@ def sembol_ara():
                 WHERE kod LIKE ? OR ad LIKE ?
                 ORDER BY tur, kod LIMIT 20
             """, (f"{q}%", f"%{q}%")).fetchall()
-    return jsonify([{"kod": r["kod"], "ad": r["ad"], "piyasa": r["piyasa"]} for r in rows])
+
+        sonuclar = [{"kod": r["kod"], "ad": r["ad"] or "", "piyasa": r["piyasa"]} for r in rows]
+
+        # Semboller tablosu boşsa kullanıcının kendi işlemlerinden öner
+        if not sonuclar:
+            mevcut = conn.execute("""
+                SELECT DISTINCT sembol, tur FROM islemler
+                WHERE user_id=? AND sembol LIKE ?
+                ORDER BY sembol LIMIT 10
+            """, (session["user_id"], f"{q}%")).fetchall()
+            sonuclar = [{"kod": r["sembol"], "ad": "", "piyasa": r["tur"]} for r in mevcut]
+
+    return jsonify(sonuclar)
 
 @app.route("/admin/sembol-guncelle", methods=["POST"])
 @login_required
