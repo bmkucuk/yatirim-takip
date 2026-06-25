@@ -2,28 +2,28 @@
 {% block title %}Fiyat Geçmişi — Yatırım Takip{% endblock %}
 {% block content %}
 
+{% if request.args.get('backfill') == '1' %}
+<meta http-equiv="refresh" content="15;url={{ url_for('fiyatlar') }}?backfill=1">
+<div class="flash flash-success">
+  ⏳ Eksik günler dolduruluyor... Sayfa 15 saniyede bir yenileniyor.
+  <a href="{{ url_for('fiyatlar') }}" style="margin-left:1rem;color:var(--accent)">Durdur</a>
+</div>
+{% endif %}
+
 <div class="page-header">
   <h2>📋 Fiyat Geçmişi</h2>
   <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
     <form method="POST" action="{{ url_for('fiyat_guncelle') }}" style="display:inline">
       <button type="submit" class="btn-primary">🔄 Bugünü Güncelle</button>
     </form>
-    <form method="POST" action="{{ url_for('fiyat_backfill') }}" style="display:inline"
-      onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='⏳ Doldurulüyor...'">
+    <form method="POST" action="{{ url_for('fiyat_backfill') }}" style="display:inline">
       <button type="submit" class="btn-secondary">📅 Eksik Günleri Doldur (60 gün)</button>
-    </form>  </div>
+    </form>
+  </div>
 </div>
 
-<!-- Güncelleme Logları -->
-{% if logs and logs[0].sonuc == 'Backfill-TEFAS' and '/' in logs[0].detay %}
-{# Backfill tamamlandı, refresh yok #}
-{% elif request.args.get('backfill') == '1' %}
-<meta http-equiv="refresh" content="15;url={{ url_for('fiyatlar') }}?backfill=1">
-<div class="flash flash-success" style="margin-bottom:1rem">
-  ⏳ Eksik günler dolduruluyor... Sayfa 15 saniyede bir yenileniyor.
-  <a href="{{ url_for('fiyatlar') }}" style="margin-left:1rem;color:var(--accent)">Durdur</a>
-</div>
-{% endif %}
+{% if logs %}
+<div class="card" style="margin-bottom:1rem">
   <h4>Son Güncellemeler</h4>
   {% for log in logs %}
   <div class="log-row">
@@ -35,7 +35,6 @@
 </div>
 {% endif %}
 
-<!-- Manuel Fiyat Ekleme -->
 <div class="card form-card">
   <h3>✏️ Manuel Fiyat Ekle / Güncelle</h3>
   <form method="POST" action="{{ url_for('fiyat_ekle') }}">
@@ -68,7 +67,6 @@
   </form>
 </div>
 
-<!-- Pivot Fiyat Tablosu -->
 {% if tablo %}
 <div class="table-wrap">
 <table class="data-table">
