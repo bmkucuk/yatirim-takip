@@ -365,7 +365,54 @@ a:hover { color: var(--accent2); }
 .auth-card .form-group { margin-bottom: 1rem; }
 .auth-card .flash { margin-bottom: 1rem; }
 
-/* ── Empty State ── */
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+.modal-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 760px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+.modal-header h3 { font-size: 1rem; }
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 0.25rem;
+}
+.modal-close:hover { color: var(--text); }
+.btn-edit {
+  color: var(--accent);
+  font-size: 0.78rem;
+  border: 1px solid rgba(201,168,76,0.35);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+.btn-edit:hover { background: rgba(201,168,76,0.12); }
 .empty-state {
   text-align: center;
   padding: 3rem;

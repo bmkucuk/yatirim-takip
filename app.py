@@ -373,7 +373,31 @@ def islem_ekle():
     flash(f"{sembol} {alissat} işlemi eklendi.", "success")
     return redirect(url_for("islemler"))
 
-@app.route("/islem-sil/<int:islem_id>")
+@app.route("/islem-duzenle", methods=["POST"])
+@login_required
+def islem_duzenle():
+    user_id = session["user_id"]
+    islem_id = request.form["islem_id"]
+    sembol = request.form["sembol"].strip().upper()
+    tur = request.form["tur"]
+    hesap = request.form["hesap"]
+    araciKurum = request.form["araciKurum"]
+    alissat = request.form["alissat"]
+    adet = float(request.form["adet"].replace(",","."))
+    fiyat = float(request.form["fiyat"].replace(",","."))
+    tarih = request.form["tarih"]
+    tutar = adet * fiyat
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE islemler SET sembol=?,tur=?,hesap=?,araciKurum=?,alissat=?,
+            adet=?,fiyat=?,tutar=?,tarih=? WHERE id=? AND user_id=?
+        """, (sembol, tur, hesap, araciKurum, alissat, adet, fiyat, tutar, tarih, islem_id, user_id))
+        conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                     (sembol, tarih, fiyat))
+    flash(f"{sembol} işlemi güncellendi.", "success")
+    return redirect(url_for("islemler"))
+
+
 @login_required
 def islem_sil(islem_id):
     user_id = session["user_id"]

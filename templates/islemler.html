@@ -109,7 +109,11 @@
     <td>{{ "{:,.0f}".format(i.adet).replace(",",".") }}</td>
     <td>{{ "{:.6f}".format(i.fiyat).replace(".",",") }}</td>
     <td>{{ "{:,.2f}".format(i.tutar).replace(",","X").replace(".",",").replace("X",".") }} ₺</td>
-    <td>
+    <td style="display:flex;gap:0.4rem">
+      <button class="btn-edit"
+        onclick="duzenleBas({{ i.id }}, '{{ i.sembol }}', '{{ i.tur }}', '{{ i.alissat }}',
+          '{{ i.hesap or '' }}', '{{ i.araciKurum or '' }}', '{{ i.tarih }}',
+          {{ i.adet }}, {{ i.fiyat }})">Düzenle</button>
       <a href="{{ url_for('islem_sil', islem_id=i.id) }}"
          onclick="return confirm('Bu işlemi silmek istediğinize emin misiniz?')"
          class="btn-del">Sil</a>
@@ -123,6 +127,75 @@
 <div class="empty-state">Henüz işlem yok.</div>
 {% endif %}
 
+<!-- Düzenleme Modalı -->
+<div id="duzenle-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>✏️ İşlemi Düzenle</h3>
+      <button onclick="modalKapat()" class="modal-close">×</button>
+    </div>
+    <form method="POST" action="{{ url_for('islem_duzenle') }}">
+      <input type="hidden" name="islem_id" id="edit-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tür</label>
+          <select name="tur" id="edit-tur">
+            <option value="FON">📊 Yatırım Fonu</option>
+            <option value="HISSE">📈 Borsa Hissesi</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Sembol</label>
+          <input type="text" name="sembol" id="edit-sembol" required style="text-transform:uppercase">
+        </div>
+        <div class="form-group">
+          <label>Al / Sat</label>
+          <select name="alissat" id="edit-alissat">
+            <option value="Alış">Alış</option>
+            <option value="Satış">Satış</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Hesap</label>
+          <select name="hesap" id="edit-hesap">
+            {% for h in hesaplar %}
+            <option value="{{ h }}">{{ h }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Aracı Kurum</label>
+          <select name="araciKurum" id="edit-araciKurum">
+            {% for a in aracilar %}
+            <option value="{{ a }}">{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tarih</label>
+          <input type="date" name="tarih" id="edit-tarih" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Adet</label>
+          <input type="number" name="adet" id="edit-adet" step="any" min="0" required>
+        </div>
+        <div class="form-group">
+          <label>Fiyat (₺)</label>
+          <input type="number" name="fiyat" id="edit-fiyat" step="any" min="0" required>
+        </div>
+        <div class="form-group form-group-action">
+          <label>&nbsp;</label>
+          <button type="submit" class="btn-primary">Kaydet</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 document.getElementById('tur-select').addEventListener('change', function() {
   const hint = document.getElementById('sembol-hint');
@@ -131,5 +204,24 @@ document.getElementById('tur-select').addEventListener('change', function() {
 });
 // Bugünün tarihi
 document.querySelector('input[name="tarih"]').value = new Date().toISOString().split('T')[0];
+
+function duzenleBas(id, sembol, tur, alissat, hesap, araciKurum, tarih, adet, fiyat) {
+  document.getElementById('edit-id').value = id;
+  document.getElementById('edit-sembol').value = sembol;
+  document.getElementById('edit-tur').value = tur;
+  document.getElementById('edit-alissat').value = alissat;
+  document.getElementById('edit-hesap').value = hesap;
+  document.getElementById('edit-araciKurum').value = araciKurum;
+  document.getElementById('edit-tarih').value = tarih;
+  document.getElementById('edit-adet').value = adet;
+  document.getElementById('edit-fiyat').value = fiyat;
+  document.getElementById('duzenle-modal').style.display = 'flex';
+}
+function modalKapat() {
+  document.getElementById('duzenle-modal').style.display = 'none';
+}
+document.getElementById('duzenle-modal').addEventListener('click', function(e) {
+  if (e.target === this) modalKapat();
+});
 </script>
 {% endblock %}
