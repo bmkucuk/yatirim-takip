@@ -1918,6 +1918,35 @@ def kiyaslama_kalem_ekle():
     return redirect(url_for("kiyaslama"))
 
 
+@app.route("/kiyaslama/kalem-duzenle", methods=["POST"])
+@login_required
+def kiyaslama_kalem_duzenle():
+    user_id = session["user_id"]
+    kid = int(request.form["kalem_id"])
+    sembol = request.form["sembol"].strip().upper()
+    agirlik = float(request.form["agirlik"].replace(",", "."))
+    ilk_fiyat_str = request.form.get("ilk_fiyat", "").replace(",", ".").strip()
+    son_fiyat_str = request.form.get("son_fiyat", "").replace(",", ".").strip()
+    try:
+        ilk_fiyat = float(ilk_fiyat_str) if ilk_fiyat_str else None
+    except:
+        ilk_fiyat = None
+    try:
+        son_fiyat = float(son_fiyat_str) if son_fiyat_str else None
+    except:
+        son_fiyat = None
+    with get_db() as conn:
+        k = conn.execute("SELECT portfoy_id FROM kiyaslama_kalem WHERE id=?", (kid,)).fetchone()
+        if k:
+            p = conn.execute("SELECT user_id FROM kiyaslama_portfoy WHERE id=?", (k["portfoy_id"],)).fetchone()
+            if p and p["user_id"] == user_id:
+                conn.execute("""
+                    UPDATE kiyaslama_kalem SET sembol=?, agirlik=?, ilk_fiyat=?, son_fiyat=?
+                    WHERE id=?
+                """, (sembol, agirlik, ilk_fiyat, son_fiyat, kid))
+    return redirect(url_for("kiyaslama"))
+
+
 @app.route("/kiyaslama/kalem-sil/<int:kid>")
 @login_required
 def kiyaslama_kalem_sil(kid):

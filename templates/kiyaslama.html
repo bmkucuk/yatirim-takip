@@ -99,9 +99,9 @@
       <tbody>
       {% for k in kl %}
         {% set getiri = ((k.son_fiyat / k.ilk_fiyat - 1) * 100) if k.son_fiyat and k.ilk_fiyat else none %}
-        <tr style="border-bottom:1px solid var(--border)">
+        <tr id="kalem-row-{{ k.id }}" style="border-bottom:1px solid var(--border)">
           <td style="padding:5px 6px"><strong>{{ k.sembol }}</strong></td>
-          <td style="padding:5px 6px;text-align:right">%{{ "{:.1f}".format(k.agirlik).replace(".",",") }}</td>
+          <td style="padding:5px 6px;text-align:right">%{{ "{:.2f}".format(k.agirlik).replace(".",",") }}</td>
           <td style="padding:5px 6px;text-align:right">
             {{ "{:.4f}".format(k.ilk_fiyat).rstrip('0').rstrip('.') if k.ilk_fiyat else "—" }}
           </td>
@@ -114,10 +114,48 @@
               {{ ("▲ %" if getiri>=0 else "▼ %") }}{{ "{:.2f}".format(getiri|abs).replace(".",",") }}
             {% else %}—{% endif %}
           </td>
-          <td style="padding:5px 6px">
+          <td style="padding:5px 6px;white-space:nowrap">
+            <button onclick="kalemDuzenle({{ k.id }}, '{{ k.sembol }}', {{ k.agirlik }}, '{{ k.ilk_fiyat or '' }}', '{{ k.son_fiyat or '' }}')"
+              style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.75rem;padding:0 4px">✏️</button>
             <a href="{{ url_for('kiyaslama_kalem_sil', kid=k.id) }}"
                style="color:#f85149;font-size:0.75rem;text-decoration:none"
                onclick="return confirm('Kalemi sil?')">×</a>
+          </td>
+        </tr>
+        <tr id="kalem-edit-{{ k.id }}" style="display:none;background:var(--card2)">
+          <td colspan="6" style="padding:8px 6px">
+            <form method="POST" action="{{ url_for('kiyaslama_kalem_duzenle') }}"
+                  style="display:flex;gap:0.4rem;align-items:flex-end;flex-wrap:wrap">
+              <input type="hidden" name="kalem_id" value="{{ k.id }}">
+              <div>
+                <label style="font-size:0.7rem;color:var(--text2);display:block">Sembol</label>
+                <input type="text" name="sembol" id="edit-sembol-{{ k.id }}" value="{{ k.sembol }}"
+                  style="width:90px;background:var(--card);border:1px solid var(--border);color:var(--text);
+                         padding:5px 7px;border-radius:5px;font-size:0.82rem;text-transform:uppercase">
+              </div>
+              <div>
+                <label style="font-size:0.7rem;color:var(--text2);display:block">Ağırlık %</label>
+                <input type="number" name="agirlik" id="edit-agirlik-{{ k.id }}" value="{{ k.agirlik }}" step="any"
+                  style="width:75px;background:var(--card);border:1px solid var(--border);color:var(--text);
+                         padding:5px 7px;border-radius:5px;font-size:0.82rem">
+              </div>
+              <div>
+                <label style="font-size:0.7rem;color:var(--text2);display:block">İlk Fiyat</label>
+                <input type="text" name="ilk_fiyat" id="edit-ilk-{{ k.id }}" value="{{ k.ilk_fiyat or '' }}"
+                  style="width:90px;background:var(--card);border:1px solid var(--border);color:var(--text);
+                         padding:5px 7px;border-radius:5px;font-size:0.82rem">
+              </div>
+              <div>
+                <label style="font-size:0.7rem;color:var(--text2);display:block">Son Fiyat</label>
+                <input type="text" name="son_fiyat" id="edit-son-{{ k.id }}" value="{{ k.son_fiyat or '' }}"
+                  style="width:90px;background:var(--card);border:1px solid var(--border);color:var(--text);
+                         padding:5px 7px;border-radius:5px;font-size:0.82rem">
+              </div>
+              <button type="submit" class="btn-primary" style="font-size:0.78rem;padding:5px 10px">Kaydet</button>
+              <button type="button" onclick="document.getElementById('kalem-edit-{{ k.id }}').style.display='none';document.getElementById('kalem-row-{{ k.id }}').style.display=''"
+                style="background:none;border:1px solid var(--border);color:var(--text2);padding:5px 10px;
+                       border-radius:5px;font-size:0.78rem;cursor:pointer">İptal</button>
+            </form>
           </td>
         </tr>
       {% endfor %}
@@ -246,6 +284,11 @@ document.addEventListener('input', function(e) {
       });
   }, 200);
 });
+
+function kalemDuzenle(id, sembol, agirlik, ilkFiyat, sonFiyat) {
+  document.getElementById('kalem-row-' + id).style.display = 'none';
+  document.getElementById('kalem-edit-' + id).style.display = '';
+}
 
 document.addEventListener('blur', function(e) {
   if (!e.target.classList.contains('kiyaslama-sembol-input')) return;
