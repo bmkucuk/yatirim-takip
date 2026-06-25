@@ -547,17 +547,22 @@ def ayarlar():
             with get_db() as conn:
                 conn.execute("DELETE FROM aracilar WHERE id=? AND user_id=?", (aid, user_id))
         elif action == "sifre":
-            eski = request.form["eski_sifre"]
-            yeni = request.form["yeni_sifre"]
-            with get_db() as conn:
-                user = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
-            if user["password_hash"] == hash_pw(eski) and len(yeni) >= 6:
-                with get_db() as conn:
-                    conn.execute("UPDATE users SET password_hash=? WHERE id=?",
-                                 (hash_pw(yeni), user_id))
-                flash("Şifre güncellendi.", "success")
+            eski = request.form.get("eski_sifre","")
+            yeni = request.form.get("yeni_sifre","")
+            if not eski or not yeni:
+                flash("Şifre alanları boş bırakılamaz.", "error")
+            elif len(yeni) < 6:
+                flash("Yeni şifre en az 6 karakter olmalı.", "error")
             else:
-                flash("Eski şifre hatalı veya yeni şifre çok kısa.", "error")
+                with get_db() as conn:
+                    user = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+                if user["password_hash"] == hash_pw(eski):
+                    with get_db() as conn:
+                        conn.execute("UPDATE users SET password_hash=? WHERE id=?",
+                                     (hash_pw(yeni), user_id))
+                    flash("Şifre güncellendi.", "success")
+                else:
+                    flash("Eski şifre hatalı.", "error")
         return redirect(url_for("ayarlar"))
 
     with get_db() as conn:
@@ -1604,7 +1609,7 @@ def sembol_ara():
 
     return jsonify(sonuclar)
 
-@app.route("/admin/sembol-guncelle", methods=["POST"])
+@app.route("/admin/sembol-guncelle", methods=["GET","POST"])
 @login_required
 def sembol_guncelle():
     """Sembol listelerini güncelle — admin only."""

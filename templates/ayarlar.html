@@ -16,7 +16,7 @@
       {% for h in hesaplar %}
       <li>
         {{ h.ad }}
-        <form method="POST" style="display:inline">
+        <form method="POST" action="{{ url_for('ayarlar') }}" style="display:inline">
           <input type="hidden" name="action" value="hesap_sil">
           <input type="hidden" name="hesap_id" value="{{ h.id }}">
           <button type="submit" class="btn-del-sm"
@@ -25,7 +25,7 @@
       </li>
       {% endfor %}
     </ul>
-    <form method="POST" class="inline-form">
+    <form method="POST" action="{{ url_for('ayarlar') }}" class="inline-form">
       <input type="hidden" name="action" value="hesap_ekle">
       <input type="text" name="hesap_ad" placeholder="Yeni hesap adı">
       <button type="submit" class="btn-secondary">Ekle</button>
@@ -40,7 +40,7 @@
       {% for a in aracilar %}
       <li>
         {{ a.ad }}
-        <form method="POST" style="display:inline">
+        <form method="POST" action="{{ url_for('ayarlar') }}" style="display:inline">
           <input type="hidden" name="action" value="aracilar_sil">
           <input type="hidden" name="aracilar_id" value="{{ a.id }}">
           <button type="submit" class="btn-del-sm"
@@ -49,7 +49,7 @@
       </li>
       {% endfor %}
     </ul>
-    <form method="POST" class="inline-form">
+    <form method="POST" action="{{ url_for('ayarlar') }}" class="inline-form">
       <input type="hidden" name="action" value="aracilar_ekle">
       <input type="text" name="aracilar_ad" placeholder="Yeni aracı kurum">
       <button type="submit" class="btn-secondary">Ekle</button>
