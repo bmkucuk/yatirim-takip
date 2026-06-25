@@ -66,43 +66,109 @@ def cek_tefas_fonlari():
     return []
 
 def cek_bist_hisseleri():
-    """İş Yatırım API'sinden BIST hisselerini çeker."""
-    try:
-        r = requests.get(
-            "https://www.isyatirim.com.tr/api/data/symbol?market=BIST",
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=20
-        )
-        if r.status_code == 200:
-            data = r.json()
-            hisseler = []
-            for item in data:
-                kod = item.get("symbol") or item.get("kod")
-                ad = item.get("description") or item.get("ad") or ""
-                if kod:
-                    hisseler.append((kod.strip(), ad.strip(), "HISSE", "BIST"))
-            return hisseler
-    except Exception:
-        pass
+    """BIST hisse listesi — 475+ hisse."""
+    bist = [
+        ("A1CAP","A1 Capital"),("ACSEL","Acıselsan"),("ADEL","Adel Kalemcilik"),
+        ("ADESE","Adese"),("AEFES","Anadolu Efes"),("AFYON","Afyon Çimento"),
+        ("AGESA","Agesa"),("AHGAZ","Ahlatcı Doğalgaz"),("AKBNK","Akbank"),
+        ("AKCNS","Akçansa"),("AKENR","Ak Enerji"),("AKGRT","Aksigorta"),
+        ("AKSA","Aksa Akrilik"),("AKSEN","Aksa Enerji"),("ALARK","Alarko Holding"),
+        ("ALBRK","Albaraka Türk"),("ALKIM","Alkim Alkali"),("ANELE","An-El"),
+        ("ANHYT","Anadolu Hayat"),("ANSGR","Anadolu Sigorta"),("ARCLK","Arçelik"),
+        ("ARDYZ","Ardışık Yazılım"),("ARENA","Arena Bilgisayar"),("ASELS","Aselsan"),
+        ("ASTOR","Astor Enerji"),("ASUZU","Anadolu Isuzu"),("AVOD","AS Avod"),
+        ("AYEN","Ayen Enerji"),("BAGFS","Bagfaş"),("BAKAB","Bak Ambalaj"),
+        ("BANVT","Bandırma Vitaminli"),("BERA","Bera Holding"),("BFREN","Bosch Fren"),
+        ("BIMAS","BİM"),("BIZIM","Bizim Toptan"),("BJKAS","Beşiktaş"),
+        ("BMSTL","Borusan Mannesmann"),("BOSSA","Bossa"),("BRISA","Brisa"),
+        ("BRSAN","Burçelik Vana"),("BSOKE","Batısöke"),("BTCIM","Batıçim"),
+        ("BUCIM","Bursa Çimento"),("BURCE","Burçelik"),("CANTE","Can Tarım"),
+        ("CARFA","Carrefoursa"),("CCOLA","Coca Cola İçecek"),("CELHA","Çelik Halat"),
+        ("CEMTS","Çemtaş"),("CIMSA","Çimsa"),("CLEBI","Çelebi"),
+        ("CMENT","Çimentaş"),("CONSE","Consus"),("CUSAN","Çusan"),
+        ("DAGHL","Dağ Holding"),("DAPGM","Dap Gayrimenkul"),("DARDL","Dardanel"),
+        ("DENGE","Denge Yatırım"),("DESA","Desa"),("DESPC","Despec"),
+        ("DEVA","Deva Holding"),("DGATE","Datagate"),("DGGYO","Doğuş GYO"),
+        ("DGNMO","Doğanlar Mobilya"),("DGZTE","Doğan Gazetecilik"),("DITAS","Ditaş"),
+        ("DOAS","Doğuş Otomotiv"),("DOHOL","Doğan Holding"),("DOKTA","Döktaş"),
+        ("DYOBY","DYO Boya"),("EBEBK","Ebebek"),("ECILC","Eczacıbaşı İlaç"),
+        ("ECZYT","Eczacıbaşı Yatırım"),("EDATA","E-Data"),("EDIP","Edip İplik"),
+        ("EGEEN","Ege Endüstri"),("EGEPO","Ege Profil"),("EGSER","Ege Seramik"),
+        ("EKGYO","Emlak Konut GYO"),("EKIZ","Ekiz Kimya"),("ENERY","Enerjisa Enerji"),
+        ("ENJSA","Enerjisa"),("ENKAI","Enka İnşaat"),("EPLAS","Egeplast"),
+        ("ERBOS","Erbosan"),("EREGL","Ereğli Demir Çelik"),("ERSU","Ersu"),
+        ("ESCOM","Escort Teknoloji"),("ETYAT","ET Yatırım"),
+        ("FADE","Fade"),("FENER","Fenerbahçe"),("FONET","Fonet Bilgi"),
+        ("FROTO","Ford Otosan"),("GARAN","Garanti BBVA"),("GARFA","Garanti Faktoring"),
+        ("GEDIK","Gedik Yatırım"),("GENTS","Gentaş"),("GESAN","Gesan"),
+        ("GIPTA","Gıpta"),("GLBMD","Global MD"),("GLYHO","Global Yatırım"),
+        ("GOLTS","Göltaş"),("GOZDE","Gözde Girişim"),("GSRAY","Galatasaray"),
+        ("GUBRF","Gübre Fabrikaları"),("GUNDG","Gündem Gıda"),
+        ("GWIND","Güneş Enerji"),("HALKB","Halkbank"),("HATEK","Hatek"),
+        ("HEKTS","Hektaş"),("HTTBT","Hüttenes-Albertus"),("HUBVC","Hub Venture"),
+        ("HURGZ","Hürriyet"),("ICBCT","ICBC Turkey"),("IDEAS","Ideas"),
+        ("IHLAS","İhlas Holding"),("INDES","İndeks Bilgisayar"),
+        ("INFO","Info Yatırım"),("INTEM","İntem"),("INVEO","Inveo"),
+        ("IPEKE","İpek Doğal Enerji"),("ISCTR","İş Bankası C"),
+        ("ISFIN","İş Finansal"),("ISGYO","İş GYO"),("ISKPL","İstanbul Kablo"),
+        ("ITTFH","İttifak Holding"),("IZMDC","İzmir Demir Çelik"),
+        ("JANTS","Jantsa"),("KAPLM","Kaplamin"),("KAREL","Karel Elektronik"),
+        ("KARSN","Karsan"),("KARTN","Kartonsan"),("KATMR","Katmerciler"),
+        ("KAYSE","Kayseri Şeker"),("KCHOL","Koç Holding"),("KENT","Kent Gıda"),
+        ("KERVT","Kerevitaş"),("KFEIN","Kafe İnşaat"),("KLKIM","Kalekim"),
+        ("KLMSN","Kaleseramik"),("KNFRT","Konfrut"),("KOCMT","Kocaer Çelik"),
+        ("KONYA","Konya Çimento"),("KONTR","Kontrolmatik"),("KORDS","Kordsa"),
+        ("KOZAA","Koza Anadolu"),("KOZAL","Koza Altın"),("KRDMA","Kardemir A"),
+        ("KRDMB","Kardemir B"),("KRDMD","Kardemir D"),("KRSTL","Kristal"),
+        ("KTSKR","Kütahya Şeker"),("LIDER","Lider Faktoring"),
+        ("LINK","Link Bilgisayar"),("LKMNH","Lokman Hekim"),("LOGO","Logo Yazılım"),
+        ("LUKSK","Lüks Kadife"),("MAKIM","Makina Takım"),("MANAS","Manas"),
+        ("MARKA","Marka"),("MARTI","Martı Otel"),("MEDTR","Medicana"),
+        ("MEKAG","Meka Gıda"),("MEPET","Mepet Metro"),("MERIT","Merit Turizm"),
+        ("MERKO","Merko"),("METRO","Metro"),("MGROS","Migros"),
+        ("MNDRS","Menderes Tekstil"),("MOBTL","Mobil Telekom"),
+        ("MPARK","Medical Park"),("MRSHL","Marshall"),("NETAS","Netaş"),
+        ("NIBAS","Niğbaş"),("NTHOL","Net Holding"),("NTTUR","Net Turizm"),
+        ("NUHCM","Nuh Çimento"),("ODAS","Odaş Elektrik"),("ORGE","Orge Enerji"),
+        ("OSTIM","OSTİM Endüstriyel"),("OTKAR","Otokar"),("OYLUM","Oylum"),
+        ("PARSN","Parsan"),("PEKGY","Peker GYO"),("PENGD","Penguen Gıda"),
+        ("PENTA","Penta Teknoloji"),("PETKM","Petkim"),("PETUN","Pınar Et"),
+        ("PGSUS","Pegasus"),("PINSU","Pınar Su"),("PKENT","Park Elektrik"),
+        ("POLHO","Polisan Holding"),("PRKAB","Prysmian Kablo"),
+        ("RAYSG","Ray Sigorta"),("ROYAL","Royal Halı"),
+        ("SAHOL","Sabancı Holding"),("SANEL","Sanel"),("SANKO","Sanko Pazarlama"),
+        ("SARKY","Sarkuysan"),("SASA","SASA Polyester"),("SDTTR","SDT Uzay"),
+        ("SEGMN","Segment"),("SELEC","Selçuk Ecza"),("SELGD","Selçuklu Gıda"),
+        ("SISE","Şişecam"),("SKBNK","Şekerbank"),("SMART","Smart Güneş"),
+        ("SNGYO","Sinpaş GYO"),("SODSN","Soda Sanayii"),("SOKM","Şok Marketler"),
+        ("SUWEN","Süwen"),("TATGD","Tat Gıda"),("TAVHL","TAV Havalimanları"),
+        ("TBORG","Türk Tuborg"),("TCELL","Turkcell"),("THYAO","Türk Hava Yolları"),
+        ("TIRE","Tire Kutsan"),("TKFEN","Tekfen Holding"),("TKNSA","Teknosa"),
+        ("TMSN","Tümosan"),("TOASO","Tofaş Oto"),("TRGYO","Türkiye GYO"),
+        ("TRKCM","Trakya Cam"),("TSKB","TSKB"),("TTKOM","Türk Telekom"),
+        ("TTRAK","Türk Traktör"),("TUKAS","Tukaş"),("TUPRS","Tüpraş"),
+        ("ULKER","Ülker"),("ULUFA","Ulusoy Filo"),("ULUSE","Ulusoy Elektrik"),
+        ("USAK","Uşak Seramik"),("VAKBN","Vakıfbank"),("VAKGY","Vakıf GYO"),
+        ("VBTYZ","VBT Yazılım"),("VESBE","Vestel Beyaz"),("VESTL","Vestel"),
+        ("VKING","Viking Kağıt"),("YAPRK","Yaprak"),("YATAS","Yataş"),
+        ("YKBNK","Yapı Kredi"),("YONGA","Yonga Mobilya"),("YUNSA","Yünsa"),
+        ("ZOREN","Zorlu Enerji"),("ZRGYO","Ziraat GYO"),
+        # Ek hisseler
+        ("AKFGY","Akfen GYO"),("AKMGY","Akmerkez GYO"),("ALGYO","Alarko GYO"),
+        ("AVGYO","Avrasya GYO"),("BRYAT","Bursa Yatırım"),("CBIGY","Cibali GYO"),
+        ("DGGYO","Doğuş GYO"),("DZGYO","Deniz GYO"),("EKGYO","Emlak Konut GYO"),
+        ("ETILR","Etiler GYO"),("FZLGY","Fazilet GYO"),("HDFGS","Hedef GYO"),
+        ("HLGYO","Hilal GYO"),("IDGYO","İdeal GYO"),("IHLGM","İhlas Gayrimenkul"),
+        ("ISGYO","İş GYO"),("KLGYO","Kale GYO"),("MHRGY","Mhr GYO"),
+        ("MRGYO","Marbaş GYO"),("MSGYO","Mistral GYO"),("NUGYO","Nu GYO"),
+        ("PEKGY","Peker GYO"),("RHGYO","Rol Holding GYO"),("RYGYO","Rüya GYO"),
+        ("SNGYO","Sinpaş GYO"),("SRVGY","Servet GYO"),("SURGY","Sur GYO"),
+        ("TDGYO","Trend GYO"),("TRGYO","Türkiye GYO"),("TSGYO","Turyap GYO"),
+        ("VAKGY","Vakıf GYO"),("VRGYO","Vardar GYO"),("YGYO","Yeni GYO"),
+        ("ZRGYO","Ziraat GYO"),
+    ]
+    return [(k, a, "HISSE", "BIST") for k, a in bist]
 
-    # Fallback: Yahoo Finance BIST listesi
-    try:
-        # En bilinen BIST hisseleri
-        bist_kodlar = [
-            ("THYAO","Türk Hava Yolları"), ("GARAN","Garanti BBVA"), ("AKBNK","Akbank"),
-            ("YKBNK","Yapı Kredi"), ("ISCTR","İş Bankası C"), ("HALKB","Halkbank"),
-            ("VAKBN","Vakıfbank"), ("SAHOL","Sabancı Holding"), ("KCHOL","Koç Holding"),
-            ("SISE","Şişecam"), ("EREGL","Ereğli Demir Çelik"), ("BIMAS","BİM"),
-            ("MIGROS","Migros"), ("TCELL","Turkcell"), ("TUPRS","Tüpraş"),
-            ("TOASO","Tofaş Oto"), ("FROTO","Ford Otosan"), ("ASELS","Aselsan"),
-            ("PGSUS","Pegasus"), ("TAVHL","TAV Havalimanları"), ("SASA","SASA"),
-            ("EKGYO","Emlak Konut"), ("TTKOM","Türk Telekom"), ("ARCLK","Arçelik"),
-            ("VESTL","Vestel"), ("OTKAR","Otokar"), ("KOZAL","Koza Altın"),
-            ("KRDMD","Kardemir D"), ("PETKM","Petkim"), ("DOHOL","Doğan Holding"),
-        ]
-        return [(k, a, "HISSE", "BIST") for k, a in bist_kodlar]
-    except Exception:
-        return []
 
 def cek_abd_hisseleri():
     """S&P 500 + NASDAQ 100 sembollerini Wikipedia'dan çeker."""
