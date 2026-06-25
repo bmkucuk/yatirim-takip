@@ -16,8 +16,10 @@
     <form method="POST" action="{{ url_for('fiyat_guncelle') }}" style="display:inline">
       <button type="submit" class="btn-primary">🔄 Bugünü Güncelle</button>
     </form>
-    <form method="POST" action="{{ url_for('fiyat_backfill') }}" style="display:inline">
-      <button type="submit" class="btn-secondary">📅 Eksik Günleri Doldur (60 gün)</button>
+    <form method="POST" action="{{ url_for('fiyat_backfill') }}" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+      <input type="date" name="baslangic" id="bf-bas" style="background:var(--card2);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:var(--radius);font-size:0.85rem">
+      <input type="date" name="bitis" id="bf-bit" style="background:var(--card2);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:var(--radius);font-size:0.85rem">
+      <button type="submit" class="btn-secondary">📅 Eksik Günleri Doldur</button>
     </form>
   </div>
 </div>
@@ -104,5 +106,10 @@
 
 <script>
 document.getElementById('fiyat-tarih').value = new Date().toISOString().split('T')[0];
+// Backfill varsayılan tarihler: 30 gün önce - bugün
+const today = new Date().toISOString().split('T')[0];
+const d30 = new Date(); d30.setDate(d30.getDate()-30);
+document.getElementById('bf-bas').value = d30.toISOString().split('T')[0];
+document.getElementById('bf-bit').value = today;
 </script>
 {% endblock %}

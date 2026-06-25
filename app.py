@@ -749,9 +749,9 @@ def fiyat_backfill_debug():
 @app.route("/fiyat-backfill", methods=["POST"])
 @login_required
 def fiyat_backfill():
-    """60 günlük eksik fiyatları toplu çek — fon başına 2-3 API isteği."""
+    """Kullanıcının seçtiği tarih aralığındaki fiyatları toplu çek."""
     from price_fetcher import fetch_fon_aralik
-    from datetime import date, timedelta
+    from datetime import date
 
     user_id = session["user_id"]
     with get_db() as conn:
@@ -762,6 +762,43 @@ def fiyat_backfill():
     if not fon_sembolleri:
         flash("Hiç fon işlemi bulunamadı.", "error")
         return redirect(url_for("fiyatlar"))
+
+    # Tarih aralığı
+    baslangic_str = request.form.get("baslangic","")
+    bitis_str = request.form.get("bitis","")
+    try:
+        baslangic = date.fromisoformat(baslangic_str)
+        bitis = date.fromisoformat(bitis_str)
+    except Exception:
+        from datetime import timedelta
+        bitis = date.today()
+        baslangic = bitis - timedelta(days=30)
+
+    if baslangic > bitis:
+        baslangic, bitis = bitis, baslangic
+
+    gun_sayisi = (bitis - baslangic).days + 1
+
+    # Toplu çek
+    tum_veriler = fetch_fon_aralik(fon_sembolleri, baslangic, bitis)
+
+    eklenen = 0
+    for (sembol, tarih_str), fiyat in tum_veriler.items():
+        with get_db() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                (sembol, tarih_str, fiyat))
+        eklenen += 1
+
+    simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
+    with get_db() as conn:
+        conn.execute("INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
+                     (simdi, "Backfill-TEFAS",
+                      f"{eklenen} fiyat ({baslangic_str} → {bitis_str}, {len(fon_sembolleri)} fon)"))
+
+    flash(f"✅ {eklenen} fiyat güncellendi ({baslangic_str} → {bitis_str}).", "success")
+    return redirect(url_for("fiyatlar"))
+
 
     bugun_d = date.today()
     baslangic = bugun_d - timedelta(days=60)
