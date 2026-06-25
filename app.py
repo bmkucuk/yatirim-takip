@@ -1620,6 +1620,31 @@ def api_portfoy():
     portfoy = hesapla_portfoy(session["user_id"])
     return jsonify(portfoy)
 
+@app.route("/api/fiyat-guncelle-manuel", methods=["POST"])
+@login_required
+def fiyat_guncelle_manuel():
+    """Dashboard butonu ile anlık fiyat güncelleme — oturum açmış kullanıcı için."""
+    with get_db() as conn:
+        tum = conn.execute("SELECT DISTINCT sembol, tur FROM islemler WHERE user_id=?",
+                           (session["user_id"],)).fetchall()
+    fon_sembolleri  = [r["sembol"] for r in tum if r["tur"] == "FON"]
+    hisse_sembolleri = [r["sembol"] for r in tum if r["tur"] in ("ABD", "BIST", "HISSE")]
+
+    sonuc = fetch_all_prices(fon_sembolleri, hisse_sembolleri)
+
+    basarili = 0
+    bugun = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d")
+    for sembol, tarih, fiyat in sonuc.get("prices", []):
+        with get_db() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO fiyat_gecmisi (sembol, tarih, fiyat)
+                VALUES (?,?,?)
+            """, (sembol, bugun, fiyat))
+        basarili += 1
+
+    return jsonify({"ok": True, "guncellenen": basarili, "kaynak": sonuc.get("method","?")})
+
+
 @app.route("/cron/guncelle")
 def cron_guncelle():
     """

@@ -1,13 +1,46 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — Yatırım Takip{% endblock %}
+{% block title %}Dashboard — Yatırım Takip<script>
+async function fiyatlariGuncelle() {
+  const btn = document.getElementById('guncelle-btn');
+  const sonuc = document.getElementById('guncelle-sonuc');
+  btn.disabled = true;
+  btn.textContent = '⏳ Güncelleniyor...';
+  sonuc.textContent = '';
+  try {
+    const r = await fetch('/api/fiyat-guncelle-manuel', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      sonuc.textContent = `✅ ${d.guncellenen} fiyat güncellendi`;
+      sonuc.style.color = 'var(--accent)';
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      sonuc.textContent = '⚠️ Hata oluştu';
+      sonuc.style.color = '#f87171';
+    }
+  } catch(e) {
+    sonuc.textContent = '⚠️ Bağlantı hatası';
+    sonuc.style.color = '#f87171';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Fiyatları Güncelle';
+  }
+}
+</script>
+{% endblock %}
 {% block content %}
 
 <div class="page-header">
   <h2>📊 Portföy Dashboard</h2>
-  <div class="header-meta">
-    Son fiyat: <strong class="tr-tarih">{{ son_fiyat_tarihi }}</strong>
+  <div class="header-meta" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+    <span>Son fiyat: <strong class="tr-tarih">{{ son_fiyat_tarihi }}</strong>
     {% if usd_try %} · 💵 1 USD = <strong>{{ "{:.2f}".format(usd_try).replace(".",",") }} ₺</strong>{% endif %}
-    {% if son_log %} · <em>{{ son_log.sonuc }}</em>{% endif %}
+    {% if son_log %} · <em>{{ son_log.sonuc }}</em>{% endif %}</span>
+    <button id="guncelle-btn" onclick="fiyatlariGuncelle()"
+      style="background:var(--accent);color:#000;border:none;padding:5px 14px;border-radius:20px;
+             font-size:0.8rem;font-weight:700;cursor:pointer;transition:opacity 0.2s">
+      🔄 Fiyatları Güncelle
+    </button>
+    <span id="guncelle-sonuc" style="font-size:0.8rem;color:var(--text2)"></span>
   </div>
 </div>
 
