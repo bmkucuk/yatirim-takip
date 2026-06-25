@@ -1570,17 +1570,41 @@ if __name__ == "__main__":
 @app.route("/api/son-fiyat")
 @login_required
 def api_son_fiyat():
-    """Bir sembolün DB'deki son fiyatını döndür."""
+    """Bir sembolün fiyatını döndür — önce DB, yoksa Yahoo Finance'den canlı çek."""
     sembol = request.args.get("sembol","").strip().upper()
+    tur = request.args.get("tur","")
     if not sembol:
         return jsonify({})
+
+    # 1) DB'de var mı?
     with get_db() as conn:
         row = conn.execute("""
             SELECT fiyat, tarih FROM fiyat_gecmisi
             WHERE sembol=? ORDER BY tarih DESC LIMIT 1
         """, (sembol,)).fetchone()
     if row:
-        return jsonify({"fiyat": row["fiyat"], "tarih": row["tarih"]})
+        return jsonify({"fiyat": row["fiyat"], "tarih": row["tarih"], "kaynak": "db"})
+
+    # 2) Yoksa Yahoo Finance'den çek (BIST ve ABD hisseleri için)
+    if tur in ("BIST", "ABD", "HISSE"):
+        try:
+            import yfinance as yf
+            from price_fetcher import normalize_yahoo_sembol
+            yahoo_sembol = normalize_yahoo_sembol(sembol) if tur == "BIST" else sembol
+            ticker = yf.Ticker(yahoo_sembol)
+            hist = ticker.history(period="2d")
+            if not hist.empty:
+                fiyat = float(hist["Close"].iloc[-1])
+                tarih = str(hist.index[-1].date())
+                # DB'ye de kaydet
+                with get_db() as conn:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                        (sembol, tarih, fiyat))
+                return jsonify({"fiyat": round(fiyat, 4), "tarih": tarih, "kaynak": "yahoo"})
+        except Exception:
+            pass
+
     return jsonify({})
 
 @app.route("/api/sembol-ara")

@@ -234,12 +234,14 @@ document.querySelector('input[name="tarih"]').value = new Date().toISOString().s
 // Sembol seçilince son fiyatı çek
 function sonFiyatGetir(sembol) {
   if (!sembol) return;
-  fetch(`/api/son-fiyat?sembol=${encodeURIComponent(sembol)}`)
+  const tur = turSelect.value;
+  fetch(`/api/son-fiyat?sembol=${encodeURIComponent(sembol)}&tur=${tur}`)
     .then(r => r.json())
     .then(d => {
       if (d.fiyat) {
         fiyatInput.value = d.fiyat;
-        sonFiyatBadge.textContent = `Son: ${d.fiyat} (${d.tarih})`;
+        const kaynakIcon = d.kaynak === 'yahoo' ? '🌐' : '💾';
+        sonFiyatBadge.textContent = `${kaynakIcon} Son: ${d.fiyat} (${d.tarih})`;
         sonFiyatBadge.style.display = 'inline';
       } else {
         sonFiyatBadge.style.display = 'none';
