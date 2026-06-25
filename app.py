@@ -734,7 +734,8 @@ def fiyat_backfill_debug():
 @app.route("/fiyat-backfill", methods=["POST"])
 @login_required
 def fiyat_backfill():
-    """Son 60 günün eksik fiyatlarını TEFAS'tan çekip doldur — senkron."""
+    """Son 60 günün eksik fiyatlarını TEFAS'tan çekip doldur — arka planda."""
+    import threading
     from price_fetcher import fetch_tefas_fon
     from datetime import date, timedelta
     import time as time_mod
@@ -774,34 +775,49 @@ def fiyat_backfill():
         return redirect(url_for("fiyatlar"))
 
     toplam = sum(len(v) for v in eksikler.values())
-    eklenen = 0
-    hatalar = 0
 
-    for tarih_str, semboller in sorted(eksikler.items()):
-        hedef = date.fromisoformat(tarih_str)
-        for sembol in semboller:
-            try:
-                fiyat = fetch_tefas_fon(sembol, hedef)
-                if fiyat:
-                    with get_db() as conn:
-                        conn.execute(
-                            "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                            (sembol, tarih_str, fiyat))
-                    eklenen += 1
-                else:
-                    hatalar += 1
-            except Exception:
-                hatalar += 1
-            time_mod.sleep(0.5)
+    def backfill_thread(_app, _eksikler, _toplam):
+        from price_fetcher import fetch_tefas_fon as _fetch
+        from datetime import date as _date, datetime as _dt
+        from zoneinfo import ZoneInfo as _ZI
+        import time as _time
 
-    simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
-    with get_db() as conn:
-        conn.execute(
-            "INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
-            (simdi, "Backfill-TEFAS",
-             f"{eklenen}/{toplam} fiyat dolduruldu ({len(eksikler)} gün, {hatalar} hata)"))
+        with _app.app_context():
+            eklenen = 0
+            hatalar = 0
+            for tarih_str, semboller in sorted(_eksikler.items()):
+                hedef = _date.fromisoformat(tarih_str)
+                for sembol in semboller:
+                    try:
+                        fiyat = _fetch(sembol, hedef)
+                        if fiyat:
+                            with get_db() as conn:
+                                conn.execute(
+                                    "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                                    (sembol, tarih_str, fiyat))
+                            eklenen += 1
+                        else:
+                            hatalar += 1
+                    except Exception:
+                        hatalar += 1
+                    _time.sleep(0.5)
 
-    flash(f"✅ {eklenen}/{toplam} eksik fiyat dolduruldu ({len(eksikler)} gün).", "success")
+            simdi = _dt.now(_ZI("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
+            with get_db() as conn:
+                conn.execute(
+                    "INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
+                    (simdi, "Backfill-TEFAS",
+                     f"{eklenen}/{_toplam} fiyat dolduruldu ({len(_eksikler)} gün, {hatalar} hata)"))
+
+    t = threading.Thread(
+        target=backfill_thread,
+        args=(app, dict(eksikler), toplam),
+        daemon=True
+    )
+    t.start()
+
+    flash(f"⏳ {toplam} eksik fiyat arka planda dolduruluyor "
+          f"({len(eksikler)} gün). Birkaç dakika sonra sayfayı yenile.", "success")
     return redirect(url_for("fiyatlar"))
 
 @app.route("/import-fiyatlar", methods=["GET","POST"])
