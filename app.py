@@ -204,8 +204,24 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
         kar_zarar = mevcut_deger - maliyet
 
         dun_fiyat = get_fiyat(sembol, dun_str)
-        gunluk_tl = (son_fiyat - dun_fiyat) * kalan_adet if dun_fiyat else 0
-        gunluk_yuzde = ((son_fiyat / dun_fiyat) - 1) * 100 if dun_fiyat else 0
+        # Yatırım fonlarında T+1 valör: alış tarihi = o günün kapanış fiyatı (maliyet).
+        # Dolayısıyla ertesi gün (bugün) için günlük getiri henüz başlamamıştır → 0.
+        # Kontrol: en son alış tarihi dün ise bugünkü günlük getiri = 0.
+        if tur == "FON":
+            with get_db() as _c:
+                son_alis = _c.execute(
+                    "SELECT MAX(tarih) FROM islemler WHERE user_id=? AND sembol=? AND alissat='Alış'",
+                    (user_id, sembol)
+                ).fetchone()[0]
+            gunluk_sifir = (son_alis == dun_str)
+        else:
+            gunluk_sifir = False
+        if gunluk_sifir:
+            gunluk_tl = 0
+            gunluk_yuzde = 0
+        else:
+            gunluk_tl = (son_fiyat - dun_fiyat) * kalan_adet if dun_fiyat else 0
+            gunluk_yuzde = ((son_fiyat / dun_fiyat) - 1) * 100 if dun_fiyat else 0
 
         def donemsel(ref_str):
             ref_fiyat = get_fiyat(sembol, ref_str)
