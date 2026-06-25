@@ -85,27 +85,38 @@
 <!-- Filtre — Kademeli -->
 <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.75rem">
 
+  <!-- Hesap Filtresi -->
+  <div class="filter-bar" style="flex-wrap:wrap;gap:0.5rem">
+    <span style="font-size:0.78rem;color:var(--text2);font-weight:600">👤 Hesap:</span>
+    <a href="{{ url_for('islemler') }}{% if tur_filtre %}?tur={{ tur_filtre }}{% endif %}{% if filtre %}?sembol={{ filtre }}{% endif %}"
+       class="filter-btn filter-btn-sm {% if not hesap_filtre %}active{% endif %}">Tümü</a>
+    {% for h in hesaplar %}
+    <a href="?hesap={{ h }}{% if tur_filtre %}&tur={{ tur_filtre }}{% endif %}{% if filtre %}&sembol={{ filtre }}{% endif %}"
+       class="filter-btn filter-btn-sm {% if hesap_filtre==h %}active{% endif %}">{{ h }}</a>
+    {% endfor %}
+  </div>
+
   <!-- 1. Kademe: Ana Kategoriler -->
   <div class="filter-bar" style="flex-wrap:wrap;gap:0.5rem">
-    <a href="{{ url_for('islemler') }}"
+    <a href="?{% if hesap_filtre %}hesap={{ hesap_filtre }}{% endif %}"
        class="filter-btn {% if not filtre and not tur_filtre %}active{% endif %}">Tümü</a>
 
     {% if fon_semboller %}
-    <a href="?tur=FON"
+    <a href="?tur=FON{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}"
        class="filter-btn {% if tur_filtre=='FON' or filtre in fon_semboller %}active{% endif %}">
       📊 Yatırım Fonu
     </a>
     {% endif %}
 
     {% if abd_semboller %}
-    <a href="?tur=ABD"
+    <a href="?tur=ABD{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}"
        class="filter-btn {% if tur_filtre=='ABD' or filtre in abd_semboller %}active{% endif %}">
       🇺🇸 ABD
     </a>
     {% endif %}
 
     {% if bist_semboller %}
-    <a href="?tur=BIST"
+    <a href="?tur=BIST{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}"
        class="filter-btn {% if tur_filtre=='BIST' or filtre in bist_semboller %}active{% endif %}">
       📈 BİST
     </a>
@@ -115,10 +126,10 @@
   <!-- 2. Kademe: Semboller (sadece kategori seçiliyse göster) -->
   {% if tur_filtre == 'FON' or filtre in fon_semboller %}
   <div class="filter-bar filter-sub" style="flex-wrap:wrap;gap:0.4rem">
-    <a href="?tur=FON"
+    <a href="?tur=FON{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if tur_filtre=='FON' and not filtre %}active{% endif %}">Tümü</a>
     {% for s in fon_semboller %}
-    <a href="?sembol={{ s }}"
+    <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if filtre==s %}active{% endif %}">{{ s }}</a>
     {% endfor %}
   </div>
@@ -126,10 +137,10 @@
 
   {% if tur_filtre == 'ABD' or filtre in abd_semboller %}
   <div class="filter-bar filter-sub" style="flex-wrap:wrap;gap:0.4rem">
-    <a href="?tur=ABD"
+    <a href="?tur=ABD{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if tur_filtre=='ABD' and not filtre %}active{% endif %}">Tümü</a>
     {% for s in abd_semboller %}
-    <a href="?sembol={{ s }}"
+    <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if filtre==s %}active{% endif %}">{{ s }}</a>
     {% endfor %}
   </div>
@@ -137,10 +148,10 @@
 
   {% if tur_filtre == 'BIST' or filtre in bist_semboller %}
   <div class="filter-bar filter-sub" style="flex-wrap:wrap;gap:0.4rem">
-    <a href="?tur=BIST"
+    <a href="?tur=BIST{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if tur_filtre=='BIST' and not filtre %}active{% endif %}">Tümü</a>
     {% for s in bist_semboller %}
-    <a href="?sembol={{ s }}"
+    <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if filtre==s %}active{% endif %}">{{ s }}</a>
     {% endfor %}
   </div>

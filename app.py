@@ -406,24 +406,34 @@ def dashboard():
 @login_required
 def islemler():
     user_id = session["user_id"]
-    filtre = request.args.get("sembol","")
-    tur_filtre = request.args.get("tur","")
+    filtre = request.args.get("sembol", "")
+    tur_filtre = request.args.get("tur", "")
+    hesap_filtre = request.args.get("hesap", "")
     with get_db() as conn:
         hesaplar = [r["ad"] for r in conn.execute("SELECT ad FROM hesaplar WHERE user_id=?", (user_id,)).fetchall()]
         aracilar = [r["ad"] for r in conn.execute("SELECT ad FROM aracilar WHERE user_id=?", (user_id,)).fetchall()]
-        if filtre:
-            rows = conn.execute("SELECT * FROM islemler WHERE user_id=? AND sembol=? ORDER BY tarih DESC",
-                                (user_id, filtre.upper())).fetchall()
-        elif tur_filtre:
-            rows = conn.execute("SELECT * FROM islemler WHERE user_id=? AND tur=? ORDER BY tarih DESC",
-                                (user_id, tur_filtre)).fetchall()
-        else:
-            rows = conn.execute("SELECT * FROM islemler WHERE user_id=? ORDER BY tarih DESC",
-                                (user_id,)).fetchall()
 
-        # Tüm semboller türe göre gruplu (filtre barı için)
-        tum = conn.execute("SELECT DISTINCT sembol, tur FROM islemler WHERE user_id=? ORDER BY tur, sembol",
-                           (user_id,)).fetchall()
+        conditions = ["user_id=?"]
+        params = [user_id]
+        if filtre:
+            conditions.append("sembol=?")
+            params.append(filtre.upper())
+        if tur_filtre:
+            conditions.append("tur=?")
+            params.append(tur_filtre)
+        if hesap_filtre:
+            conditions.append("hesap=?")
+            params.append(hesap_filtre)
+
+        where = " AND ".join(conditions)
+        rows = conn.execute(
+            f"SELECT * FROM islemler WHERE {where} ORDER BY tarih DESC", params
+        ).fetchall()
+
+        tum = conn.execute(
+            "SELECT DISTINCT sembol, tur FROM islemler WHERE user_id=? ORDER BY tur, sembol",
+            (user_id,)
+        ).fetchall()
 
     fon_semboller  = [r["sembol"] for r in tum if r["tur"] == "FON"]
     bist_semboller = [r["sembol"] for r in tum if r["tur"] == "BIST"]
@@ -431,7 +441,7 @@ def islemler():
 
     return render_template("islemler.html",
         islemler=rows, hesaplar=hesaplar, aracilar=aracilar,
-        filtre=filtre, tur_filtre=tur_filtre,
+        filtre=filtre, tur_filtre=tur_filtre, hesap_filtre=hesap_filtre,
         fon_semboller=fon_semboller,
         bist_semboller=bist_semboller,
         abd_semboller=abd_semboller)
