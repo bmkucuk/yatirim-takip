@@ -110,8 +110,7 @@
       <th>Son Fiyat</th>
       <th>Adet</th>
       <th>Maliyet</th>
-      <th>Günlük</th>
-      <th>Günlük %</th>
+      <th style="text-align:center">Günlük</th>
       <th>Haftalık</th>
       <th>Aylık</th>
       <th>3 Aylık</th>
@@ -127,11 +126,9 @@
     <td>{{ "{:.4f}".format(p.son_fiyat).rstrip('0').rstrip('.') | replace(".",",") }} {{ para }}</td>
     <td>{{ "{:,.0f}".format(p.kalan_adet).replace(",",".") }}</td>
     <td>{{ "{:,.0f}".format(p.alis_maliyet).replace(",",".") }} {{ para }}</td>
-    <td class="{{ 'pos' if p.gunluk_tl >= 0 else 'neg' }}">
-      {{ ("▲ " if p.gunluk_tl>=0 else "▼ ") }}{{ "{:,.0f}".format(p.gunluk_tl|abs).replace(",",".") }} {{ para }}
-    </td>
-    <td class="{{ 'pos' if p.gunluk_yuzde >= 0 else 'neg' }}">
-      {{ ("▲" if p.gunluk_yuzde>=0 else "▼") }} %{{ "{:.2f}".format(p.gunluk_yuzde|abs).replace(".",",") }}
+    <td class="{{ 'pos' if p.gunluk_tl >= 0 else 'neg' }}" style="text-align:center">
+      {{ ("▲ " if p.gunluk_tl>=0 else "▼ ") }}{{ "{:,.0f}".format(p.gunluk_tl|abs).replace(",",".") }} {{ para }}<br>
+      <small>%{{ "{:.2f}".format(p.gunluk_yuzde|abs).replace(".",",") }}</small>
     </td>
     <td class="{{ 'pos' if p.hafta_pct and p.hafta_pct >= 0 else 'neg' if p.hafta_pct else '' }}">
       {% if p.hafta_pct is not none %}{{ ("▲" if p.hafta_pct>=0 else "▼") }} %{{ "{:.2f}".format(p.hafta_pct|abs).replace(".",",") }}{% else %}—{% endif %}
