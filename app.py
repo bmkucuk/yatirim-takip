@@ -1567,34 +1567,46 @@ if __name__ == "__main__":
 
 # ── Sembol Arama ──────────────────────────────────────────────────────────────
 
+@app.route("/api/son-fiyat")
+@login_required
+def api_son_fiyat():
+    """Bir sembolün DB'deki son fiyatını döndür."""
+    sembol = request.args.get("sembol","").strip().upper()
+    if not sembol:
+        return jsonify({})
+    with get_db() as conn:
+        row = conn.execute("""
+            SELECT fiyat, tarih FROM fiyat_gecmisi
+            WHERE sembol=? ORDER BY tarih DESC LIMIT 1
+        """, (sembol,)).fetchone()
+    if row:
+        return jsonify({"fiyat": row["fiyat"], "tarih": row["tarih"]})
+    return jsonify({})
+
 @app.route("/api/sembol-ara")
 @login_required
 def sembol_ara():
     q = request.args.get("q","").strip().upper()
     tur = request.args.get("tur","")
+    piyasa = request.args.get("piyasa","")
     if len(q) < 1:
         return jsonify([])
 
     with get_db() as conn:
-        # Önce semboller tablosuna bak
-        if tur == "FON":
-            rows = conn.execute("""
-                SELECT kod, ad, piyasa FROM semboller
-                WHERE tur='FON' AND (kod LIKE ? OR ad LIKE ?)
-                ORDER BY kod LIMIT 20
-            """, (f"{q}%", f"%{q}%")).fetchall()
-        elif tur == "HISSE":
-            rows = conn.execute("""
-                SELECT kod, ad, piyasa FROM semboller
-                WHERE tur='HISSE' AND (kod LIKE ? OR ad LIKE ?)
-                ORDER BY piyasa, kod LIMIT 20
-            """, (f"{q}%", f"%{q}%")).fetchall()
-        else:
-            rows = conn.execute("""
-                SELECT kod, ad, piyasa FROM semboller
-                WHERE kod LIKE ? OR ad LIKE ?
-                ORDER BY tur, kod LIMIT 20
-            """, (f"{q}%", f"%{q}%")).fetchall()
+        filters = ["(kod LIKE ? OR ad LIKE ?)"]
+        params = [f"{q}%", f"%{q}%"]
+        if tur:
+            filters.append("tur=?")
+            params.append(tur)
+        if piyasa:
+            filters.append("piyasa=?")
+            params.append(piyasa)
+
+        rows = conn.execute(f"""
+            SELECT kod, ad, piyasa FROM semboller
+            WHERE {' AND '.join(filters)}
+            ORDER BY kod LIMIT 20
+        """, params).fetchall()
 
         sonuclar = [{"kod": r["kod"], "ad": r["ad"] or "", "piyasa": r["piyasa"]} for r in rows]
 

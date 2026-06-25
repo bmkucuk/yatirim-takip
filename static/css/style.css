@@ -298,6 +298,8 @@ a:hover { color: var(--accent2); }
   font-weight: 600;
 }
 .badge-fon { background: rgba(201,168,76,0.2); color: var(--accent); }
+.badge-bist { background: rgba(63,185,80,0.15); color: var(--pos); }
+.badge-abd { background: rgba(88,166,255,0.15); color: #58a6ff; }
 .badge-hisse { background: rgba(63,185,80,0.15); color: var(--pos); }
 
 /* ── Chart ── */

@@ -15,7 +15,8 @@
         <label>Tür</label>
         <select name="tur" id="tur-select" required>
           <option value="FON">📊 Yatırım Fonu</option>
-          <option value="HISSE">📈 Borsa Hissesi</option>
+          <option value="BIST">📈 Borsa TR (BIST)</option>
+          <option value="ABD">🇺🇸 Borsa USA</option>
         </select>
       </div>
       <div class="form-group">
@@ -62,8 +63,8 @@
         <input type="number" name="adet" step="any" min="0" placeholder="100000" required>
       </div>
       <div class="form-group">
-        <label>Fiyat (₺)</label>
-        <input type="number" name="fiyat" step="any" min="0" placeholder="2.50" required>
+        <label>Fiyat (₺) <span id="son-fiyat-badge" class="hint" style="display:none"></span></label>
+        <input type="number" name="fiyat" id="fiyat-input" step="any" min="0" placeholder="2.50" required>
       </div>
       <div class="form-group form-group-action">
         <label>&nbsp;</label>
@@ -144,7 +145,8 @@
           <label>Tür</label>
           <select name="tur" id="edit-tur">
             <option value="FON">📊 Yatırım Fonu</option>
-            <option value="HISSE">📈 Borsa Hissesi</option>
+            <option value="BIST">📈 Borsa TR (BIST)</option>
+            <option value="ABD">🇺🇸 Borsa USA</option>
           </select>
         </div>
         <div class="form-group">
@@ -209,17 +211,54 @@ document.getElementById('tur-select').addEventListener('change', function() {
 document.querySelector('input[name="tarih"]').value = new Date().toISOString().split('T')[0];
 
 // Sembol Autocomplete
+const turSelect = document.getElementById('tur-select');
 const sembolInput = document.getElementById('sembol-input');
 const sembolDd = document.getElementById('sembol-dropdown');
-const turSelect = document.getElementById('tur-select');
+const fiyatInput = document.getElementById('fiyat-input');
+const sonFiyatBadge = document.getElementById('son-fiyat-badge');
 let acTimer;
 
+turSelect.addEventListener('change', function() {
+  const hint = document.getElementById('sembol-hint');
+  if (this.value === 'FON') hint.textContent = '(örn: PHE, TP2, PRY, TLY)';
+  else if (this.value === 'BIST') hint.textContent = '(örn: THYAO, GARAN, SASA)';
+  else hint.textContent = '(örn: AAPL, MSFT, NVDA)';
+  sembolInput.value = '';
+  fiyatInput.value = '';
+  sonFiyatBadge.style.display = 'none';
+});
+
+// Bugünün tarihi
+document.querySelector('input[name="tarih"]').value = new Date().toISOString().split('T')[0];
+
+// Sembol seçilince son fiyatı çek
+function sonFiyatGetir(sembol) {
+  if (!sembol) return;
+  fetch(`/api/son-fiyat?sembol=${encodeURIComponent(sembol)}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.fiyat) {
+        fiyatInput.value = d.fiyat;
+        sonFiyatBadge.textContent = `Son: ${d.fiyat} (${d.tarih})`;
+        sonFiyatBadge.style.display = 'inline';
+      } else {
+        sonFiyatBadge.style.display = 'none';
+      }
+    }).catch(() => {});
+}
+
+// Autocomplete
 sembolInput.addEventListener('input', function() {
   clearTimeout(acTimer);
   const q = this.value.trim();
   if (q.length < 1) { sembolDd.innerHTML = ''; sembolDd.style.display='none'; return; }
+  // Tür map
+  const turMap = {'FON':'FON','BIST':'HISSE','ABD':'HISSE'};
+  const piyasaMap = {'FON':'TEFAS','BIST':'BIST','ABD':'ABD'};
+  const tur = turMap[turSelect.value] || '';
+  const piyasa = piyasaMap[turSelect.value] || '';
   acTimer = setTimeout(() => {
-    fetch(`/api/sembol-ara?q=${encodeURIComponent(q)}&tur=${turSelect.value}`)
+    fetch(`/api/sembol-ara?q=${encodeURIComponent(q)}&tur=${tur}&piyasa=${piyasa}`)
       .then(r => r.json())
       .then(data => {
         if (!data.length) { sembolDd.style.display='none'; return; }
@@ -235,10 +274,16 @@ sembolInput.addEventListener('input', function() {
           el.addEventListener('click', () => {
             sembolInput.value = el.dataset.kod;
             sembolDd.style.display = 'none';
+            sonFiyatGetir(el.dataset.kod);
           });
         });
       });
   }, 200);
+});
+
+sembolInput.addEventListener('blur', function() {
+  setTimeout(() => { sembolDd.style.display = 'none'; }, 200);
+  if (this.value.length >= 2) sonFiyatGetir(this.value.toUpperCase());
 });
 
 document.addEventListener('click', e => {
