@@ -2008,11 +2008,17 @@ def kiyaslama_fiyat_guncelle(pid):
         else:
             # DB'de yoksa hangi kategoride olduğunu bul
             with get_db() as conn:
-                row = conn.execute("SELECT tur FROM islemler WHERE sembol=? LIMIT 1", (k["sembol"],)).fetchone()
-            tur = row["tur"] if row else "BIST"
-            if tur == "FON":
+                # Önce semboller tablosuna bak
+                row = conn.execute("SELECT piyasa FROM semboller WHERE kod=? LIMIT 1", (k["sembol"],)).fetchone()
+                if row:
+                    piyasa = row["piyasa"]
+                else:
+                    # Sonra islemler tablosuna bak
+                    row2 = conn.execute("SELECT tur FROM islemler WHERE sembol=? LIMIT 1", (k["sembol"],)).fetchone()
+                    piyasa = row2["tur"] if row2 else "BIST"
+            if piyasa == "FON":
                 eksik_fon.append(k)
-            elif tur == "ABD":
+            elif piyasa == "ABD":
                 eksik_hisse_abd.append(k)
             else:
                 eksik_hisse_bist.append(k)
