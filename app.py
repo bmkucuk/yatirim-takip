@@ -497,11 +497,12 @@ def fiyat_guncelle():
             """, (sembol, tarih, fiyat))
         basarili += 1
 
+    simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
     with get_db() as conn:
         conn.execute("""
             INSERT INTO price_fetch_log (tarih, sonuc, detay)
             VALUES (?,?,?)
-        """, (str(bugun()), sonuc.get("method","?"),
+        """, (simdi, sonuc.get("method","?"),
               f"{basarili} fiyat güncellendi. {sonuc.get('errors','')}"))
 
     flash(f"{basarili} fiyat güncellendi. Kaynak: {sonuc.get('method','?')}", "success")
@@ -737,10 +738,11 @@ def fiyat_backfill():
                     pass
                 time_mod.sleep(1)
 
+        simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
         with get_db() as conn:
             conn.execute(
                 "INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
-                (str(date.today()), "Backfill-TEFAS",
+                (simdi, "Backfill-TEFAS",
                  f"{eklenen}/{toplam} fiyat dolduruldu ({len(eksikler)} gün)"))
 
     t = threading.Thread(target=backfill_thread, daemon=True)
@@ -1418,11 +1420,12 @@ def cron_guncelle():
             """, (sembol, tarih, fiyat))
         basarili += 1
 
+    simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
     with get_db() as conn:
         conn.execute("""
             INSERT INTO price_fetch_log (tarih, sonuc, detay)
             VALUES (?,?,?)
-        """, (str(bugun()), sonuc.get("method","?"),
+        """, (simdi, sonuc.get("method","?"),
               f"{basarili} fiyat güncellendi (cron). {sonuc.get('errors','')}"))
 
     return f"OK: {basarili} fiyat güncellendi. {sonuc.get('method')}", 200
