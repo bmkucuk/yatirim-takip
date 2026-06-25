@@ -67,8 +67,9 @@
 
       <!-- Fiyat -->
       <div class="form-group" style="flex:1;min-width:120px">
-        <label>Fiyat (₺) <span id="son-fiyat-badge" class="hint" style="display:none"></span></label>
+        <label>Fiyat (₺)</label>
         <input type="number" name="fiyat" id="fiyat-input" step="any" min="0" placeholder="2.50" required>
+        <div id="son-fiyat-badge" style="font-size:0.72rem;color:var(--text2);margin-top:0.2rem;min-height:1rem"></div>
       </div>
 
       <!-- Kaydet -->
@@ -229,16 +230,14 @@ function sonFiyatGetir(sembol, tur) {
     .then(d => {
       if (d.fiyat) {
         fiyatInput.value = d.fiyat;
-        const icon = d.kaynak === 'db' ? '💾' : '🌐';
-        sonFiyatBadge.textContent = `${icon} ${d.fiyat} (${d.tarih})`;
-        sonFiyatBadge.style.color = 'var(--pos)';
+        sonFiyatBadge.textContent = `🌐 ${d.tarih}`;
+        sonFiyatBadge.style.color = 'var(--text2)';
       } else {
-        sonFiyatBadge.textContent = '⚠️ Fiyat bulunamadı — manuel gir';
+        sonFiyatBadge.textContent = '⚠️ Manuel gir';
         sonFiyatBadge.style.color = 'var(--text2)';
       }
     }).catch(() => {
-      sonFiyatBadge.textContent = '❌ Bağlantı hatası';
-      sonFiyatBadge.style.color = 'var(--neg)';
+      sonFiyatBadge.textContent = '';
     });
 }
 
