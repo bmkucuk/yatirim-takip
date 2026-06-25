@@ -423,25 +423,38 @@ def islem_sil(islem_id):
 def fiyatlar():
     user_id = session["user_id"]
     with get_db() as conn:
-        # Kullanıcının sembollerini bul
-        semboller = [r["sembol"] for r in conn.execute("""
-            SELECT DISTINCT sembol FROM islemler WHERE user_id=?
-        """, (user_id,)).fetchall()]
+        semboller = sorted([r["sembol"] for r in conn.execute(
+            "SELECT DISTINCT sembol FROM islemler WHERE user_id=?", (user_id,)).fetchall()])
 
-        # Son 30 günün fiyatları
-        rows = conn.execute("""
-            SELECT * FROM fiyat_gecmisi
-            WHERE sembol IN ({})
-            ORDER BY tarih DESC, sembol
-            LIMIT 200
-        """.format(",".join("?"*len(semboller)) if semboller else "''"
-                   ), semboller).fetchall() if semboller else []
+        if semboller:
+            ph = ",".join("?"*len(semboller))
+            raw = conn.execute(f"""
+                SELECT tarih, sembol, fiyat FROM fiyat_gecmisi
+                WHERE sembol IN ({ph})
+                ORDER BY tarih DESC
+            """, semboller).fetchall()
+        else:
+            raw = []
 
-        logs = conn.execute("""
-            SELECT * FROM price_fetch_log ORDER BY id DESC LIMIT 10
-        """).fetchall()
+        logs = conn.execute(
+            "SELECT * FROM price_fetch_log ORDER BY id DESC LIMIT 10").fetchall()
 
-    return render_template("fiyatlar.html", semboller=semboller, rows=rows, logs=logs)
+    # Pivot: {tarih: {sembol: fiyat}}
+    pivot = {}
+    for r in raw:
+        pivot.setdefault(r["tarih"], {})[r["sembol"]] = r["fiyat"]
+
+    # Tarihleri sıralı liste olarak hazırla (yeniden eskiye)
+    tarihler = sorted(pivot.keys(), reverse=True)
+    tablo = []
+    for t in tarihler:
+        satir = {"tarih": t}
+        for s in semboller:
+            satir[s] = pivot[t].get(s)
+        tablo.append(satir)
+
+    return render_template("fiyatlar.html",
+        semboller=semboller, tablo=tablo, logs=logs)
 
 @app.route("/fiyat-ekle", methods=["POST"])
 @login_required
