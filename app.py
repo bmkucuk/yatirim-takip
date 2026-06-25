@@ -1634,8 +1634,8 @@ def cron_guncelle():
     with get_db() as conn:
         tum = conn.execute("SELECT DISTINCT sembol, tur FROM islemler").fetchall()
 
-    fon_sembolleri = [r["sembol"] for r in tum if r["tur"] == "FON"]
-    hisse_sembolleri = [r["sembol"] for r in tum if r["tur"] == "HISSE"]
+    fon_sembolleri  = [r["sembol"] for r in tum if r["tur"] == "FON"]
+    hisse_sembolleri = [r["sembol"] for r in tum if r["tur"] in ("ABD", "BIST", "HISSE")]
 
     sonuc = fetch_all_prices(fon_sembolleri, hisse_sembolleri)
 
