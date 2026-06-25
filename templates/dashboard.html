@@ -37,12 +37,22 @@
     <div class="card-value {{ 'pos' if genel_gunluk_tl >= 0 else 'neg' }}">
       {{ ("+" if genel_gunluk_tl>=0 else "") }}{{ "{:,.0f}".format(genel_gunluk_tl).replace(",",".") }} ₺
     </div>
+    {% if genel_toplam_tl > 0 %}
+    <div style="font-size:0.82rem;color:{{ '#3fb950' if genel_gunluk_tl>=0 else '#f85149' }}">
+      {{ ("▲ %" if genel_gunluk_tl>=0 else "▼ %") }}{{ "{:.2f}".format((genel_gunluk_tl / genel_toplam_tl * 100)|abs).replace(".",",") }}
+    </div>
+    {% endif %}
   </div>
   <div class="summary-card">
     <div class="card-label">📈 Toplam Kar/Zarar</div>
     <div class="card-value {{ 'pos' if genel_kar_tl >= 0 else 'neg' }}">
       {{ ("+" if genel_kar_tl>=0 else "") }}{{ "{:,.0f}".format(genel_kar_tl).replace(",",".") }} ₺
     </div>
+    {% if genel_toplam_tl > 0 %}
+    <div style="font-size:0.82rem;color:{{ '#3fb950' if genel_kar_tl>=0 else '#f85149' }}">
+      {{ ("▲ %" if genel_kar_tl>=0 else "▼ %") }}{{ "{:.2f}".format((genel_kar_tl / genel_toplam_tl * 100)|abs).replace(".",",") }}
+    </div>
+    {% endif %}
   </div>
 </div>
 
@@ -58,6 +68,11 @@
     <div class="card-value {{ 'pos' if gunluk >= 0 else 'neg' }}" style="font-size:1rem">
       {{ ("+" if gunluk>=0 else "") }}{{ "{:,.2f}".format(gunluk).replace(",",".") }} {{ para }}
     </div>
+    {% if deger > 0 %}
+    <div style="font-size:0.72rem;color:{{ '#3fb950' if gunluk>=0 else '#f85149' }}">
+      {{ ("▲ %" if gunluk>=0 else "▼ %") }}{{ "{:.2f}".format((gunluk / deger * 100)|abs).replace(".",",") }}
+    </div>
+    {% endif %}
     {% if gunluk_tl is not none %}
     <div style="font-size:0.72rem;color:{{ '#3fb950' if gunluk_tl>=0 else '#f85149' }}">
       ≈ {{ ("+" if gunluk_tl>=0 else "") }}{{ "{:,.0f}".format(gunluk_tl).replace(",",".") }} ₺
@@ -69,6 +84,11 @@
     <div class="card-value {{ 'pos' if kar >= 0 else 'neg' }}" style="font-size:1rem">
       {{ ("+" if kar>=0 else "") }}{{ "{:,.2f}".format(kar).replace(",",".") }} {{ para }}
     </div>
+    {% if deger > 0 %}
+    <div style="font-size:0.72rem;color:{{ '#3fb950' if kar>=0 else '#f85149' }}">
+      {{ ("▲ %" if kar>=0 else "▼ %") }}{{ "{:.2f}".format((kar / deger * 100)|abs).replace(".",",") }}
+    </div>
+    {% endif %}
     {% if kar_tl is not none %}<div style="font-size:0.72rem;color:{{ '#3fb950' if kar_tl>=0 else '#f85149' }}">≈ {{ ("+" if kar_tl>=0 else "") }}{{ "{:,.0f}".format(kar_tl).replace(",",".") }} ₺</div>{% endif %}
   </div>
 </div>
