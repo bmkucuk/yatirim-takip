@@ -287,8 +287,12 @@ def dashboard():
     hesap_filtre = request.args.get("hesap", "Hepsi")
 
     with get_db() as conn:
-        hesaplar = [r["ad"] for r in conn.execute(
-            "SELECT ad FROM hesaplar WHERE user_id=?", (user_id,)).fetchall()]
+        # Sadece gerçek hesapları getir (işlemlerde kullanılan)
+        hesaplar = [r["hesap"] for r in conn.execute("""
+            SELECT DISTINCT hesap FROM islemler
+            WHERE user_id=? AND hesap IS NOT NULL AND hesap != ''
+            ORDER BY hesap
+        """, (user_id,)).fetchall()]
 
     portfoy = hesapla_portfoy(user_id, hesap_filtre)
 
