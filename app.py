@@ -1896,21 +1896,44 @@ def kiyaslama_kalem_ekle():
             flash("Portföye en fazla 10 kalem eklenebilir.", "error")
             return redirect(url_for("kiyaslama"))
 
-    # İlk fiyat: DB'den dene, yoksa manuel
+    from price_fetcher import fetch_fon_fiyatlari as _tefas, fetch_hisse_fiyatlari as _yahoo
+
+    def _piyasa_bul(sembol):
+        with get_db() as c:
+            r = c.execute("SELECT piyasa FROM semboller WHERE kod=? LIMIT 1", (sembol,)).fetchone()
+            if r: return r["piyasa"]
+            r2 = c.execute("SELECT tur FROM islemler WHERE sembol=? LIMIT 1", (sembol,)).fetchone()
+            return r2["tur"] if r2 else "BIST"
+
+    def _fiyat_cek(sembol, tarih):
+        """DB → TEFAS/Yahoo fallback ile fiyat çek."""
+        f = get_fiyat(sembol, tarih)
+        if f: return f
+        piyasa = _piyasa_bul(sembol)
+        if piyasa == "FON":
+            prices, _ = _tefas([sembol])
+            return prices.get(sembol)
+        else:
+            tur_map = {sembol: piyasa}
+            prices, _ = _yahoo([sembol], tur_map=tur_map)
+            gun_dict = prices.get(sembol, {})
+            return gun_dict.get(tarih) or (list(gun_dict.values())[-1] if gun_dict else None)
+
+    # İlk fiyat: DB'den dene, yoksa TEFAS/Yahoo'dan çek, yoksa manuel
     ilk_fiyat = None
     if not ilk_fiyat_str:
-        ilk_fiyat = get_fiyat(sembol, p["ilk_tarih"])
+        ilk_fiyat = _fiyat_cek(sembol, p["ilk_tarih"])
     else:
         try:
             ilk_fiyat = float(ilk_fiyat_str)
         except:
             pass
 
-    # Son fiyat: bugünse DB'den, yoksa manuel
+    # Son fiyat: DB'den dene, yoksa TEFAS/Yahoo'dan çek, yoksa manuel
     bugun_str = str(bugun())
     son_fiyat = None
-    if not son_fiyat_str or p["son_tarih"] == bugun_str:
-        son_fiyat = get_fiyat(sembol, p["son_tarih"])
+    if not son_fiyat_str:
+        son_fiyat = _fiyat_cek(sembol, p["son_tarih"])
     if not son_fiyat and son_fiyat_str:
         try:
             son_fiyat = float(son_fiyat_str)
