@@ -744,7 +744,7 @@ def fiyat_backfill():
     flash(f"✅ {eklenen} eksik fiyat dolduruldu ({len(eksikler)} gün tarandı).", "success")
     return redirect(url_for("fiyatlar"))
 
-, methods=["GET","POST"])
+@app.route("/import-fiyatlar", methods=["GET","POST"])
 @login_required
 def import_fiyatlar():
     """Excel'den fiyat geçmişini yükle."""
