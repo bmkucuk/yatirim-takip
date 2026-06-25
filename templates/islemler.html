@@ -99,7 +99,7 @@
   <tbody>
   {% for i in islemler %}
   <tr>
-    <td>{{ i.tarih }}</td>
+    <td class="tr-tarih">{{ i.tarih }}</td>
     <td><strong>{{ i.sembol }}</strong></td>
     <td><span class="badge badge-{{ i.tur|lower }}">{{ i.tur }}</span></td>
     <td class="{{ 'pos' if i.alissat=='Alış' else 'neg' }}"><strong>{{ i.alissat }}</strong></td>

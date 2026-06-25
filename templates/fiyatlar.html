@@ -29,7 +29,7 @@
   <h4>Son Güncellemeler</h4>
   {% for log in logs %}
   <div class="log-row">
-    <span class="log-date">{{ log.tarih }}</span>
+    <span class="log-date tr-tarih">{{ log.tarih }}</span>
     <span class="log-method">{{ log.sonuc }}</span>
     <span class="log-detail">{{ log.detay }}</span>
   </div>
@@ -83,7 +83,7 @@
   <tbody>
   {% for satir in tablo %}
   <tr>
-    <td><strong>{{ satir.tarih }}</strong></td>
+    <td><strong class="tr-tarih">{{ satir.tarih }}</strong></td>
     {% for s in semboller %}
     <td>
       {% if satir[s] is not none %}
