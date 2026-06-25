@@ -132,22 +132,22 @@
 {% endmacro %}
 
 <!-- Yatırım Fonları -->
-{{ portfoy_tablosu(fon_portfoy, "₺", "📊 Yatırım Fonları", "var(--accent)") }}
 {% if fon_portfoy %}
 {{ bolum_ozet(fon_deger, fon_kar, fon_portfoy|sum(attribute='gunluk_tl'), "₺", none, none) }}
 {% endif %}
+{{ portfoy_tablosu(fon_portfoy, "₺", "📊 Yatırım Fonları", "var(--accent)") }}
 
 <!-- BIST -->
-{{ portfoy_tablosu(bist_portfoy, "₺", "📈 Borsa TR (BIST)", "var(--pos)") }}
 {% if bist_portfoy %}
 {{ bolum_ozet(bist_deger, bist_kar, bist_portfoy|sum(attribute='gunluk_tl'), "₺", none, none) }}
 {% endif %}
+{{ portfoy_tablosu(bist_portfoy, "₺", "📈 Borsa TR (BIST)", "var(--pos)") }}
 
 <!-- ABD -->
-{{ portfoy_tablosu(abd_portfoy, "$", "🇺🇸 Borsa USA", "#58a6ff") }}
 {% if abd_portfoy %}
 {{ bolum_ozet(abd_deger_usd, abd_kar_usd, abd_portfoy|sum(attribute='gunluk_tl'), "$", abd_deger_tl, abd_kar_tl) }}
 {% endif %}
+{{ portfoy_tablosu(abd_portfoy, "$", "🇺🇸 Borsa USA", "#58a6ff") }}
 
 {% if not fon_portfoy and not bist_portfoy and not abd_portfoy %}
 <div class="empty-state">
