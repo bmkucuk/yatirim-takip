@@ -2044,6 +2044,15 @@ def kiyaslama_fiyat_guncelle(pid):
                     conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
                                  (k["sembol"], hedef_tarih, fiyat))
                     conn.execute("UPDATE kiyaslama_kalem SET son_fiyat=? WHERE id=?", (fiyat, k["id"]))
+            else:
+                # Yahoo'da bulunamadıysa TEFAS'ta dene (tur bilinmeyen semboller için)
+                fon_prices2, _ = fetch_fon_fiyatlari([k["sembol"]])
+                fiyat2 = fon_prices2.get(k["sembol"])
+                if fiyat2:
+                    with get_db() as conn:
+                        conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                                     (k["sembol"], hedef_tarih, fiyat2))
+                        conn.execute("UPDATE kiyaslama_kalem SET son_fiyat=? WHERE id=?", (fiyat2, k["id"]))
 
     # son_tarihi bugüne güncelle
     with get_db() as conn:
