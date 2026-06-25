@@ -2,26 +2,40 @@
 {% block title %}Fiyat Geçmişi — Yatırım Takip{% endblock %}
 {% block content %}
 
-{% if request.args.get('backfill') == '1' %}
-<meta http-equiv="refresh" content="15;url={{ url_for('fiyatlar') }}?backfill=1">
-<div class="flash flash-success">
-  ⏳ Eksik günler dolduruluyor... Sayfa 15 saniyede bir yenileniyor.
-  <a href="{{ url_for('fiyatlar') }}" style="margin-left:1rem;color:var(--accent)">Durdur</a>
-</div>
-{% endif %}
-
 <div class="page-header">
   <h2>📋 Fiyat Geçmişi</h2>
-  <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-    <form method="POST" action="{{ url_for('fiyat_guncelle') }}" style="display:inline">
-      <button type="submit" class="btn-primary">🔄 Bugünü Güncelle</button>
-    </form>
-    <form method="POST" action="{{ url_for('fiyat_backfill') }}" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
-      <input type="date" name="baslangic" id="bf-bas" style="background:var(--card2);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:var(--radius);font-size:0.85rem">
-      <input type="date" name="bitis" id="bf-bit" style="background:var(--card2);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:var(--radius);font-size:0.85rem">
-      <button type="submit" class="btn-secondary">📅 Eksik Günleri Doldur</button>
-    </form>
-  </div>
+</div>
+
+<!-- Araç Çubuğu -->
+<div class="fiyat-toolbar">
+
+  <!-- 1: Bugünü Güncelle -->
+  <form method="POST" action="{{ url_for('fiyat_guncelle') }}">
+    <button type="submit" class="btn-primary">🔄 Bugünü Güncelle</button>
+  </form>
+
+  <div class="toolbar-divider"></div>
+
+  <!-- 2: Tarih Aralığı Fiyat Çek -->
+  <form method="POST" action="{{ url_for('fiyat_backfill') }}" class="toolbar-group">
+    <span class="toolbar-label">📅 Tarih Arası Fiyat Çek</span>
+    <input type="date" name="baslangic" id="bf-bas"
+      class="toolbar-date">
+    <span style="color:var(--text2)">→</span>
+    <input type="date" name="bitis" id="bf-bit"
+      class="toolbar-date">
+    <button type="submit" class="btn-secondary">Çek</button>
+  </form>
+
+  <div class="toolbar-divider"></div>
+
+  <!-- 3: Son 2 Ay -->
+  <form method="POST" action="{{ url_for('fiyat_backfill') }}">
+    <input type="hidden" name="baslangic" id="son2ay-bas">
+    <input type="hidden" name="bitis" id="son2ay-bit">
+    <button type="submit" class="btn-secondary">📆 Son 2 Ayı Çek</button>
+  </form>
+
 </div>
 
 {% if logs %}
@@ -105,11 +119,19 @@
 {% endif %}
 
 <script>
-document.getElementById('fiyat-tarih').value = new Date().toISOString().split('T')[0];
-// Backfill varsayılan tarihler: 30 gün önce - bugün
-const today = new Date().toISOString().split('T')[0];
+const today = new Date();
+const fmt = d => d.toISOString().split('T')[0];
+
+document.getElementById('fiyat-tarih').value = fmt(today);
+
+// Tarih arası: varsayılan son 30 gün
 const d30 = new Date(); d30.setDate(d30.getDate()-30);
-document.getElementById('bf-bas').value = d30.toISOString().split('T')[0];
-document.getElementById('bf-bit').value = today;
+document.getElementById('bf-bas').value = fmt(d30);
+document.getElementById('bf-bit').value = fmt(today);
+
+// Son 2 ay hidden inputs
+const d60 = new Date(); d60.setDate(d60.getDate()-60);
+document.getElementById('son2ay-bas').value = fmt(d60);
+document.getElementById('son2ay-bit').value = fmt(today);
 </script>
 {% endblock %}
