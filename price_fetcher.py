@@ -104,24 +104,31 @@ def fetch_fon_aralik(semboller, baslangic, bitis):
     return tum
 
 def fetch_hisse_fiyatlari(semboller):
+    """Yahoo Finance direkt HTTP ile BIST ve ABD hisse fiyatları."""
     if not semboller:
         return {}, "yok"
-    try:
-        import yfinance as yf
-        results = {}
-        for sembol in semboller:
-            try:
-                ticker = yf.Ticker(normalize_yahoo_sembol(sembol))
-                hist = ticker.history(period="5d")
-                if not hist.empty:
-                    fiyat = float(hist["Close"].iloc[-1])
-                    if fiyat > 0:
-                        results[sembol] = fiyat
-            except Exception:
-                pass
-        return results, "Yahoo-Finance" if results else None
-    except Exception as e:
-        return {}, str(e)
+    import requests as req
+    results = {}
+    for sembol in semboller:
+        # BIST için .IS ekle, ABD için olduğu gibi kullan
+        yahoo_sembol = f"{sembol}.IS" if not sembol.endswith(".IS") and len(sembol) <= 6 and sembol.isalpha() else sembol
+        try:
+            r = req.get(
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_sembol}"
+                f"?interval=1d&range=5d",
+                headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+                timeout=10
+            )
+            if r.status_code == 200:
+                data = r.json()
+                closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+                for c in reversed(closes):
+                    if c is not None:
+                        results[sembol] = round(float(c), 4)
+                        break
+        except Exception:
+            pass
+    return results, "Yahoo-Finance" if results else None
 
 def fetch_all_prices(fon_sembolleri, hisse_sembolleri):
     today = bugun_str()

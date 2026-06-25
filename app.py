@@ -1597,70 +1597,41 @@ def api_son_fiyat():
                                  (sembol, tarih, fiyat))
                 return jsonify({"fiyat": round(fiyat,6), "tarih": tarih, "kaynak": "TEFAS"})
         except Exception as e:
-            return jsonify({"hata": f"TEFAS hatası: {str(e)[:60]}", "tur": tur})
+            return jsonify({"hata": f"TEFAS: {str(e)[:60]}", "tur": tur})
 
-    # 3) BIST → collectapi.com (ücretsiz)
-    if tur == "BIST":
+    # 3) BIST ve ABD → Yahoo Finance (direkt requests)
+    if tur in ("BIST", "ABD"):
+        yahoo_sembol = f"{sembol}.IS" if tur == "BIST" else sembol
         try:
             r = req.get(
-                f"https://api.collectapi.com/economy/hisseSenedi?gunluk=true&hisse={sembol}",
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_sembol}"
+                f"?interval=1d&range=5d",
                 headers={
-                    "authorization": "apikey 6P5SkOesMnfrqMNd3NpwXX:6gSGMiNJuSfq1rGHLIYHXq",
-                    "content-type": "application/json"
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Accept": "application/json",
                 },
                 timeout=10
             )
             if r.status_code == 200:
-                j = r.json()
-                if j.get("success") and j.get("result"):
-                    fiyat = float(j["result"][0].get("lastprice", 0))
-                    if fiyat > 0:
-                        tarih = str(bugun())
-                        with get_db() as conn:
-                            conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                                         (sembol, tarih, fiyat))
-                        return jsonify({"fiyat": round(fiyat,4), "tarih": tarih, "kaynak": "collectapi"})
+                data = r.json()
+                closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+                timestamps = data["chart"]["result"][0]["timestamp"]
+                # En son geçerli fiyatı al
+                fiyat = None
+                tarih = None
+                for i in range(len(closes)-1, -1, -1):
+                    if closes[i] is not None:
+                        fiyat = round(float(closes[i]), 4)
+                        from datetime import datetime as dt
+                        tarih = str(dt.fromtimestamp(timestamps[i]).date())
+                        break
+                if fiyat:
+                    with get_db() as conn:
+                        conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                                     (sembol, tarih, fiyat))
+                    return jsonify({"fiyat": fiyat, "tarih": tarih, "kaynak": "Yahoo"})
         except Exception as e:
-            pass
-
-        # Fallback: BigPara API
-        try:
-            r = req.get(
-                f"https://bigpara.hurriyet.com.tr/api/v1/hisse/detay/{sembol}",
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://bigpara.hurriyet.com.tr"},
-                timeout=10
-            )
-            if r.status_code == 200:
-                j = r.json()
-                fiyat = float(j.get("data", {}).get("alis", 0) or j.get("data", {}).get("kapanis", 0))
-                if fiyat > 0:
-                    tarih = str(bugun())
-                    with get_db() as conn:
-                        conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                                     (sembol, tarih, fiyat))
-                    return jsonify({"fiyat": round(fiyat,4), "tarih": tarih, "kaynak": "bigpara"})
-        except Exception:
-            pass
-
-    # 4) ABD → alphavantage (ücretsiz, 25 istek/gün)
-    if tur == "ABD":
-        try:
-            r = req.get(
-                f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={sembol}&apikey=demo",
-                timeout=10
-            )
-            if r.status_code == 200:
-                j = r.json()
-                price_str = j.get("Global Quote", {}).get("05. price", "")
-                if price_str:
-                    fiyat = float(price_str)
-                    tarih = str(bugun())
-                    with get_db() as conn:
-                        conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                                     (sembol, tarih, fiyat))
-                    return jsonify({"fiyat": round(fiyat,4), "tarih": tarih, "kaynak": "alphavantage"})
-        except Exception:
-            pass
+            return jsonify({"hata": f"Yahoo: {str(e)[:60]}", "tur": tur})
 
     return jsonify({"hata": f"{sembol} fiyatı alınamadı — manuel gir", "tur": tur})
 
