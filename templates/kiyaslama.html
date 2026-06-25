@@ -127,19 +127,25 @@
 
     <!-- Kalem Ekle Formu -->
     {% if kl|length < 10 %}
-    <details style="margin-top:0.5rem">
+    <details style="margin-top:0.5rem" class="kalem-ekle-details">
       <summary style="font-size:0.8rem;color:var(--accent);cursor:pointer;list-style:none">
         ➕ Fon / Hisse Ekle
       </summary>
       <form method="POST" action="{{ url_for('kiyaslama_kalem_ekle') }}"
             style="margin-top:0.6rem;display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:0.4rem;align-items:end">
         <input type="hidden" name="portfoy_id" value="{{ p.id }}">
-        <div>
+        <div style="position:relative">
           <label style="font-size:0.72rem;color:var(--text2)">Sembol</label>
           <input type="text" name="sembol" placeholder="PHE, AAPL..." required
+            autocomplete="off"
+            class="kiyaslama-sembol-input"
+            data-portfoy="{{ p.id }}"
             style="width:100%;background:var(--card2);border:1px solid var(--border);
                    color:var(--text);padding:6px 8px;border-radius:6px;font-size:0.82rem;
                    text-transform:uppercase;box-sizing:border-box">
+          <div class="kiyaslama-sembol-dd" style="display:none;position:absolute;top:100%;left:0;right:0;
+               background:var(--card);border:1px solid var(--border);border-radius:6px;z-index:999;
+               max-height:180px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.4)"></div>
         </div>
         <div>
           <label style="font-size:0.72rem;color:var(--text2)">Ağırlık %</label>
@@ -205,6 +211,49 @@
 
 <script>
 document.getElementById('son-tarih-input').value = '{{ bugun }}';
+
+// Sembol autocomplete — kıyaslama sayfası
+let kTimer = null;
+document.addEventListener('input', function(e) {
+  if (!e.target.classList.contains('kiyaslama-sembol-input')) return;
+  const input = e.target;
+  const dd = input.parentElement.querySelector('.kiyaslama-sembol-dd');
+  const q = input.value.trim();
+  clearTimeout(kTimer);
+  if (q.length < 1) { dd.style.display = 'none'; return; }
+  kTimer = setTimeout(() => {
+    fetch('/api/sembol-ara?q=' + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(data => {
+        if (!data.length) { dd.style.display = 'none'; return; }
+        dd.innerHTML = data.map(d =>
+          `<div class="kiyaslama-sembol-item"
+            style="padding:7px 10px;cursor:pointer;font-size:0.82rem;border-bottom:1px solid var(--border)"
+            data-kod="${d.kod}">
+            <strong>${d.kod}</strong>
+            <span style="color:var(--text2);margin-left:6px;font-size:0.75rem">${d.ad || ''}</span>
+            <span style="color:var(--accent);margin-left:6px;font-size:0.72rem">${d.piyasa}</span>
+          </div>`
+        ).join('');
+        dd.style.display = 'block';
+        dd.querySelectorAll('.kiyaslama-sembol-item').forEach(el => {
+          el.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            input.value = this.dataset.kod;
+            dd.style.display = 'none';
+          });
+        });
+      });
+  }, 200);
+});
+
+document.addEventListener('blur', function(e) {
+  if (!e.target.classList.contains('kiyaslama-sembol-input')) return;
+  setTimeout(() => {
+    const dd = e.target.parentElement.querySelector('.kiyaslama-sembol-dd');
+    if (dd) dd.style.display = 'none';
+  }, 200);
+}, true);
 </script>
 
 {% endblock %}
