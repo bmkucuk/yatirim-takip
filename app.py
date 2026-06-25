@@ -1514,9 +1514,6 @@ def cron_guncelle():
     return f"OK: {basarili} fiyat güncellendi. {sonuc.get('method')}", 200
 
 
-    init_db()
-    app.run(debug=True)
-
 @app.route("/cron/backfill")
 def cron_backfill():
     """Backfill'i HTTP üzerinden tetikle — CRON_KEY gerekir."""
@@ -1579,3 +1576,7 @@ def cron_backfill():
                      (simdi, "Backfill-TEFAS", f"{eklenen}/{toplam} dolduruldu"))
 
     return "\n".join(log_lines), 200
+
+if __name__ == "__main__":
+    init_db()
+    app.run(debug=True)
