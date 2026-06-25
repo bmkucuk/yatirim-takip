@@ -168,35 +168,36 @@
 
 <!-- Yeni Portföy Ekle -->
 {% if portfoyler|length < 4 %}
-<div class="card" style="border:2px dashed var(--border);background:transparent">
-  <h3 style="font-size:1rem;margin-bottom:0.75rem">➕ Yeni Portföy</h3>
-  <form method="POST" action="{{ url_for('kiyaslama_portfoy_ekle') }}"
-        style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:0.5rem;align-items:end">
-    <div>
-      <label style="font-size:0.72rem;color:var(--text2)">Portföy Adı</label>
+<div class="card" style="max-width:520px;border:2px dashed var(--border);background:transparent">
+  <h3 style="font-size:1rem;margin-bottom:1rem">➕ Yeni Portföy Oluştur</h3>
+  <form method="POST" action="{{ url_for('kiyaslama_portfoy_ekle') }}">
+    <div class="form-group" style="margin-bottom:0.75rem">
+      <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">Portföy Adı</label>
       <input type="text" name="ad" placeholder="Agresif, Muhafazakar..." required
         style="width:100%;background:var(--card2);border:1px solid var(--border);
-               color:var(--text);padding:7px 10px;border-radius:7px;font-size:0.85rem;box-sizing:border-box">
+               color:var(--text);padding:9px 12px;border-radius:7px;font-size:0.9rem;box-sizing:border-box">
     </div>
-    <div>
-      <label style="font-size:0.72rem;color:var(--text2)">Toplam Para (₺)</label>
-      <input type="text" name="toplam_para" placeholder="100000" required
+    <div class="form-group" style="margin-bottom:0.75rem">
+      <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">Toplam Para (₺)</label>
+      <input type="text" name="toplam_para" placeholder="100.000" required
         style="width:100%;background:var(--card2);border:1px solid var(--border);
-               color:var(--text);padding:7px 10px;border-radius:7px;font-size:0.85rem;box-sizing:border-box">
+               color:var(--text);padding:9px 12px;border-radius:7px;font-size:0.9rem;box-sizing:border-box">
     </div>
-    <div>
-      <label style="font-size:0.72rem;color:var(--text2)">İlk Tarih</label>
-      <input type="date" name="ilk_tarih" required
-        style="width:100%;background:var(--card2);border:1px solid var(--border);
-               color:var(--text);padding:7px 10px;border-radius:7px;font-size:0.85rem;box-sizing:border-box">
+    <div style="display:flex;gap:0.75rem;margin-bottom:1rem">
+      <div style="flex:1">
+        <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">İlk Tarih</label>
+        <input type="date" name="ilk_tarih" required
+          style="width:100%;background:var(--card2);border:1px solid var(--border);
+                 color:var(--text);padding:9px 12px;border-radius:7px;font-size:0.9rem;box-sizing:border-box">
+      </div>
+      <div style="flex:1">
+        <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">Son Tarih</label>
+        <input type="date" name="son_tarih" id="son-tarih-input" required
+          style="width:100%;background:var(--card2);border:1px solid var(--border);
+                 color:var(--text);padding:9px 12px;border-radius:7px;font-size:0.9rem;box-sizing:border-box">
+      </div>
     </div>
-    <div>
-      <label style="font-size:0.72rem;color:var(--text2)">Son Tarih</label>
-      <input type="date" name="son_tarih" id="son-tarih-input" required
-        style="width:100%;background:var(--card2);border:1px solid var(--border);
-               color:var(--text);padding:7px 10px;border-radius:7px;font-size:0.85rem;box-sizing:border-box">
-    </div>
-    <button type="submit" class="btn-primary">Oluştur</button>
+    <button type="submit" class="btn-primary" style="width:100%">Portföy Oluştur</button>
   </form>
 </div>
 {% endif %}
