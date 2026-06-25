@@ -56,8 +56,14 @@
     </form>
   </div>
 
-  <!-- Şifre -->
+  <!-- Sembol Güncelle -->
   <div class="card">
+    <h3>🔍 Sembol Listesi</h3>
+    <p class="card-desc">TEFAS fonları, BIST ve ABD hisselerini günceller. İşlem formunda otomatik tamamlama için gerekli.</p>
+    <form method="POST" action="{{ url_for('sembol_guncelle') }}">
+      <button type="submit" class="btn-secondary">🔄 Sembol Listesini Güncelle</button>
+    </form>
+  </div>
     <h3>🔒 Şifre Değiştir</h3>
     <form method="POST">
       <input type="hidden" name="action" value="sifre">

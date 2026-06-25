@@ -67,6 +67,14 @@ def init_db():
             sonuc TEXT,
             detay TEXT
         );
+        CREATE TABLE IF NOT EXISTS semboller (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kod TEXT NOT NULL,
+            ad TEXT,
+            tur TEXT NOT NULL,
+            piyasa TEXT NOT NULL,
+            UNIQUE(kod, piyasa)
+        );
         """)
 
 def hash_pw(pw):
@@ -1551,3 +1559,57 @@ def cron_backfill():
 if __name__ == "__main__":
     init_db()
     app.run(debug=True)
+
+# ── Sembol Arama ──────────────────────────────────────────────────────────────
+
+@app.route("/api/sembol-ara")
+@login_required
+def sembol_ara():
+    """Autocomplete için sembol arama."""
+    q = request.args.get("q","").strip().upper()
+    tur = request.args.get("tur","")  # FON, HISSE
+    if len(q) < 1:
+        return jsonify([])
+    with get_db() as conn:
+        if tur == "FON":
+            rows = conn.execute("""
+                SELECT kod, ad, piyasa FROM semboller
+                WHERE tur='FON' AND (kod LIKE ? OR ad LIKE ?)
+                ORDER BY kod LIMIT 20
+            """, (f"{q}%", f"%{q}%")).fetchall()
+        elif tur == "HISSE":
+            rows = conn.execute("""
+                SELECT kod, ad, piyasa FROM semboller
+                WHERE tur='HISSE' AND (kod LIKE ? OR ad LIKE ?)
+                ORDER BY piyasa, kod LIMIT 20
+            """, (f"{q}%", f"%{q}%")).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT kod, ad, piyasa FROM semboller
+                WHERE kod LIKE ? OR ad LIKE ?
+                ORDER BY tur, kod LIMIT 20
+            """, (f"{q}%", f"%{q}%")).fetchall()
+    return jsonify([{"kod": r["kod"], "ad": r["ad"], "piyasa": r["piyasa"]} for r in rows])
+
+@app.route("/admin/sembol-guncelle", methods=["POST"])
+@login_required
+def sembol_guncelle():
+    """Sembol listelerini güncelle — admin only."""
+    import threading
+    from sembol_cek import sembolleri_guncelle, init_sembol_tablosu
+
+    init_sembol_tablosu(DB_PATH)
+
+    def _guncelle():
+        with app.app_context():
+            n = sembolleri_guncelle(DB_PATH)
+            simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
+            with get_db() as conn:
+                conn.execute(
+                    "INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
+                    (simdi, "Sembol-Güncelle", f"{n} sembol güncellendi"))
+
+    t = threading.Thread(target=_guncelle, daemon=True)
+    t.start()
+    flash("⏳ Sembol listesi arka planda güncelleniyor (1-2 dakika).", "success")
+    return redirect(url_for("ayarlar"))

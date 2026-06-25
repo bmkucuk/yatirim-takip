@@ -20,7 +20,9 @@
       </div>
       <div class="form-group">
         <label>Sembol <span class="hint" id="sembol-hint">(örn: PHE, TP2)</span></label>
-        <input type="text" name="sembol" placeholder="PHE" required style="text-transform:uppercase">
+        <input type="text" name="sembol" id="sembol-input" placeholder="Kod yaz..." required
+          autocomplete="off" style="text-transform:uppercase">
+        <div id="sembol-dropdown" class="sembol-dropdown"></div>
       </div>
       <div class="form-group">
         <label>Al / Sat</label>
@@ -199,10 +201,47 @@
 document.getElementById('tur-select').addEventListener('change', function() {
   const hint = document.getElementById('sembol-hint');
   if (this.value === 'FON') hint.textContent = '(örn: PHE, TP2, PRY, TLY)';
-  else hint.textContent = '(örn: THYAO, GARAN, SASA)';
+  else hint.textContent = '(örn: THYAO, GARAN, AAPL, MSFT)';
 });
 // Bugünün tarihi
 document.querySelector('input[name="tarih"]').value = new Date().toISOString().split('T')[0];
+
+// Sembol Autocomplete
+const sembolInput = document.getElementById('sembol-input');
+const sembolDd = document.getElementById('sembol-dropdown');
+const turSelect = document.getElementById('tur-select');
+let acTimer;
+
+sembolInput.addEventListener('input', function() {
+  clearTimeout(acTimer);
+  const q = this.value.trim();
+  if (q.length < 1) { sembolDd.innerHTML = ''; sembolDd.style.display='none'; return; }
+  acTimer = setTimeout(() => {
+    fetch(`/api/sembol-ara?q=${encodeURIComponent(q)}&tur=${turSelect.value}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.length) { sembolDd.style.display='none'; return; }
+        sembolDd.innerHTML = data.map(d =>
+          `<div class="sembol-item" data-kod="${d.kod}">
+            <strong>${d.kod}</strong>
+            <span>${d.ad}</span>
+            <span class="sembol-piyasa">${d.piyasa}</span>
+          </div>`
+        ).join('');
+        sembolDd.style.display = 'block';
+        sembolDd.querySelectorAll('.sembol-item').forEach(el => {
+          el.addEventListener('click', () => {
+            sembolInput.value = el.dataset.kod;
+            sembolDd.style.display = 'none';
+          });
+        });
+      });
+  }, 200);
+});
+
+document.addEventListener('click', e => {
+  if (!sembolInput.contains(e.target)) sembolDd.style.display = 'none';
+});
 
 function duzenleBas(id, sembol, tur, alissat, hesap, araciKurum, tarih, adet, fiyat) {
   document.getElementById('edit-id').value = id;
