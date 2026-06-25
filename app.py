@@ -1575,13 +1575,14 @@ def api_son_fiyat():
     if not sembol:
         return jsonify({})
 
-    # 1) DB'de var mı?
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT fiyat, tarih FROM fiyat_gecmisi WHERE sembol=? ORDER BY tarih DESC LIMIT 1",
-            (sembol,)).fetchone()
-    if row:
-        return jsonify({"fiyat": row["fiyat"], "tarih": row["tarih"], "kaynak": "db"})
+    # 1) DB'de var mı? (sadece FON için cache kullan)
+    if tur == "FON" or not tur:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT fiyat, tarih FROM fiyat_gecmisi WHERE sembol=? ORDER BY tarih DESC LIMIT 1",
+                (sembol,)).fetchone()
+        if row:
+            return jsonify({"fiyat": row["fiyat"], "tarih": row["tarih"], "kaynak": "db"})
 
     # Eğer tur gelmemişse DB'den bul
     if not tur:
