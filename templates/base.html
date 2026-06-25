@@ -15,6 +15,7 @@
     <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint=='dashboard' %}active{% endif %}">Dashboard</a>
     <a href="{{ url_for('islemler') }}" class="{% if request.endpoint=='islemler' %}active{% endif %}">İşlemler</a>
     <a href="{{ url_for('fiyatlar') }}" class="{% if request.endpoint=='fiyatlar' %}active{% endif %}">Fiyatlar</a>
+    <a href="{{ url_for('kiyaslama') }}" class="{% if request.endpoint=='kiyaslama' %}active{% endif %}">Kıyaslama</a>
     <a href="{{ url_for('ayarlar') }}" class="{% if request.endpoint=='ayarlar' %}active{% endif %}">Ayarlar</a>
     <span class="nav-user">👤 {{ session.username }}</span>
     <button class="theme-toggle" id="themeToggle" title="Tema değiştir">🌙</button>

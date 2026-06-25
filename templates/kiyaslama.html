@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Getiri Kıyaslama — Yatırım Takip{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h2>📊 Getiri Kıyaslama</h2>
+</div>
+
+<!-- Özet Tablo (portföyler varsa) -->
+{% if portfoyler %}
+<div class="table-wrap" style="margin-bottom:1.5rem">
+  <div style="padding:12px 18px;font-size:0.85rem;font-weight:700;border-bottom:1px solid var(--border)">
+    📈 Özet Karşılaştırma
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Portföy</th>
+        <th>Toplam Para</th>
+        <th>İlk Tarih</th>
+        <th>Son Tarih</th>
+        <th>İlk Değer</th>
+        <th>Son Değer</th>
+        <th>Fark (TL)</th>
+        <th>Getiri %</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for p in portfoyler %}
+      {% set kl = kalemler.get(p.id, []) %}
+      {% set ilk_toplam = namespace(val=0) %}
+      {% set son_toplam = namespace(val=0) %}
+      {% for k in kl %}
+        {% if k.ilk_fiyat and k.agirlik %}
+          {% set ilk_toplam.val = ilk_toplam.val + (p.toplam_para * k.agirlik / 100 / k.ilk_fiyat * k.ilk_fiyat) %}
+        {% endif %}
+        {% if k.son_fiyat and k.ilk_fiyat and k.agirlik %}
+          {% set adet = p.toplam_para * k.agirlik / 100 / k.ilk_fiyat %}
+          {% set son_toplam.val = son_toplam.val + adet * k.son_fiyat %}
+        {% endif %}
+      {% endfor %}
+      {% set ilk_val = p.toplam_para %}
+      {% set fark = son_toplam.val - ilk_val %}
+      {% set getiri_pct = (fark / ilk_val * 100) if ilk_val > 0 else 0 %}
+      <tr>
+        <td><strong>{{ p.ad }}</strong></td>
+        <td>{{ "{:,.0f}".format(p.toplam_para).replace(",",".") }} ₺</td>
+        <td>{{ p.ilk_tarih }}</td>
+        <td>{{ p.son_tarih }}</td>
+        <td>{{ "{:,.2f}".format(ilk_val).replace(",",".") }} ₺</td>
+        <td>{{ "{:,.2f}".format(son_toplam.val).replace(",",".") if son_toplam.val else "—" }}</td>
+        <td class="{{ 'pos' if fark >= 0 else 'neg' }}">
+          {% if son_toplam.val %}{{ ("▲ " if fark>=0 else "▼ ") }}{{ "{:,.2f}".format(fark|abs).replace(",",".") }} ₺{% else %}—{% endif %}
+        </td>
+        <td class="{{ 'pos' if getiri_pct >= 0 else 'neg' }}" style="font-weight:700">
+          {% if son_toplam.val %}{{ ("▲ %" if getiri_pct>=0 else "▼ %") }}{{ "{:.2f}".format(getiri_pct|abs).replace(".",",") }}{% else %}—{% endif %}
+        </td>
+        <td style="white-space:nowrap">
+          <a href="{{ url_for('kiyaslama_fiyat_guncelle', pid=p.id) }}"
+             class="btn-edit" style="font-size:0.75rem">🔄 Güncelle</a>
+          <a href="{{ url_for('kiyaslama_portfoy_sil', pid=p.id) }}"
+             class="btn-del" onclick="return confirm('Portföyü sil?')"
+             style="font-size:0.75rem">Sil</a>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Portföyler -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:1.2rem;margin-bottom:1.5rem">
+{% for p in portfoyler %}
+  {% set kl = kalemler.get(p.id, []) %}
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+      <h3 style="margin:0;font-size:1rem">{{ p.ad }}</h3>
+      <span style="font-size:0.75rem;color:var(--text2)">{{ p.ilk_tarih }} → {{ p.son_tarih }}</span>
+    </div>
+    <div style="font-size:0.8rem;color:var(--text2);margin-bottom:0.75rem">
+      Toplam Para: <strong style="color:var(--text)">{{ "{:,.0f}".format(p.toplam_para).replace(",",".") }} ₺</strong>
+    </div>
+
+    <!-- Kalem Tablosu -->
+    {% if kl %}
+    <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin-bottom:0.75rem">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+          <th style="text-align:left;padding:4px 6px">Sembol</th>
+          <th style="text-align:right;padding:4px 6px">Ağırlık</th>
+          <th style="text-align:right;padding:4px 6px">İlk Fiyat</th>
+          <th style="text-align:right;padding:4px 6px">Son Fiyat</th>
+          <th style="text-align:right;padding:4px 6px">Getiri</th>
+          <th style="padding:4px 6px"></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for k in kl %}
+        {% set getiri = ((k.son_fiyat / k.ilk_fiyat - 1) * 100) if k.son_fiyat and k.ilk_fiyat else none %}
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:5px 6px"><strong>{{ k.sembol }}</strong></td>
+          <td style="padding:5px 6px;text-align:right">%{{ "{:.1f}".format(k.agirlik).replace(".",",") }}</td>
+          <td style="padding:5px 6px;text-align:right">
+            {{ "{:.4f}".format(k.ilk_fiyat).rstrip('0').rstrip('.') if k.ilk_fiyat else "—" }}
+          </td>
+          <td style="padding:5px 6px;text-align:right">
+            {{ "{:.4f}".format(k.son_fiyat).rstrip('0').rstrip('.') if k.son_fiyat else "—" }}
+          </td>
+          <td style="padding:5px 6px;text-align:right;font-weight:600"
+              class="{{ 'pos' if getiri and getiri>=0 else 'neg' if getiri else '' }}">
+            {% if getiri is not none %}
+              {{ ("▲ %" if getiri>=0 else "▼ %") }}{{ "{:.2f}".format(getiri|abs).replace(".",",") }}
+            {% else %}—{% endif %}
+          </td>
+          <td style="padding:5px 6px">
+            <a href="{{ url_for('kiyaslama_kalem_sil', kid=k.id) }}"
+               style="color:#f85149;font-size:0.75rem;text-decoration:none"
+               onclick="return confirm('Kalemi sil?')">×</a>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Kalem Ekle Formu -->
+    {% if kl|length < 10 %}
+    <details style="margin-top:0.5rem">
+      <summary style="font-size:0.8rem;color:var(--accent);cursor:pointer;list-style:none">
+        ➕ Fon / Hisse Ekle
+      </summary>
+      <form method="POST" action="{{ url_for('kiyaslama_kalem_ekle') }}"
+            style="margin-top:0.6rem;display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:0.4rem;align-items:end">
+        <input type="hidden" name="portfoy_id" value="{{ p.id }}">
+        <div>
+          <label style="font-size:0.72rem;color:var(--text2)">Sembol</label>
+          <input type="text" name="sembol" placeholder="PHE, AAPL..." required
+            style="width:100%;background:var(--card2);border:1px solid var(--border);
+                   color:var(--text);padding:6px 8px;border-radius:6px;font-size:0.82rem;
+                   text-transform:uppercase;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:0.72rem;color:var(--text2)">Ağırlık %</label>
+          <input type="number" name="agirlik" placeholder="25" min="0" max="100" step="0.1" required
+            style="width:100%;background:var(--card2);border:1px solid var(--border);
+                   color:var(--text);padding:6px 8px;border-radius:6px;font-size:0.82rem;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:0.72rem;color:var(--text2)">İlk Fiyat (opsiyonel)</label>
+          <input type="text" name="ilk_fiyat" placeholder="DB'den çekilir"
+            style="width:100%;background:var(--card2);border:1px solid var(--border);
+                   color:var(--text);padding:6px 8px;border-radius:6px;font-size:0.82rem;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:0.72rem;color:var(--text2)">Son Fiyat (opsiyonel)</label>
+          <input type="text" name="son_fiyat" placeholder="DB'den çekilir"
+            style="width:100%;background:var(--card2);border:1px solid var(--border);
+                   color:var(--text);padding:6px 8px;border-radius:6px;font-size:0.82rem;box-sizing:border-box">
+        </div>
+        <button type="submit" class="btn-primary" style="font-size:0.8rem;padding:6px 12px">Ekle</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+{% endfor %}
+
+<!-- Yeni Portföy Ekle -->
+{% if portfoyler|length < 4 %}
+<div class="card" style="border:2px dashed var(--border);background:transparent">
+  <h3 style="font-size:1rem;margin-bottom:0.75rem">➕ Yeni Portföy</h3>
+  <form method="POST" action="{{ url_for('kiyaslama_portfoy_ekle') }}"
+        style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:0.5rem;align-items:end">
+    <div>
+      <label style="font-size:0.72rem;color:var(--text2)">Portföy Adı</label>
+      <input type="text" name="ad" placeholder="Agresif, Muhafazakar..." required
+        style="width:100%;background:var(--card2);border:1px solid var(--border);
+               color:var(--text);padding:7px 10px;border-radius:7px;font-size:0.85rem;box-sizing:border-box">
+    </div>
+    <div>
+      <label style="font-size:0.72rem;color:var(--text2)">Toplam Para (₺)</label>
+      <input type="text" name="toplam_para" placeholder="100000" required
+        style="width:100%;background:var(--card2);border:1px solid var(--border);
+               color:var(--text);padding:7px 10px;border-radius:7px;font-size:0.85rem;box-sizing:border-box">
+    </div>
+    <div>
+      <label style="font-size:0.72rem;color:var(--text2)">İlk Tarih</label>
+      <input type="date" name="ilk_tarih" required
+        style="width:100%;background:var(--card2);border:1px solid var(--border);
+               color:var(--text);padding:7px 10px;border-radius:7px;font-size:0.85rem;box-sizing:border-box">
+    </div>
+    <div>
+      <label style="font-size:0.72rem;color:var(--text2)">Son Tarih</label>
+      <input type="date" name="son_tarih" id="son-tarih-input" required
+        style="width:100%;background:var(--card2);border:1px solid var(--border);
+               color:var(--text);padding:7px 10px;border-radius:7px;font-size:0.85rem;box-sizing:border-box">
+    </div>
+    <button type="submit" class="btn-primary">Oluştur</button>
+  </form>
+</div>
+{% endif %}
+</div>
+
+<script>
+document.getElementById('son-tarih-input').value = '{{ bugun }}';
+</script>
+
+{% endblock %}

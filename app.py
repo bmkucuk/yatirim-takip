@@ -83,6 +83,24 @@ def init_db():
             tutar REAL NOT NULL DEFAULT 0,
             UNIQUE(user_id, para_birimi)
         );
+        CREATE TABLE IF NOT EXISTS kiyaslama_portfoy (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            ad TEXT NOT NULL,
+            ilk_tarih TEXT NOT NULL,
+            son_tarih TEXT NOT NULL,
+            toplam_para REAL NOT NULL,
+            sira INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS kiyaslama_kalem (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            portfoy_id INTEGER NOT NULL,
+            sembol TEXT NOT NULL,
+            agirlik REAL NOT NULL,
+            ilk_fiyat REAL,
+            son_fiyat REAL,
+            FOREIGN KEY(portfoy_id) REFERENCES kiyaslama_portfoy(id)
+        );
         """)
 
 def hash_pw(pw):
@@ -1795,6 +1813,154 @@ if __name__ == "__main__":
     app.run(debug=True)
 
 # ── Sembol Arama ──────────────────────────────────────────────────────────────
+
+# ── Getiri Kıyaslama ─────────────────────────────────────────────────────────
+
+@app.route("/kiyaslama")
+@login_required
+def kiyaslama():
+    user_id = session["user_id"]
+    with get_db() as conn:
+        portfoyler = conn.execute(
+            "SELECT * FROM kiyaslama_portfoy WHERE user_id=? ORDER BY sira", (user_id,)
+        ).fetchall()
+        kalemler = {}
+        for p in portfoyler:
+            kalemler[p["id"]] = conn.execute(
+                "SELECT * FROM kiyaslama_kalem WHERE portfoy_id=?", (p["id"],)
+            ).fetchall()
+    bugun_str = str(bugun())
+    return render_template("kiyaslama.html",
+        portfoyler=portfoyler, kalemler=kalemler, bugun=bugun_str)
+
+
+@app.route("/kiyaslama/portfoy-ekle", methods=["POST"])
+@login_required
+def kiyaslama_portfoy_ekle():
+    user_id = session["user_id"]
+    with get_db() as conn:
+        sayi = conn.execute(
+            "SELECT COUNT(*) as c FROM kiyaslama_portfoy WHERE user_id=?", (user_id,)
+        ).fetchone()["c"]
+        if sayi >= 4:
+            flash("En fazla 4 portföy oluşturabilirsiniz.", "error")
+            return redirect(url_for("kiyaslama"))
+        ad = request.form["ad"].strip()
+        ilk_tarih = request.form["ilk_tarih"]
+        son_tarih = request.form["son_tarih"]
+        toplam_para = float(request.form["toplam_para"].replace(",", "."))
+        conn.execute(
+            "INSERT INTO kiyaslama_portfoy (user_id,ad,ilk_tarih,son_tarih,toplam_para,sira) VALUES (?,?,?,?,?,?)",
+            (user_id, ad, ilk_tarih, son_tarih, toplam_para, sayi)
+        )
+    return redirect(url_for("kiyaslama"))
+
+
+@app.route("/kiyaslama/portfoy-sil/<int:pid>")
+@login_required
+def kiyaslama_portfoy_sil(pid):
+    user_id = session["user_id"]
+    with get_db() as conn:
+        conn.execute("DELETE FROM kiyaslama_kalem WHERE portfoy_id=?", (pid,))
+        conn.execute("DELETE FROM kiyaslama_portfoy WHERE id=? AND user_id=?", (pid, user_id))
+    return redirect(url_for("kiyaslama"))
+
+
+@app.route("/kiyaslama/kalem-ekle", methods=["POST"])
+@login_required
+def kiyaslama_kalem_ekle():
+    user_id = session["user_id"]
+    portfoy_id = int(request.form["portfoy_id"])
+    sembol = request.form["sembol"].strip().upper()
+    agirlik = float(request.form["agirlik"].replace(",", "."))
+    ilk_fiyat_str = request.form.get("ilk_fiyat", "").replace(",", ".").strip()
+    son_fiyat_str = request.form.get("son_fiyat", "").replace(",", ".").strip()
+
+    # Portföy tarihlerini al
+    with get_db() as conn:
+        p = conn.execute("SELECT * FROM kiyaslama_portfoy WHERE id=? AND user_id=?",
+                         (portfoy_id, user_id)).fetchone()
+        if not p:
+            return redirect(url_for("kiyaslama"))
+        kalem_sayi = conn.execute(
+            "SELECT COUNT(*) as c FROM kiyaslama_kalem WHERE portfoy_id=?", (portfoy_id,)
+        ).fetchone()["c"]
+        if kalem_sayi >= 10:
+            flash("Portföye en fazla 10 kalem eklenebilir.", "error")
+            return redirect(url_for("kiyaslama"))
+
+    # İlk fiyat: DB'den dene, yoksa manuel
+    ilk_fiyat = None
+    if not ilk_fiyat_str:
+        ilk_fiyat = get_fiyat(sembol, p["ilk_tarih"])
+    else:
+        try:
+            ilk_fiyat = float(ilk_fiyat_str)
+        except:
+            pass
+
+    # Son fiyat: bugünse DB'den, yoksa manuel
+    bugun_str = str(bugun())
+    son_fiyat = None
+    if not son_fiyat_str or p["son_tarih"] == bugun_str:
+        son_fiyat = get_fiyat(sembol, p["son_tarih"])
+    if not son_fiyat and son_fiyat_str:
+        try:
+            son_fiyat = float(son_fiyat_str)
+        except:
+            pass
+
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO kiyaslama_kalem (portfoy_id,sembol,agirlik,ilk_fiyat,son_fiyat) VALUES (?,?,?,?,?)",
+            (portfoy_id, sembol, agirlik, ilk_fiyat, son_fiyat)
+        )
+    return redirect(url_for("kiyaslama"))
+
+
+@app.route("/kiyaslama/kalem-sil/<int:kid>")
+@login_required
+def kiyaslama_kalem_sil(kid):
+    user_id = session["user_id"]
+    with get_db() as conn:
+        k = conn.execute("SELECT portfoy_id FROM kiyaslama_kalem WHERE id=?", (kid,)).fetchone()
+        if k:
+            p = conn.execute("SELECT user_id FROM kiyaslama_portfoy WHERE id=?",
+                             (k["portfoy_id"],)).fetchone()
+            if p and p["user_id"] == user_id:
+                conn.execute("DELETE FROM kiyaslama_kalem WHERE id=?", (kid,))
+    return redirect(url_for("kiyaslama"))
+
+
+@app.route("/kiyaslama/fiyat-guncelle/<int:pid>")
+@login_required
+def kiyaslama_fiyat_guncelle(pid):
+    """Son fiyatları DB'den veya anlık olarak güncelle."""
+    user_id = session["user_id"]
+    bugun_str = str(bugun())
+    with get_db() as conn:
+        p = conn.execute("SELECT * FROM kiyaslama_portfoy WHERE id=? AND user_id=?",
+                         (pid, user_id)).fetchone()
+        if not p:
+            return redirect(url_for("kiyaslama"))
+        kalemler = conn.execute(
+            "SELECT * FROM kiyaslama_kalem WHERE portfoy_id=?", (pid,)
+        ).fetchall()
+        for k in kalemler:
+            son_fiyat = get_fiyat(k["sembol"], p["son_tarih"])
+            if son_fiyat:
+                conn.execute(
+                    "UPDATE kiyaslama_kalem SET son_fiyat=? WHERE id=?",
+                    (son_fiyat, k["id"])
+                )
+        # Eğer son_tarih bugün değilse bugün olarak güncelle
+        conn.execute(
+            "UPDATE kiyaslama_portfoy SET son_tarih=? WHERE id=?",
+            (bugun_str, pid)
+        )
+    flash("Son fiyatlar güncellendi.", "success")
+    return redirect(url_for("kiyaslama"))
+
 
 @app.route("/api/son-fiyat")
 @login_required
