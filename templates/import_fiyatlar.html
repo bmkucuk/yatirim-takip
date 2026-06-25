@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Fiyat Geçmişi İmport{% endblock %}
+{% block content %}
+<div class="page-header"><h2>📥 Excel Fiyat Geçmişini Yükle</h2></div>
+<div class="card" style="max-width:500px">
+  <h3>Onay</h3>
+  <p style="color:var(--text2);margin:0.75rem 0">
+    Excel'deki <strong style="color:var(--accent)">{{ count }} fiyat kaydı</strong> yüklenecek.<br>
+    PHE, PRY, TLY, TP2 — Kasım 2025'ten bugüne tüm iş günleri.
+  </p>
+  <form method="POST">
+    <div class="form-group" style="margin-bottom:1rem">
+      <label>Import Key</label>
+      <input type="password" name="key" placeholder="••••••••" required autofocus>
+    </div>
+    <button type="submit" class="btn-primary btn-full">✅ {{ count }} Fiyatı Yükle</button>
+  </form>
+</div>
+{% endblock %}
