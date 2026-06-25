@@ -77,7 +77,12 @@
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
       <h3 style="margin:0;font-size:1rem">{{ p.ad }}</h3>
-      <span style="font-size:0.75rem;color:var(--text2)">{{ p.ilk_tarih }} → {{ p.son_tarih }}</span>
+      <div style="display:flex;align-items:center;gap:0.75rem">
+        <span style="font-size:0.75rem;color:var(--text2)">{{ p.ilk_tarih }} → {{ p.son_tarih }}</span>
+        <a href="{{ url_for('kiyaslama_portfoy_sil', pid=p.id) }}"
+           class="btn-del" style="font-size:0.75rem"
+           onclick="return confirm('Portföyü ve tüm kalemleri sil?')">🗑️ Sil</a>
+      </div>
     </div>
     <div style="font-size:0.8rem;color:var(--text2);margin-bottom:0.75rem">
       Toplam Para: <strong style="color:var(--text)">{{ "{:,.0f}".format(p.toplam_para).replace(",",".") }} ₺</strong>
