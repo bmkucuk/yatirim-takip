@@ -1604,6 +1604,7 @@ def api_son_fiyat():
 
     # 3) BIST ve ABD → Yahoo Finance (direkt requests)
     if tur in ("BIST", "ABD"):
+        import requests as req
         yahoo_sembol = f"{sembol}.IS" if tur == "BIST" else sembol
         try:
             r = req.get(
