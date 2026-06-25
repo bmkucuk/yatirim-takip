@@ -731,6 +731,7 @@ def fiyat_backfill_debug():
     return "<pre style='background:#111;color:#eee;padding:1rem'>" + "\n".join(log) + "</pre>"
 
 
+@app.route("/fiyat-backfill", methods=["POST"])
 @login_required
 def fiyat_backfill():
     """Son 60 günün eksik fiyatlarını TEFAS'tan çekip doldur — arka planda çalışır."""
