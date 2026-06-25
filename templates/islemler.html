@@ -261,13 +261,10 @@ sembolInput.addEventListener('input', function() {
   clearTimeout(acTimer);
   const q = this.value.trim();
   if (q.length < 1) { sembolDd.innerHTML = ''; sembolDd.style.display='none'; return; }
-  // Tür map
-  const turMap = {'FON':'FON','BIST':'HISSE','ABD':'HISSE'};
   const piyasaMap = {'FON':'FON','BIST':'BIST','ABD':'ABD'};
-  const tur = turMap[turSelect.value] || '';
   const piyasa = piyasaMap[turSelect.value] || '';
   acTimer = setTimeout(() => {
-    fetch(`/api/sembol-ara?q=${encodeURIComponent(q)}&tur=${tur}&piyasa=${piyasa}`)
+    fetch(`/api/sembol-ara?q=${encodeURIComponent(q)}&piyasa=${piyasa}`)
       .then(r => r.json())
       .then(data => {
         if (!data.length) { sembolDd.style.display='none'; return; }

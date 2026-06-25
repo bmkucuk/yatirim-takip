@@ -1639,30 +1639,26 @@ def api_son_fiyat():
 @login_required
 def sembol_ara():
     q = request.args.get("q","").strip().upper()
-    tur = request.args.get("tur","")
     piyasa = request.args.get("piyasa","")
     if len(q) < 1:
         return jsonify([])
 
     with get_db() as conn:
-        filters = ["(kod LIKE ? OR ad LIKE ?)"]
-        params = [f"{q}%", f"%{q}%"]
-        if tur:
-            filters.append("tur=?")
-            params.append(tur)
         if piyasa:
-            filters.append("piyasa=?")
-            params.append(piyasa)
-
-        rows = conn.execute(f"""
-            SELECT kod, ad, piyasa FROM semboller
-            WHERE {' AND '.join(filters)}
-            ORDER BY kod LIMIT 20
-        """, params).fetchall()
+            rows = conn.execute("""
+                SELECT kod, ad, piyasa FROM semboller
+                WHERE (kod LIKE ? OR ad LIKE ?) AND piyasa=?
+                ORDER BY kod LIMIT 20
+            """, (f"{q}%", f"%{q}%", piyasa)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT kod, ad, piyasa FROM semboller
+                WHERE kod LIKE ? OR ad LIKE ?
+                ORDER BY kod LIMIT 20
+            """, (f"{q}%", f"%{q}%")).fetchall()
 
         sonuclar = [{"kod": r["kod"], "ad": r["ad"] or "", "piyasa": r["piyasa"]} for r in rows]
 
-        # Semboller tablosu boşsa kullanıcının kendi işlemlerinden öner
         if not sonuclar:
             mevcut = conn.execute("""
                 SELECT DISTINCT sembol, tur FROM islemler
