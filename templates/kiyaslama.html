@@ -88,7 +88,7 @@
     <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin-bottom:0.75rem">
       <thead>
         <tr style="border-bottom:1px solid var(--border);color:var(--text2)">
-          <th style="text-align:left;padding:4px 6px">Sembol</th>
+          <th style="text-align:left;padding:4px 6px;min-width:100px">Sembol</th>
           <th style="text-align:right;padding:4px 6px">Ağırlık</th>
           <th style="text-align:right;padding:4px 6px">İlk Fiyat</th>
           <th style="text-align:right;padding:4px 6px">Son Fiyat</th>
@@ -100,7 +100,7 @@
       {% for k in kl %}
         {% set getiri = ((k.son_fiyat / k.ilk_fiyat - 1) * 100) if k.son_fiyat and k.ilk_fiyat else none %}
         <tr id="kalem-row-{{ k.id }}" style="border-bottom:1px solid var(--border)">
-          <td style="padding:5px 6px"><strong>{{ k.sembol }}</strong></td>
+          <td style="padding:5px 6px;min-width:100px"><strong>{{ k.sembol }}</strong></td>
           <td style="padding:5px 6px;text-align:right">%{{ "{:.2f}".format(k.agirlik).replace(".",",") }}</td>
           <td style="padding:5px 6px;text-align:right">
             {{ "{:.4f}".format(k.ilk_fiyat).rstrip('0').rstrip('.') if k.ilk_fiyat else "—" }}
