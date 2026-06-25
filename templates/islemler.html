@@ -11,17 +11,17 @@
   <h3>➕ Yeni İşlem Ekle</h3>
   <form method="POST" action="{{ url_for('islem_ekle') }}" class="islem-form">
     <input type="hidden" name="tur" id="tur-hidden" value="FON">
-    <div class="form-row" style="flex-wrap:wrap;align-items:flex-end">
+    <div class="form-row" style="flex-wrap:wrap;align-items:flex-start">
 
       <!-- Sembol + Ad -->
       <div class="form-group" style="flex:2;min-width:180px">
         <label>Sembol</label>
-        <div class="sembol-wrapper">
+        <div class="sembol-wrapper" style="display:flex;flex-direction:column">
           <input type="text" name="sembol" id="sembol-input" placeholder="PHE, THYAO, AAPL..."
-            required autocomplete="off" style="text-transform:uppercase;width:100%">
+            required autocomplete="off" style="text-transform:uppercase;width:100%;box-sizing:border-box">
           <div id="sembol-dropdown" class="sembol-dropdown"></div>
         </div>
-        <div id="sembol-ad" style="font-size:0.75rem;color:var(--accent);margin-top:0.2rem;min-height:1rem"></div>
+        <div id="sembol-ad" style="font-size:0.75rem;color:var(--accent);margin-top:0.25rem;min-height:1.1rem;line-height:1.1rem"></div>
       </div>
 
       <!-- Al/Sat -->

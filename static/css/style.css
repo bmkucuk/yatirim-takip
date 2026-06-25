@@ -572,3 +572,12 @@ body.light .btn-logout { background: rgba(207,34,46,0.08); }
   border-bottom-color: var(--accent);
 }
 .tab-content { margin-top: 0; }
+
+/* ── İşlem formu hizalama ── */
+.islem-form .form-row { align-items: flex-start; }
+.islem-form .form-group input,
+.islem-form .form-group select {
+  height: 38px;
+  box-sizing: border-box;
+}
+.islem-form .sembol-wrapper input { height: 38px; }
