@@ -71,7 +71,7 @@
 {% endif %}
 
 <!-- Portföyler -->
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:1.2rem;margin-bottom:1.5rem">
+<div style="display:flex;flex-direction:column;gap:1.2rem;margin-bottom:1.5rem">
 {% for p in portfoyler %}
   {% set kl = kalemler.get(p.id, []) %}
   <div class="card">
@@ -211,8 +211,10 @@
 {% endfor %}
 
 <!-- Yeni Portföy Ekle -->
+</div><!-- flex container sonu -->
+
 {% if portfoyler|length < 4 %}
-<div class="card" style="max-width:520px;border:2px dashed var(--border);background:transparent">
+<div class="card" style="max-width:500px;border:2px dashed var(--border);background:transparent">
   <h3 style="font-size:1rem;margin-bottom:1rem">➕ Yeni Portföy Oluştur</h3>
   <form method="POST" action="{{ url_for('kiyaslama_portfoy_ekle') }}">
     <div class="form-group" style="margin-bottom:0.75rem">
@@ -245,7 +247,6 @@
   </form>
 </div>
 {% endif %}
-</div>
 
 <script>
 document.getElementById('son-tarih-input').value = '{{ bugun }}';
