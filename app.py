@@ -374,6 +374,15 @@ def islem_ekle():
     flash(f"{sembol} {alissat} işlemi eklendi.", "success")
     return redirect(url_for("islemler"))
 
+@app.route("/islem-sil/<int:islem_id>")
+@login_required
+def islem_sil(islem_id):
+    user_id = session["user_id"]
+    with get_db() as conn:
+        conn.execute("DELETE FROM islemler WHERE id=? AND user_id=?", (islem_id, user_id))
+    flash("İşlem silindi.", "success")
+    return redirect(url_for("islemler"))
+
 @app.route("/islem-duzenle", methods=["POST"])
 @login_required
 def islem_duzenle():
