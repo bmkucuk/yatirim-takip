@@ -437,7 +437,7 @@ def fiyatlar():
             raw = []
 
         logs = conn.execute(
-            "SELECT * FROM price_fetch_log ORDER BY id DESC LIMIT 10").fetchall()
+            "SELECT * FROM price_fetch_log ORDER BY id DESC LIMIT 20").fetchall()
 
     # Pivot: {tarih: {sembol: fiyat}}
     pivot = {}

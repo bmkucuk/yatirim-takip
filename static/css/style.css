@@ -339,7 +339,8 @@ a:hover { color: var(--accent2); }
   border-bottom: 1px solid var(--border);
   color: var(--text2);
 }
-.log-date { color: var(--accent); min-width: 90px; }
+.log-date { color: var(--accent); min-width: 160px; font-family: monospace; font-size: 0.82rem; }
+.log-method { color: var(--pos); min-width: 130px; }
 .log-method { color: var(--pos); min-width: 120px; }
 
 /* ── Auth ── */
