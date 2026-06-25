@@ -153,33 +153,62 @@ def get_son_fiyat(sembol):
     return row["fiyat"] if row else None
 
 def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
-    """Her sembol için portföy pozisyonunu hesapla."""
+    """Her sembol için portföy pozisyonunu hesapla.
+    Sıfırlama mantığı: pozisyon 0'a düşünce maliyet sıfırlanır,
+    sonraki alışlar yeni pozisyon olarak hesaplanır.
+    """
     with get_db() as conn:
         if hesap_filtre == "Hepsi":
             rows = conn.execute("""
-                SELECT sembol, tur, alissat, SUM(adet) as toplam_adet, SUM(tutar) as toplam_tutar
+                SELECT sembol, tur, alissat, adet, tutar
                 FROM islemler WHERE user_id=?
-                GROUP BY sembol, tur, alissat
+                ORDER BY sembol, tarih ASC
             """, (user_id,)).fetchall()
         else:
             rows = conn.execute("""
-                SELECT sembol, tur, alissat, SUM(adet) as toplam_adet, SUM(tutar) as toplam_tutar
+                SELECT sembol, tur, alissat, adet, tutar
                 FROM islemler WHERE user_id=? AND hesap=?
-                GROUP BY sembol, tur, alissat
+                ORDER BY sembol, tarih ASC
             """, (user_id, hesap_filtre)).fetchall()
 
-    pozisyonlar = {}
+    # Her sembol için işlemleri tarih sırasıyla işle, pozisyon sıfırlanınca resetle
+    sembol_islemler = {}
     for r in rows:
         s = r["sembol"]
-        if s not in pozisyonlar:
-            pozisyonlar[s] = {"alis_adet": 0, "alis_tutar": 0, "satis_adet": 0,
-                              "satis_tutar": 0, "tur": r["tur"]}
-        if r["alissat"] == "Alış":
-            pozisyonlar[s]["alis_adet"] += r["toplam_adet"]
-            pozisyonlar[s]["alis_tutar"] += r["toplam_tutar"]
-        else:
-            pozisyonlar[s]["satis_adet"] += r["toplam_adet"]
-            pozisyonlar[s]["satis_tutar"] += r["toplam_tutar"]
+        if s not in sembol_islemler:
+            sembol_islemler[s] = {"tur": r["tur"], "islemler": []}
+        sembol_islemler[s]["islemler"].append(r)
+
+    pozisyonlar = {}
+    for sembol, data in sembol_islemler.items():
+        kalan_adet = 0.0
+        alis_adet = 0.0
+        alis_tutar = 0.0
+        satis_adet = 0.0
+        satis_tutar = 0.0
+        for r in data["islemler"]:
+            if r["alissat"] == "Alış":
+                kalan_adet += r["adet"]
+                alis_adet += r["adet"]
+                alis_tutar += r["tutar"]
+            else:
+                kalan_adet -= r["adet"]
+                satis_adet += r["adet"]
+                satis_tutar += r["tutar"]
+            # Pozisyon sıfırlandıysa (veya negatife düştüyse) resetle
+            if kalan_adet <= 0.0001:
+                kalan_adet = 0.0
+                alis_adet = 0.0
+                alis_tutar = 0.0
+                satis_adet = 0.0
+                satis_tutar = 0.0
+        pozisyonlar[sembol] = {
+            "alis_adet": alis_adet,
+            "alis_tutar": alis_tutar,
+            "satis_adet": satis_adet,
+            "satis_tutar": satis_tutar,
+            "tur": data["tur"]
+        }
 
     bugun_str = str(bugun())
     dun_str = str(bugun() - timedelta(days=1))
