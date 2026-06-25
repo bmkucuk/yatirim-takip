@@ -749,17 +749,15 @@ def fiyat_backfill_debug():
 @app.route("/fiyat-backfill", methods=["POST"])
 @login_required
 def fiyat_backfill():
-    """Son 60 günün eksik fiyatlarını TEFAS'tan çekip doldur — arka planda."""
-    import threading
-    from price_fetcher import fetch_tefas_fon
+    """60 günlük eksik fiyatları toplu çek — fon başına 2-3 API isteği."""
+    from price_fetcher import fetch_fon_aralik
     from datetime import date, timedelta
-    import time as time_mod
 
     user_id = session["user_id"]
     with get_db() as conn:
-        fon_sembolleri = [r["sembol"] for r in conn.execute(
-            "SELECT DISTINCT sembol FROM islemler WHERE user_id=? AND tur='FON'",
-            (user_id,)).fetchall()]
+        fon_sembolleri = list(set(r["sembol"] for r in conn.execute(
+            "SELECT DISTINCT sembol FROM islemler WHERE user_id=? AND tur=\'FON\'",
+            (user_id,)).fetchall()))
 
     if not fon_sembolleri:
         flash("Hiç fon işlemi bulunamadı.", "error")
@@ -768,72 +766,28 @@ def fiyat_backfill():
     bugun_d = date.today()
     baslangic = bugun_d - timedelta(days=60)
 
+    flash(f"⏳ {len(fon_sembolleri)} fon için 60 günlük veri çekiliyor... Lütfen bekleyin.", "success")
+
+    # Toplu çek
+    tum_veriler = fetch_fon_aralik(fon_sembolleri, baslangic, bugun_d)
+
+    eklenen = 0
+    for (sembol, tarih_str), fiyat in tum_veriler.items():
+        with get_db() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                (sembol, tarih_str, fiyat))
+        eklenen += 1
+
+    simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
     with get_db() as conn:
-        mevcut = set()
-        for r in conn.execute(
-            "SELECT sembol, tarih FROM fiyat_gecmisi WHERE sembol IN ({})".format(
-                ",".join("?"*len(fon_sembolleri))), fon_sembolleri).fetchall():
-            mevcut.add((r["sembol"], r["tarih"]))
+        conn.execute("INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
+                     (simdi, "Backfill-TEFAS",
+                      f"{eklenen} fiyat dolduruldu (60 gun, {len(fon_sembolleri)} fon)"))
 
-    eksikler = {}
-    gun = baslangic
-    while gun <= bugun_d:
-        if gun.weekday() < 5:
-            tarih_str = str(gun)
-            for s in fon_sembolleri:
-                if (s, tarih_str) not in mevcut:
-                    eksikler.setdefault(tarih_str, []).append(s)
-        gun += timedelta(days=1)
-
-    if not eksikler:
-        flash("✅ Eksik fiyat yok, tüm günler dolu.", "success")
-        return redirect(url_for("fiyatlar"))
-
-    toplam = sum(len(v) for v in eksikler.values())
-
-    def backfill_thread(_app, _eksikler, _toplam):
-        from price_fetcher import fetch_tefas_fon as _fetch
-        from datetime import date as _date, datetime as _dt
-        from zoneinfo import ZoneInfo as _ZI
-        import time as _time
-
-        with _app.app_context():
-            eklenen = 0
-            hatalar = 0
-            for tarih_str, semboller in sorted(_eksikler.items()):
-                hedef = _date.fromisoformat(tarih_str)
-                for sembol in semboller:
-                    try:
-                        fiyat = _fetch(sembol, hedef)
-                        if fiyat:
-                            with get_db() as conn:
-                                conn.execute(
-                                    "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                                    (sembol, tarih_str, fiyat))
-                            eklenen += 1
-                        else:
-                            hatalar += 1
-                    except Exception:
-                        hatalar += 1
-                    _time.sleep(0.5)
-
-            simdi = _dt.now(_ZI("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
-            with get_db() as conn:
-                conn.execute(
-                    "INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
-                    (simdi, "Backfill-TEFAS",
-                     f"{eklenen}/{_toplam} fiyat dolduruldu ({len(_eksikler)} gün, {hatalar} hata)"))
-
-    t = threading.Thread(
-        target=backfill_thread,
-        args=(app, dict(eksikler), toplam),
-        daemon=True
-    )
-    t.start()
-
-    flash(f"⏳ {toplam} eksik fiyat arka planda dolduruluyor "
-          f"({len(eksikler)} gün). Birkaç dakika sonra sayfayı yenile.", "success")
+    flash(f"✅ {eklenen} fiyat güncellendi.", "success")
     return redirect(url_for("fiyatlar"))
+
 
 @app.route("/import-fiyatlar", methods=["GET","POST"])
 @login_required
@@ -1516,9 +1470,9 @@ def cron_guncelle():
 
 @app.route("/cron/backfill")
 def cron_backfill():
-    """Backfill'i HTTP üzerinden tetikle — CRON_KEY gerekir."""
+    """Backfill — fon başına tek API çağrısıyla 60 günlük veri çeker."""
     import os, time as tm
-    from price_fetcher import fetch_tefas_fon
+    from price_fetcher import fetch_fon_aralik
     from datetime import date, timedelta
 
     key = request.args.get("key","")
@@ -1527,55 +1481,35 @@ def cron_backfill():
 
     with get_db() as conn:
         fon_sembolleri = list(set(r["sembol"] for r in conn.execute(
-            "SELECT DISTINCT sembol FROM islemler WHERE tur='FON'").fetchall()))
+            "SELECT DISTINCT sembol FROM islemler WHERE tur=\'FON\'").fetchall()))
 
     if not fon_sembolleri:
         return "Fon yok", 200
 
-    with get_db() as conn:
-        mevcut = set((r["sembol"], r["tarih"]) for r in conn.execute(
-            "SELECT sembol, tarih FROM fiyat_gecmisi WHERE sembol IN ({})".format(
-                ",".join("?"*len(fon_sembolleri))), fon_sembolleri).fetchall())
-
     bugun_d = date.today()
-    eksikler = {}
-    gun = bugun_d - timedelta(days=60)
-    while gun <= bugun_d:
-        if gun.weekday() < 5:
-            ts = str(gun)
-            for s in fon_sembolleri:
-                if (s, ts) not in mevcut:
-                    eksikler.setdefault(ts, []).append(s)
-        gun += timedelta(days=1)
+    baslangic = bugun_d - timedelta(days=60)
 
-    if not eksikler:
-        return "Eksik yok", 200
+    # Tek API çağrısıyla tüm aralığı çek (fon başına ~2-3 istek)
+    tum_veriler = fetch_fon_aralik(fon_sembolleri, baslangic, bugun_d)
 
-    toplam = sum(len(v) for v in eksikler.values())
     eklenen = 0
-    log_lines = [f"Toplam eksik: {toplam}"]
+    log_lines = [f"Fon: {fon_sembolleri}, {baslangic} - {bugun_d}"]
 
-    for tarih_str, semboller in sorted(eksikler.items()):
-        hedef = date.fromisoformat(tarih_str)
-        for sembol in semboller:
-            fiyat = fetch_tefas_fon(sembol, hedef)
-            if fiyat:
-                with get_db() as conn:
-                    conn.execute(
-                        "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                        (sembol, tarih_str, fiyat))
-                eklenen += 1
-                log_lines.append(f"OK {sembol} {tarih_str}: {fiyat}")
-            else:
-                log_lines.append(f"-- {sembol} {tarih_str}: veri yok")
-            tm.sleep(0.5)
+    for (sembol, tarih_str), fiyat in sorted(tum_veriler.items()):
+        with get_db() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                (sembol, tarih_str, fiyat))
+        eklenen += 1
+        log_lines.append(f"OK {sembol} {tarih_str}: {fiyat}")
 
     simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
     with get_db() as conn:
         conn.execute("INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
-                     (simdi, "Backfill-TEFAS", f"{eklenen}/{toplam} dolduruldu"))
+                     (simdi, "Backfill-TEFAS", f"{eklenen} fiyat dolduruldu (60 gun)"))
 
     return "\n".join(log_lines), 200
+
 
 if __name__ == "__main__":
     init_db()
