@@ -674,7 +674,63 @@ def import_excel():
     return render_template("import_excel.html", count=len(excel_islemler))
 
 
-@app.route("/fiyat-backfill", methods=["POST"])
+@app.route("/fiyat-backfill-debug")
+@login_required
+def fiyat_backfill_debug():
+    """Backfill'i senkron çalıştır, sonucu ekranda göster."""
+    from price_fetcher import fetch_tefas_fon
+    from datetime import date, timedelta
+    import time as time_mod
+
+    user_id = session["user_id"]
+    with get_db() as conn:
+        fon_sembolleri = [r["sembol"] for r in conn.execute(
+            "SELECT DISTINCT sembol FROM islemler WHERE user_id=? AND tur='FON'",
+            (user_id,)).fetchall()]
+
+    bugun_d = date.today()
+    baslangic = bugun_d - timedelta(days=10)  # Sadece son 10 gün test
+
+    with get_db() as conn:
+        mevcut = set()
+        for r in conn.execute(
+            "SELECT sembol, tarih FROM fiyat_gecmisi WHERE sembol IN ({})".format(
+                ",".join("?"*len(fon_sembolleri))), fon_sembolleri).fetchall():
+            mevcut.add((r["sembol"], r["tarih"]))
+
+    eksikler = {}
+    gun = baslangic
+    while gun <= bugun_d:
+        if gun.weekday() < 5:
+            tarih_str = str(gun)
+            for s in fon_sembolleri:
+                if (s, tarih_str) not in mevcut:
+                    eksikler.setdefault(tarih_str, []).append(s)
+        gun += timedelta(days=1)
+
+    log = [f"Fonlar: {fon_sembolleri}"]
+    log.append(f"Eksik kombinasyon: {sum(len(v) for v in eksikler.values())} ({len(eksikler)} gün)")
+
+    for tarih_str, semboller in sorted(eksikler.items()):
+        hedef = date.fromisoformat(tarih_str)
+        for sembol in semboller:
+            try:
+                fiyat = fetch_tefas_fon(sembol, hedef)
+                if fiyat:
+                    with get_db() as conn:
+                        conn.execute(
+                            "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                            (sembol, tarih_str, fiyat))
+                    log.append(f"✅ {sembol} {tarih_str}: {fiyat}")
+                else:
+                    log.append(f"⚠️ {sembol} {tarih_str}: veri yok (tatil?)")
+            except Exception as e:
+                log.append(f"❌ {sembol} {tarih_str}: HATA: {e}")
+            time_mod.sleep(1)
+
+    return "<pre style='background:#111;color:#eee;padding:1rem'>" + "\n".join(log) + "</pre>"
+
+
 @login_required
 def fiyat_backfill():
     """Son 60 günün eksik fiyatlarını TEFAS'tan çekip doldur — arka planda çalışır."""
