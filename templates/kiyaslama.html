@@ -75,17 +75,59 @@
 {% for p in portfoyler %}
   {% set kl = kalemler.get(p.id, []) %}
   <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-      <h3 style="margin:0;font-size:1rem">{{ p.ad }}</h3>
-      <div style="display:flex;align-items:center;gap:0.75rem">
-        <span style="font-size:0.75rem;color:var(--text2)">{{ p.ilk_tarih }} → {{ p.son_tarih }}</span>
-        <a href="{{ url_for('kiyaslama_portfoy_sil', pid=p.id) }}"
-           class="btn-del" style="font-size:0.75rem"
-           onclick="return confirm('Portföyü ve tüm kalemleri sil?')">🗑️ Sil</a>
+    <!-- Görünüm Modu -->
+    <div id="portfoy-view-{{ p.id }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+        <h3 style="margin:0;font-size:1rem">{{ p.ad }}</h3>
+        <div style="display:flex;align-items:center;gap:0.75rem">
+          <span style="font-size:0.75rem;color:var(--text2)">{{ p.ilk_tarih }} → {{ p.son_tarih }}</span>
+          <button onclick="portfoyDuzenle({{ p.id }})"
+            style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.78rem;padding:0 4px">✏️ Düzenle</button>
+          <a href="{{ url_for('kiyaslama_portfoy_sil', pid=p.id) }}"
+             class="btn-del" style="font-size:0.75rem"
+             onclick="return confirm('Portföyü ve tüm kalemleri sil?')">🗑️ Sil</a>
+        </div>
+      </div>
+      <div style="font-size:0.8rem;color:var(--text2);margin-bottom:0.75rem">
+        Toplam Para: <strong style="color:var(--text)">{{ "{:,.0f}".format(p.toplam_para).replace(",",".") }} ₺</strong>
       </div>
     </div>
-    <div style="font-size:0.8rem;color:var(--text2);margin-bottom:0.75rem">
-      Toplam Para: <strong style="color:var(--text)">{{ "{:,.0f}".format(p.toplam_para).replace(",",".") }} ₺</strong>
+
+    <!-- Düzenleme Modu -->
+    <div id="portfoy-edit-{{ p.id }}" style="display:none;margin-bottom:0.75rem">
+      <form method="POST" action="{{ url_for('kiyaslama_portfoy_duzenle') }}">
+        <input type="hidden" name="portfoy_id" value="{{ p.id }}">
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <label style="font-size:0.72rem;color:var(--text2);display:block">Portföy Adı</label>
+            <input type="text" name="ad" value="{{ p.ad }}" required
+              style="background:var(--card2);border:1px solid var(--border);color:var(--text);
+                     padding:6px 10px;border-radius:6px;font-size:0.85rem;width:140px">
+          </div>
+          <div>
+            <label style="font-size:0.72rem;color:var(--text2);display:block">Toplam Para (₺)</label>
+            <input type="text" name="toplam_para" value="{{ "{:.0f}".format(p.toplam_para) }}" required
+              style="background:var(--card2);border:1px solid var(--border);color:var(--text);
+                     padding:6px 10px;border-radius:6px;font-size:0.85rem;width:120px">
+          </div>
+          <div>
+            <label style="font-size:0.72rem;color:var(--text2);display:block">İlk Tarih</label>
+            <input type="date" name="ilk_tarih" value="{{ p.ilk_tarih }}" required
+              style="background:var(--card2);border:1px solid var(--border);color:var(--text);
+                     padding:6px 10px;border-radius:6px;font-size:0.85rem">
+          </div>
+          <div>
+            <label style="font-size:0.72rem;color:var(--text2);display:block">Son Tarih</label>
+            <input type="date" name="son_tarih" value="{{ p.son_tarih }}" required
+              style="background:var(--card2);border:1px solid var(--border);color:var(--text);
+                     padding:6px 10px;border-radius:6px;font-size:0.85rem">
+          </div>
+          <button type="submit" class="btn-primary" style="font-size:0.82rem;padding:6px 14px">Kaydet</button>
+          <button type="button" onclick="portfoyDuzenleIptal({{ p.id }})"
+            style="background:none;border:1px solid var(--border);color:var(--text2);
+                   padding:6px 12px;border-radius:6px;font-size:0.82rem;cursor:pointer">İptal</button>
+        </div>
+      </form>
     </div>
 
     <!-- Kalem Tablosu -->
@@ -317,6 +359,15 @@ document.addEventListener('input', function(e) {
       });
   }, 200);
 });
+
+function portfoyDuzenle(id) {
+  document.getElementById('portfoy-view-' + id).style.display = 'none';
+  document.getElementById('portfoy-edit-' + id).style.display = '';
+}
+function portfoyDuzenleIptal(id) {
+  document.getElementById('portfoy-edit-' + id).style.display = 'none';
+  document.getElementById('portfoy-view-' + id).style.display = '';
+}
 
 function kalemDuzenle(id, sembol, agirlik, ilkFiyat, sonFiyat) {
   document.getElementById('kalem-row-' + id).style.display = 'none';
