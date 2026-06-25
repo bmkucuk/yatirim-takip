@@ -98,8 +98,12 @@ VERGI_ORANI = 0.175  # %17.5
 
 def net_kar(sembol, tur, kar_zarar):
     """Vergi sonrası net kar hesapla."""
+    if tur == "BIST":
+        return kar_zarar  # BIST'te stopaj yok
+    if tur == "ABD":
+        return None  # Değişken vergi, sonradan ödeniyor
     if tur != "FON":
-        return kar_zarar  # BIST/ABD'de stopaj yok
+        return kar_zarar
     if sembol in VERGISIZ_FONLAR:
         return kar_zarar  # Vergisiz
     if kar_zarar > 0:
@@ -226,7 +230,8 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
             "mevcut_deger": mevcut_deger,
             "kar_zarar": kar_zarar,
             "net_kar": net_kar(sembol, tur, kar_zarar),
-            "vergisiz": sembol in VERGISIZ_FONLAR or tur != "FON",
+            "vergisiz": (tur == "BIST") or (sembol in VERGISIZ_FONLAR),
+            "abd_vergi": tur == "ABD",
             "gunluk_tl": gunluk_tl,
             "gunluk_yuzde": gunluk_yuzde,
             "hafta_tl": hafta_tl, "hafta_pct": hafta_pct,
