@@ -89,6 +89,23 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
+def bugun():
+    return datetime.now(ZoneInfo("Europe/Istanbul")).date()
+
+# Vergi muaf fonlar (PHE altın fonu - stopaj yok)
+VERGISIZ_FONLAR = {"PHE"}
+VERGI_ORANI = 0.175  # %17.5
+
+def net_kar(sembol, tur, kar_zarar):
+    """Vergi sonrası net kar hesapla."""
+    if tur != "FON":
+        return kar_zarar  # BIST/ABD'de stopaj yok
+    if sembol in VERGISIZ_FONLAR:
+        return kar_zarar  # Vergisiz
+    if kar_zarar > 0:
+        return kar_zarar * (1 - VERGI_ORANI)
+    return kar_zarar
+
 def get_usd_try():
     """Güncel USD/TRY kurunu Yahoo Finance'den çek."""
     try:
@@ -208,6 +225,8 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
             "son_fiyat": son_fiyat,
             "mevcut_deger": mevcut_deger,
             "kar_zarar": kar_zarar,
+            "net_kar": net_kar(sembol, tur, kar_zarar),
+            "vergisiz": sembol in VERGISIZ_FONLAR or tur != "FON",
             "gunluk_tl": gunluk_tl,
             "gunluk_yuzde": gunluk_yuzde,
             "hafta_tl": hafta_tl, "hafta_pct": hafta_pct,
