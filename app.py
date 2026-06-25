@@ -1992,13 +1992,13 @@ def kiyaslama_fiyat_guncelle(pid):
             # DB'de yoksa hangi kategoride olduğunu bul
             with get_db() as conn:
                 row = conn.execute("SELECT tur FROM islemler WHERE sembol=? LIMIT 1", (k["sembol"],)).fetchone()
-            tur = row["tur"] if row else None
+            tur = row["tur"] if row else "BIST"
             if tur == "FON":
                 eksik_fon.append(k)
-            elif tur == "BIST":
-                eksik_hisse_bist.append(k)
-            else:
+            elif tur == "ABD":
                 eksik_hisse_abd.append(k)
+            else:
+                eksik_hisse_bist.append(k)
 
     # Eksik fonları TEFAS'tan çek
     if eksik_fon:
