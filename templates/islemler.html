@@ -196,11 +196,6 @@
 </div>
 
 <script>
-document.getElementById('tur-select').addEventListener('change', function() {
-  const hint = document.getElementById('sembol-hint');
-  if (this.value === 'FON') hint.textContent = '(örn: PHE, TP2, PRY, TLY)';
-  else hint.textContent = '(örn: THYAO, GARAN, AAPL, MSFT)';
-});
 // Bugünün tarihi
 document.querySelector('input[name="tarih"]').value = new Date().toISOString().split('T')[0];
 
