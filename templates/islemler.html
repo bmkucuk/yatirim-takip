@@ -263,7 +263,7 @@ sembolInput.addEventListener('input', function() {
   if (q.length < 1) { sembolDd.innerHTML = ''; sembolDd.style.display='none'; return; }
   // Tür map
   const turMap = {'FON':'FON','BIST':'HISSE','ABD':'HISSE'};
-  const piyasaMap = {'FON':'TEFAS','BIST':'BIST','ABD':'ABD'};
+  const piyasaMap = {'FON':'FON','BIST':'BIST','ABD':'ABD'};
   const tur = turMap[turSelect.value] || '';
   const piyasa = piyasaMap[turSelect.value] || '';
   acTimer = setTimeout(() => {
