@@ -6,81 +6,99 @@
   <h2>⚙️ Ayarlar</h2>
 </div>
 
-<div class="settings-grid">
-
-  <!-- Hesaplar -->
-  <div class="card">
-    <h3>👤 Hesaplar</h3>
-    <p class="card-desc">Her hesap farklı bir portföy (örn: "Murat", "Berrin")</p>
-    <ul class="settings-list">
-      {% for h in hesaplar %}
-      <li>
-        {{ h.ad }}
-        <form method="POST" action="{{ url_for('ayarlar') }}" style="display:inline">
-          <input type="hidden" name="action" value="hesap_sil">
-          <input type="hidden" name="hesap_id" value="{{ h.id }}">
-          <button type="submit" class="btn-del-sm"
-            onclick="return confirm('Hesabı sil?')">×</button>
-        </form>
-      </li>
-      {% endfor %}
-    </ul>
-    <form method="POST" action="{{ url_for('ayarlar') }}" class="inline-form">
-      <input type="hidden" name="action" value="hesap_ekle">
-      <input type="text" name="hesap_ad" placeholder="Yeni hesap adı">
-      <button type="submit" class="btn-secondary">Ekle</button>
-    </form>
-  </div>
-
-  <!-- Aracı Kurumlar -->
-  <div class="card">
-    <h3>🏦 Aracı Kurumlar</h3>
-    <p class="card-desc">İşlemlerde kullanılacak aracı kurum listesi</p>
-    <ul class="settings-list">
-      {% for a in aracilar %}
-      <li>
-        {{ a.ad }}
-        <form method="POST" action="{{ url_for('ayarlar') }}" style="display:inline">
-          <input type="hidden" name="action" value="aracilar_sil">
-          <input type="hidden" name="aracilar_id" value="{{ a.id }}">
-          <button type="submit" class="btn-del-sm"
-            onclick="return confirm('Aracı kurumu sil?')">×</button>
-        </form>
-      </li>
-      {% endfor %}
-    </ul>
-    <form method="POST" action="{{ url_for('ayarlar') }}" class="inline-form">
-      <input type="hidden" name="action" value="aracilar_ekle">
-      <input type="text" name="aracilar_ad" placeholder="Yeni aracı kurum">
-      <button type="submit" class="btn-secondary">Ekle</button>
-    </form>
-  </div>
-
-  <!-- Sembol Güncelle -->
-  <div class="card">
-    <h3>🔍 Sembol Listesi</h3>
-    <p class="card-desc">TEFAS fonları, BIST ve ABD hisselerini günceller. İşlem formunda otomatik tamamlama için gerekli.</p>
-    <form method="POST" action="{{ url_for('sembol_guncelle') }}">
-      <button type="submit" class="btn-secondary">🔄 Sembol Listesini Güncelle</button>
-    </form>
-  </div>
-
-  <!-- Şifre -->
-  <div class="card">
-    <h3>🔒 Şifre Değiştir</h3>
-    <form method="POST" action="{{ url_for('ayarlar') }}">
-      <input type="hidden" name="action" value="sifre">
-      <div class="form-group">
-        <label>Mevcut Şifre</label>
-        <input type="password" name="eski_sifre" required>
-      </div>
-      <div class="form-group">
-        <label>Yeni Şifre</label>
-        <input type="password" name="yeni_sifre" required minlength="6">
-      </div>
-      <button type="submit" class="btn-primary">Güncelle</button>
-    </form>
-  </div>
-
+<!-- Sekme Menüsü -->
+<div class="tab-menu">
+  <button class="tab-btn active" onclick="sekmeAc('hesaplar', this)">👤 Hesaplar</button>
+  <button class="tab-btn" onclick="sekmeAc('aracilar', this)">🏦 Aracı Kurumlar</button>
+  <button class="tab-btn" onclick="sekmeAc('semboller', this)">🔍 Sembol Listesi</button>
+  <button class="tab-btn" onclick="sekmeAc('sifre', this)">🔒 Şifre Değiştir</button>
 </div>
+
+<!-- Hesaplar -->
+<div id="tab-hesaplar" class="tab-content active card">
+  <h3>👤 Hesaplar</h3>
+  <p class="card-desc">Her hesap farklı bir portföy (örn: "Murat", "Berrin")</p>
+  <ul class="settings-list">
+    {% for h in hesaplar %}
+    <li>
+      {{ h.ad }}
+      <form method="POST" action="{{ url_for('ayarlar') }}" style="display:inline">
+        <input type="hidden" name="action" value="hesap_sil">
+        <input type="hidden" name="hesap_id" value="{{ h.id }}">
+        <button type="submit" class="btn-del-sm" onclick="return confirm('Hesabı sil?')">×</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  <form method="POST" action="{{ url_for('ayarlar') }}" class="inline-form">
+    <input type="hidden" name="action" value="hesap_ekle">
+    <input type="text" name="hesap_ad" placeholder="Yeni hesap adı">
+    <button type="submit" class="btn-secondary">Ekle</button>
+  </form>
+</div>
+
+<!-- Aracı Kurumlar -->
+<div id="tab-aracilar" class="tab-content card" style="display:none">
+  <h3>🏦 Aracı Kurumlar</h3>
+  <p class="card-desc">İşlemlerde kullanılacak aracı kurum listesi</p>
+  <ul class="settings-list">
+    {% for a in aracilar %}
+    <li>
+      {{ a.ad }}
+      <form method="POST" action="{{ url_for('ayarlar') }}" style="display:inline">
+        <input type="hidden" name="action" value="aracilar_sil">
+        <input type="hidden" name="aracilar_id" value="{{ a.id }}">
+        <button type="submit" class="btn-del-sm" onclick="return confirm('Aracı kurumu sil?')">×</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  <form method="POST" action="{{ url_for('ayarlar') }}" class="inline-form">
+    <input type="hidden" name="action" value="aracilar_ekle">
+    <input type="text" name="aracilar_ad" placeholder="Yeni aracı kurum">
+    <button type="submit" class="btn-secondary">Ekle</button>
+  </form>
+</div>
+
+<!-- Sembol Listesi -->
+<div id="tab-semboller" class="tab-content card" style="display:none">
+  <h3>🔍 Sembol Listesi</h3>
+  <p class="card-desc">TEFAS fonları, BIST ve ABD hisselerini günceller. İşlem formunda otomatik tamamlama için gerekli.</p>
+  <form method="POST" action="{{ url_for('sembol_guncelle') }}">
+    <button type="submit" class="btn-secondary">🔄 Sembol Listesini Güncelle</button>
+  </form>
+</div>
+
+<!-- Şifre Değiştir — ayrı sekmede, password manager karışmasın -->
+<div id="tab-sifre" class="tab-content card" style="display:none">
+  <h3>🔒 Şifre Değiştir</h3>
+  <form method="POST" action="{{ url_for('ayarlar') }}" autocomplete="off">
+    <input type="hidden" name="action" value="sifre">
+    <div class="form-group" style="margin-bottom:1rem;max-width:320px">
+      <label>Mevcut Şifre</label>
+      <input type="password" name="eski_sifre" autocomplete="new-password">
+    </div>
+    <div class="form-group" style="margin-bottom:1rem;max-width:320px">
+      <label>Yeni Şifre</label>
+      <input type="password" name="yeni_sifre" minlength="6" autocomplete="new-password">
+    </div>
+    <button type="submit" class="btn-primary">Güncelle</button>
+  </form>
+</div>
+
+<script>
+function sekmeAc(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).style.display = 'block';
+  btn.classList.add('active');
+  localStorage.setItem('ayarlar-sekme', id);
+}
+// Son açık sekmeyi hatırla
+const son = localStorage.getItem('ayarlar-sekme');
+if (son) {
+  const btn = document.querySelector(`.tab-btn[onclick*="${son}"]`);
+  if (btn) sekmeAc(son, btn);
+}
+</script>
 {% endblock %}
