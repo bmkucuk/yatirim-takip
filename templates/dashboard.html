@@ -46,7 +46,7 @@
   </div>
 </div>
 
-{% macro bolum_ozet(deger, kar, gunluk, para, deger_tl, kar_tl) %}
+{% macro bolum_ozet(deger, kar, gunluk, para, deger_tl, kar_tl, gunluk_tl=none) %}
 <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:0.75rem">
   <div class="summary-card" style="padding:0.6rem 1rem">
     <div class="card-label" style="font-size:0.72rem">Toplam Değer</div>
@@ -58,6 +58,11 @@
     <div class="card-value {{ 'pos' if gunluk >= 0 else 'neg' }}" style="font-size:1rem">
       {{ ("+" if gunluk>=0 else "") }}{{ "{:,.2f}".format(gunluk).replace(",",".") }} {{ para }}
     </div>
+    {% if gunluk_tl is not none %}
+    <div style="font-size:0.72rem;color:{{ '#3fb950' if gunluk_tl>=0 else '#f85149' }}">
+      ≈ {{ ("+" if gunluk_tl>=0 else "") }}{{ "{:,.0f}".format(gunluk_tl).replace(",",".") }} ₺
+    </div>
+    {% endif %}
   </div>
   <div class="summary-card" style="padding:0.6rem 1rem">
     <div class="card-label" style="font-size:0.72rem">Toplam Kar/Zarar</div>
@@ -151,7 +156,7 @@
 
 <!-- ABD -->
 {% if abd_portfoy %}
-{{ bolum_ozet(abd_deger_usd, abd_kar_usd, abd_portfoy|sum(attribute='gunluk_tl'), "$", abd_deger_tl, abd_kar_tl) }}
+{{ bolum_ozet(abd_deger_usd, abd_kar_usd, abd_portfoy|sum(attribute='gunluk_tl'), "$", abd_deger_tl, abd_kar_tl, gunluk_tl=abd_gunluk_tl) }}
 {% endif %}
 {{ portfoy_tablosu(abd_portfoy, "$", "🇺🇸 Borsa USA", "#58a6ff") }}
 
