@@ -1629,8 +1629,9 @@ def fiyat_guncelle_manuel():
                            (session["user_id"],)).fetchall()
     fon_sembolleri  = [r["sembol"] for r in tum if r["tur"] == "FON"]
     hisse_sembolleri = [r["sembol"] for r in tum if r["tur"] in ("ABD", "BIST", "HISSE")]
+    tur_map = {r["sembol"]: r["tur"] for r in tum}
 
-    sonuc = fetch_all_prices(fon_sembolleri, hisse_sembolleri)
+    sonuc = fetch_all_prices(fon_sembolleri, hisse_sembolleri, tur_map=tur_map)
 
     basarili = 0
     bugun = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d")
@@ -1661,8 +1662,9 @@ def cron_guncelle():
 
     fon_sembolleri  = [r["sembol"] for r in tum if r["tur"] == "FON"]
     hisse_sembolleri = [r["sembol"] for r in tum if r["tur"] in ("ABD", "BIST", "HISSE")]
+    tur_map = {r["sembol"]: r["tur"] for r in tum}
 
-    sonuc = fetch_all_prices(fon_sembolleri, hisse_sembolleri)
+    sonuc = fetch_all_prices(fon_sembolleri, hisse_sembolleri, tur_map=tur_map)
 
     basarili = 0
     for sembol, tarih, fiyat in sonuc.get("prices", []):

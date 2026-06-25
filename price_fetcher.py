@@ -103,15 +103,23 @@ def fetch_fon_aralik(semboller, baslangic, bitis):
         time.sleep(2)
     return tum
 
-def fetch_hisse_fiyatlari(semboller):
-    """Yahoo Finance direkt HTTP ile BIST ve ABD hisse fiyatları."""
+def fetch_hisse_fiyatlari(semboller, tur_map=None):
+    """Yahoo Finance direkt HTTP ile BIST ve ABD hisse fiyatları.
+    tur_map: {sembol: tur} — tur bilgisi varsa BIST için .IS ekle, ABD için ekleme.
+    """
     if not semboller:
         return {}, "yok"
     import requests as req
     results = {}
     for sembol in semboller:
-        # BIST için .IS ekle, ABD için olduğu gibi kullan
-        yahoo_sembol = f"{sembol}.IS" if not sembol.endswith(".IS") and len(sembol) <= 6 and sembol.isalpha() else sembol
+        tur = (tur_map or {}).get(sembol, "")
+        if tur == "BIST":
+            yahoo_sembol = f"{sembol}.IS" if not sembol.endswith(".IS") else sembol
+        elif tur == "ABD":
+            yahoo_sembol = sembol
+        else:
+            # tur bilinmiyorsa eski mantık
+            yahoo_sembol = f"{sembol}.IS" if not sembol.endswith(".IS") and len(sembol) <= 6 and sembol.isalpha() else sembol
         try:
             r = req.get(
                 f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_sembol}"
@@ -130,7 +138,7 @@ def fetch_hisse_fiyatlari(semboller):
             pass
     return results, "Yahoo-Finance" if results else None
 
-def fetch_all_prices(fon_sembolleri, hisse_sembolleri):
+def fetch_all_prices(fon_sembolleri, hisse_sembolleri, tur_map=None):
     today = bugun_str()
     prices, methods, errors = [], [], []
     if fon_sembolleri:
@@ -142,7 +150,7 @@ def fetch_all_prices(fon_sembolleri, hisse_sembolleri):
         else:
             errors.append(f"Fon alınamadı:{','.join(fon_sembolleri)}")
     if hisse_sembolleri:
-        hisse_prices, hisse_method = fetch_hisse_fiyatlari(hisse_sembolleri)
+        hisse_prices, hisse_method = fetch_hisse_fiyatlari(hisse_sembolleri, tur_map=tur_map)
         for s, f in hisse_prices.items():
             prices.append((s, today, f))
         if hisse_prices:
