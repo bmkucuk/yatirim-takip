@@ -1850,7 +1850,11 @@ def kiyaslama():
     with get_db() as conn:
         gt = conn.execute("SELECT ilk_tarih, son_tarih FROM kiyaslama_global_tarih WHERE user_id=?",
                           (user_id,)).fetchone()
-    global_tarih = {"ilk": gt["ilk_tarih"] if gt else "", "son": gt["son_tarih"] if gt else bugun_str, "toplam_para": gt["toplam_para"] if gt else 0}
+    try:
+        toplam_para_gt = gt["toplam_para"] if gt else 0
+    except (IndexError, KeyError):
+        toplam_para_gt = 0
+    global_tarih = {"ilk": gt["ilk_tarih"] if gt else "", "son": gt["son_tarih"] if gt else bugun_str, "toplam_para": toplam_para_gt}
     return render_template("kiyaslama.html",
         portfoyler=portfoyler, kalemler=kalemler, bugun=bugun_str, global_tarih=global_tarih)
 
