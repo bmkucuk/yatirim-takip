@@ -50,7 +50,7 @@
         <th>Son Değer</th>
         <th>Fark (TL)</th>
         <th>Brüt %</th>
-        <th>Ort. Vergi</th>
+        <th>Vergi %</th>
         <th>Net %</th>
         <th></th>
       </tr>
@@ -73,14 +73,7 @@
       {% set fark = son_toplam.val - ilk_val %}
       {% set getiri_pct = (fark / ilk_val * 100) if ilk_val > 0 else 0 %}
       {% set kl = kalemler.get(p.id, []) %}
-      {% set ort_vergi = namespace(val=0, toplam_agirlik=0) %}
-      {% for k in kl %}
-        {% if k.vergi_orani %}
-          {% set ort_vergi.val = ort_vergi.val + k.agirlik * k.vergi_orani %}
-          {% set ort_vergi.toplam_agirlik = ort_vergi.toplam_agirlik + k.agirlik %}
-        {% endif %}
-      {% endfor %}
-      {% set vergi_ort = (ort_vergi.val / ort_vergi.toplam_agirlik) if ort_vergi.toplam_agirlik > 0 else 0 %}
+      {% set vergi_ort = kl[0].vergi_orani if kl and kl[0].vergi_orani else 0 %}
       {% set net_pct = getiri_pct * (1 - vergi_ort / 100) %}
       <tr>
         <td><strong>{{ p.ad }}</strong></td>
@@ -116,7 +109,7 @@
 {% endif %}
 
 <!-- Portföyler -->
-<div style="display:flex;flex-direction:column;gap:1.2rem;margin-bottom:1.5rem">
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(580px,1fr));gap:1.2rem;margin-bottom:1.5rem">
 {% for p in portfoyler %}
   {% set kl = kalemler.get(p.id, []) %}
   <div class="card">
