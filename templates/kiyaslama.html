@@ -288,6 +288,9 @@
                    color:var(--text);padding:6px 8px;border-radius:6px;font-size:0.82rem;box-sizing:border-box">
         </div>
         <button type="submit" class="btn-primary" style="font-size:0.8rem;padding:6px 12px">Ekle</button>
+        <button type="button" onclick="this.closest('details').removeAttribute('open')"
+          style="background:none;border:1px solid var(--border);color:var(--text2);
+                 padding:6px 10px;border-radius:6px;font-size:0.8rem;cursor:pointer">İptal</button>
       </form>
     </details>
     {% endif %}
