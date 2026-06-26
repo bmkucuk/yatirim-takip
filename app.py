@@ -1885,11 +1885,16 @@ def kiyaslama_tarih_guncelle():
     user_id = session["user_id"]
     ilk_tarih = request.form["ilk_tarih"]
     son_tarih = request.form["son_tarih"]
-    toplam_para_str = request.form.get("toplam_para", "0").replace(".", "").replace(",", ".").strip()
+    toplam_para_str = request.form.get("toplam_para", "").replace(".", "").replace(",", ".").strip()
     try:
-        toplam_para = float(toplam_para_str) if toplam_para_str else 0
+        toplam_para = float(toplam_para_str) if toplam_para_str else None
     except:
-        toplam_para = 0
+        toplam_para = None
+    # Boşsa mevcut değeri koru
+    if toplam_para is None:
+        with get_db() as _c:
+            _gt = _c.execute("SELECT toplam_para FROM kiyaslama_global_tarih WHERE user_id=?", (user_id,)).fetchone()
+            toplam_para = _gt["toplam_para"] if _gt else 0
 
     # Global tarihi ve toplam parayı kaydet
     with get_db() as conn:
