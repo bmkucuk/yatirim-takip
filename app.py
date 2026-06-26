@@ -2095,12 +2095,30 @@ def kiyaslama_fiyat_guncelle(pid):
                 if f:
                     hisse_prices[s] = f
 
+    # İlk tarih için DB'de olmayan fonların fiyatını TEFAS'tan çek
+    from price_fetcher import tefas_aralik_cek
+    from datetime import date as _date
+    ilk_date = _date.fromisoformat(ilk_tarih)
+    son_date = _date.fromisoformat(son_tarih)
+
     # Tüm kalemleri güncelle
     for k in kalemler:
         s = k["sembol"]
         pm = piyasa_map[s]
         son_f = fon_prices.get(s) if pm == "FON" else hisse_prices.get(s)
         ilk_f = get_fiyat(s, ilk_tarih)
+
+        # İlk fiyat DB'de yoksa ve FON ise TEFAS'tan çek
+        if not ilk_f and pm == "FON":
+            aralik = tefas_aralik_cek(s, ilk_date, ilk_date)
+            if aralik:
+                en_yakin = max((t for t in aralik if t <= ilk_date), default=None)
+                if en_yakin:
+                    ilk_f = aralik[en_yakin]
+                    with get_db() as conn:
+                        conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                                     (s, str(en_yakin), ilk_f))
+
         if son_f:
             with get_db() as conn:
                 conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
