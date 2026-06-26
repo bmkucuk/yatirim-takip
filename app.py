@@ -2005,15 +2005,13 @@ def kiyaslama_portfoy_duzenle():
     user_id = session["user_id"]
     pid = int(request.form["portfoy_id"])
     ad = request.form["ad"].strip()
-    ilk_tarih = request.form["ilk_tarih"]
-    son_tarih = request.form["son_tarih"]
     toplam_para = float(request.form["toplam_para"].replace(".", "").replace(",", "."))
 
     with get_db() as conn:
         conn.execute("""
-            UPDATE kiyaslama_portfoy SET ad=?, ilk_tarih=?, son_tarih=?, toplam_para=?
+            UPDATE kiyaslama_portfoy SET ad=?, toplam_para=?
             WHERE id=? AND user_id=?
-        """, (ad, ilk_tarih, son_tarih, toplam_para, pid, user_id))
+        """, (ad, toplam_para, pid, user_id))
         # Fiyatları sıfırla — Güncelle butonu ile çekilecek
         conn.execute("UPDATE kiyaslama_kalem SET ilk_fiyat=NULL, son_fiyat=NULL WHERE portfoy_id=?", (pid,))
 
