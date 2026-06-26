@@ -1850,7 +1850,7 @@ def kiyaslama():
     from datetime import datetime as _dt2, timedelta as _td2
     dun_str = (_dt2.now() - _td2(days=1)).strftime("%Y-%m-%d")
     with get_db() as conn:
-        gt = conn.execute("SELECT ilk_tarih, son_tarih FROM kiyaslama_global_tarih WHERE user_id=?",
+        gt = conn.execute("SELECT ilk_tarih, son_tarih, toplam_para FROM kiyaslama_global_tarih WHERE user_id=?",
                           (user_id,)).fetchone()
     try:
         toplam_para_gt = gt["toplam_para"] if gt else 0
