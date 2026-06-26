@@ -79,7 +79,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS kiyaslama_global_tarih (
             user_id INTEGER PRIMARY KEY,
             ilk_tarih TEXT NOT NULL DEFAULT '',
-            son_tarih TEXT NOT NULL DEFAULT ''
+            son_tarih TEXT NOT NULL DEFAULT '',
+            toplam_para REAL NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS nakit_bakiye (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,6 +112,10 @@ def init_db():
     # Migration: mevcut tablolara eksik kolonları ekle
     try:
         conn.execute("ALTER TABLE kiyaslama_kalem ADD COLUMN vergi_orani REAL DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE kiyaslama_global_tarih ADD COLUMN toplam_para REAL DEFAULT 0")
     except Exception:
         pass
 
@@ -1845,7 +1850,7 @@ def kiyaslama():
     with get_db() as conn:
         gt = conn.execute("SELECT ilk_tarih, son_tarih FROM kiyaslama_global_tarih WHERE user_id=?",
                           (user_id,)).fetchone()
-    global_tarih = {"ilk": gt["ilk_tarih"] if gt else "", "son": gt["son_tarih"] if gt else bugun_str}
+    global_tarih = {"ilk": gt["ilk_tarih"] if gt else "", "son": gt["son_tarih"] if gt else bugun_str, "toplam_para": gt["toplam_para"] if gt else 0}
     return render_template("kiyaslama.html",
         portfoyler=portfoyler, kalemler=kalemler, bugun=bugun_str, global_tarih=global_tarih)
 
@@ -1858,18 +1863,24 @@ def kiyaslama_tarih_guncelle():
     user_id = session["user_id"]
     ilk_tarih = request.form["ilk_tarih"]
     son_tarih = request.form["son_tarih"]
+    toplam_para_str = request.form.get("toplam_para", "0").replace(".", "").replace(",", ".").strip()
+    try:
+        toplam_para = float(toplam_para_str) if toplam_para_str else 0
+    except:
+        toplam_para = 0
 
-    # Global tarihi kaydet
+    # Global tarihi ve toplam parayı kaydet
     with get_db() as conn:
         conn.execute("""
-            INSERT INTO kiyaslama_global_tarih (user_id, ilk_tarih, son_tarih)
-            VALUES (?,?,?)
-            ON CONFLICT(user_id) DO UPDATE SET ilk_tarih=excluded.ilk_tarih, son_tarih=excluded.son_tarih
-        """, (user_id, ilk_tarih, son_tarih))
-        # Tüm portföylerin tarihlerini güncelle
+            INSERT INTO kiyaslama_global_tarih (user_id, ilk_tarih, son_tarih, toplam_para)
+            VALUES (?,?,?,?)
+            ON CONFLICT(user_id) DO UPDATE SET ilk_tarih=excluded.ilk_tarih,
+                son_tarih=excluded.son_tarih, toplam_para=excluded.toplam_para
+        """, (user_id, ilk_tarih, son_tarih, toplam_para))
+        # Tüm portföylerin tarihlerini ve toplam parasını güncelle
         conn.execute("""
-            UPDATE kiyaslama_portfoy SET ilk_tarih=?, son_tarih=? WHERE user_id=?
-        """, (ilk_tarih, son_tarih, user_id))
+            UPDATE kiyaslama_portfoy SET ilk_tarih=?, son_tarih=?, toplam_para=? WHERE user_id=?
+        """, (ilk_tarih, son_tarih, toplam_para, user_id))
         portfoyler = conn.execute(
             "SELECT id FROM kiyaslama_portfoy WHERE user_id=?", (user_id,)
         ).fetchall()
@@ -1963,13 +1974,12 @@ def kiyaslama_portfoy_ekle():
             flash("En fazla 4 portföy oluşturabilirsiniz.", "error")
             return redirect(url_for("kiyaslama"))
         ad = request.form["ad"].strip()
-        toplam_para = float(request.form["toplam_para"].replace(",", "."))
-        # Tarihler global tarih bölümünden gelecek, şimdilik boş
         with get_db() as c2:
-            gt = c2.execute("SELECT ilk_tarih, son_tarih FROM kiyaslama_global_tarih WHERE user_id=?",
+            gt = c2.execute("SELECT ilk_tarih, son_tarih, toplam_para FROM kiyaslama_global_tarih WHERE user_id=?",
                            (user_id,)).fetchone()
         ilk_tarih = gt["ilk_tarih"] if gt else ""
         son_tarih = gt["son_tarih"] if gt else ""
+        toplam_para = gt["toplam_para"] if gt else 0
         conn.execute(
             "INSERT INTO kiyaslama_portfoy (user_id,ad,ilk_tarih,son_tarih,toplam_para,sira) VALUES (?,?,?,?,?,?)",
             (user_id, ad, ilk_tarih, son_tarih, toplam_para, sayi)

@@ -11,6 +11,13 @@
   <form method="POST" action="{{ url_for('kiyaslama_tarih_guncelle') }}"
         style="display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap">
     <div>
+      <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">💰 Toplam Portföy Büyüklüğü (₺)</label>
+      <input type="text" name="toplam_para" value="{{ "{:.0f}".format(global_tarih.toplam_para) if global_tarih.toplam_para else '' }}"
+        placeholder="2.000.000"
+        style="background:var(--card2);border:1px solid var(--border);color:var(--text);
+               padding:8px 12px;border-radius:7px;font-size:0.9rem;width:160px">
+    </div>
+    <div>
       <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">📅 İlk Tarih</label>
       <input type="date" name="ilk_tarih" value="{{ global_tarih.ilk }}" required
         style="background:var(--card2);border:1px solid var(--border);color:var(--text);
@@ -25,11 +32,6 @@
     <button type="submit" class="btn-primary" style="padding:8px 20px;font-size:0.9rem">
       🔄 Tüm Portföyleri Güncelle
     </button>
-    {% if global_tarih.ilk %}
-    <span style="font-size:0.8rem;color:var(--text2);align-self:center">
-      Geçerli aralık: <strong class="tr-tarih">{{ global_tarih.ilk }}</strong> → <strong class="tr-tarih">{{ global_tarih.son }}</strong>
-    </span>
-    {% endif %}
   </form>
 </div>
 
@@ -112,6 +114,16 @@
 </div>
 {% endif %}
 
+{% if portfoyler|length < 4 %}
+<div style="margin-bottom:1rem;margin-top:0.25rem">
+  <a onclick="document.getElementById('modal-yeni-portfoy').style.display='flex'"
+     style="cursor:pointer;color:var(--accent);font-size:0.9rem;font-weight:600;
+            display:inline-flex;align-items:center;gap:0.4rem">
+    ➕ Yeni Portföy Oluştur
+  </a>
+</div>
+{% endif %}
+
 <!-- Portföyler -->
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(580px,1fr));gap:1.2rem;margin-bottom:1.5rem">
 {% for p in portfoyler %}
@@ -123,16 +135,12 @@
         <h3 style="margin:0;font-size:1rem">{{ p.ad }}</h3>
         <div style="display:flex;align-items:center;gap:0.75rem">
           <span style="font-size:0.75rem;color:var(--text2)"><span class="tr-tarih">{{ p.ilk_tarih }}</span> → <span class="tr-tarih">{{ p.son_tarih }}</span></span>
-          <button onclick="portfoyDuzenle({{ p.id }})"
-            style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.78rem;padding:0 4px">✏️ Düzenle</button>
           <a href="{{ url_for('kiyaslama_portfoy_sil', pid=p.id) }}"
              class="btn-del" style="font-size:0.75rem"
              onclick="return confirm('Portföyü ve tüm kalemleri sil?')">🗑️ Sil</a>
         </div>
       </div>
-      <div style="font-size:0.8rem;color:var(--text2);margin-bottom:0.75rem">
-        Toplam Para: <strong style="color:var(--text)">{{ "{:,.0f}".format(p.toplam_para).replace(",",".") }} ₺</strong>
-      </div>
+  
     </div>
 
     <!-- Düzenleme Modu -->
@@ -289,15 +297,6 @@
 <!-- Yeni Portföy Ekle -->
 </div><!-- flex container sonu -->
 
-{% if portfoyler|length < 4 %}
-<div style="margin-bottom:1.5rem">
-  <a onclick="document.getElementById('modal-yeni-portfoy').style.display='flex'"
-     style="cursor:pointer;color:var(--accent);font-size:0.9rem;font-weight:600;
-            display:inline-flex;align-items:center;gap:0.4rem">
-    ➕ Yeni Portföy Oluştur
-  </a>
-</div>
-
 <!-- Modal -->
 <div id="modal-yeni-portfoy"
      style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);
@@ -311,12 +310,6 @@
       <div style="margin-bottom:0.75rem">
         <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">Portföy Adı</label>
         <input type="text" name="ad" placeholder="Agresif, Muhafazakar..." required
-          style="width:100%;background:var(--card2);border:1px solid var(--border);
-                 color:var(--text);padding:9px 12px;border-radius:7px;font-size:0.9rem;box-sizing:border-box">
-      </div>
-      <div style="margin-bottom:1rem">
-        <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">Toplam Para (₺)</label>
-        <input type="text" name="toplam_para" placeholder="100.000" required
           style="width:100%;background:var(--card2);border:1px solid var(--border);
                  color:var(--text);padding:9px 12px;border-radius:7px;font-size:0.9rem;box-sizing:border-box">
       </div>
