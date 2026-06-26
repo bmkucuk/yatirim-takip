@@ -12,7 +12,7 @@
         style="display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap">
     <div>
       <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">💰 Toplam Portföy Büyüklüğü (₺)</label>
-      <input type="text" name="toplam_para" value="{{ "{:.0f}".format(global_tarih.toplam_para) if global_tarih.toplam_para else '' }}"
+      <input type="text" name="toplam_para" value="{{ global_tarih.toplam_para|int if global_tarih.toplam_para else '' }}"
         placeholder="2.000.000"
         style="background:var(--card2);border:1px solid var(--border);color:var(--text);
                padding:8px 12px;border-radius:7px;font-size:0.9rem;width:160px">
