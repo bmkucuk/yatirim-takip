@@ -1900,19 +1900,10 @@ def kiyaslama_portfoy_duzenle():
             UPDATE kiyaslama_portfoy SET ad=?, ilk_tarih=?, son_tarih=?, toplam_para=?
             WHERE id=? AND user_id=?
         """, (ad, ilk_tarih, son_tarih, toplam_para, pid, user_id))
-        kalemler = conn.execute(
-            "SELECT id, sembol FROM kiyaslama_kalem WHERE portfoy_id=?", (pid,)
-        ).fetchall()
+        # Fiyatları sıfırla — Güncelle butonu ile çekilecek
+        conn.execute("UPDATE kiyaslama_kalem SET ilk_fiyat=NULL, son_fiyat=NULL WHERE portfoy_id=?", (pid,))
 
-    # Her kalemi yeni tarihlere göre güncelle
-    for k in kalemler:
-        ilk_fiyat = _fiyat_cek(k["sembol"], ilk_tarih)
-        son_fiyat = _fiyat_cek(k["sembol"], son_tarih)
-        with get_db() as conn:
-            conn.execute("""
-                UPDATE kiyaslama_kalem SET ilk_fiyat=?, son_fiyat=? WHERE id=?
-            """, (ilk_fiyat, son_fiyat, k["id"]))
-
+    flash("Portföy güncellendi. Fiyatları almak için Güncelle butonuna tıklayın.", "success")
     return redirect(url_for("kiyaslama"))
 
 
@@ -2070,17 +2061,28 @@ def kiyaslama_fiyat_guncelle(pid):
             "SELECT * FROM kiyaslama_kalem WHERE portfoy_id=?", (pid,)
         ).fetchall()
 
-    hedef_tarih = bugun_str
+    ilk_tarih = p["ilk_tarih"]
+    son_tarih = p["son_tarih"]
     eksik_fon = []
     eksik_hisse_abd = []
     eksik_hisse_bist = []
 
+    def _guncelle_kalem(k, ilk_t, son_t):
+        ilk = get_fiyat(k["sembol"], ilk_t)
+        son = get_fiyat(k["sembol"], son_t)
+        if ilk or son:
+            with get_db() as conn:
+                if ilk:
+                    conn.execute("UPDATE kiyaslama_kalem SET ilk_fiyat=? WHERE id=?", (ilk, k["id"]))
+                if son:
+                    conn.execute("UPDATE kiyaslama_kalem SET son_fiyat=? WHERE id=?", (son, k["id"]))
+            return bool(ilk and son)
+        return False
+
     # Önce DB'den dene
     for k in kalemler:
-        fiyat = get_fiyat(k["sembol"], hedef_tarih)
-        if fiyat:
-            with get_db() as conn:
-                conn.execute("UPDATE kiyaslama_kalem SET son_fiyat=? WHERE id=?", (fiyat, k["id"]))
+        if _guncelle_kalem(k, ilk_tarih, son_tarih):
+            pass
         else:
             # DB'de yoksa hangi kategoride olduğunu bul
             with get_db() as conn:
@@ -2108,8 +2110,13 @@ def kiyaslama_fiyat_guncelle(pid):
             if fiyat:
                 with get_db() as conn:
                     conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                                 (k["sembol"], hedef_tarih, fiyat))
+                                 (k["sembol"], son_tarih, fiyat))
                     conn.execute("UPDATE kiyaslama_kalem SET son_fiyat=? WHERE id=?", (fiyat, k["id"]))
+            # ilk fiyat DB'den
+            ilk_f = get_fiyat(k["sembol"], ilk_tarih)
+            if ilk_f:
+                with get_db() as conn:
+                    conn.execute("UPDATE kiyaslama_kalem SET ilk_fiyat=? WHERE id=?", (ilk_f, k["id"]))
 
     # Eksik hisseleri Yahoo'dan çek
     eksik_hisse = eksik_hisse_abd + eksik_hisse_bist
@@ -2120,25 +2127,30 @@ def kiyaslama_fiyat_guncelle(pid):
         )
         for k in eksik_hisse:
             gun_dict = hisse_prices.get(k["sembol"], {})
-            fiyat = gun_dict.get(hedef_tarih) or (list(gun_dict.values())[-1] if gun_dict else None)
+            fiyat = gun_dict.get(son_tarih) or (list(gun_dict.values())[-1] if gun_dict else None)
             if fiyat:
                 with get_db() as conn:
                     conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                                 (k["sembol"], hedef_tarih, fiyat))
+                                 (k["sembol"], son_tarih, fiyat))
                     conn.execute("UPDATE kiyaslama_kalem SET son_fiyat=? WHERE id=?", (fiyat, k["id"]))
             else:
-                # Yahoo'da bulunamadıysa TEFAS'ta dene (tur bilinmeyen semboller için)
                 fon_prices2, _ = fetch_fon_fiyatlari([k["sembol"]])
                 fiyat2 = fon_prices2.get(k["sembol"])
                 if fiyat2:
                     with get_db() as conn:
                         conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                                     (k["sembol"], hedef_tarih, fiyat2))
+                                     (k["sembol"], son_tarih, fiyat2))
                         conn.execute("UPDATE kiyaslama_kalem SET son_fiyat=? WHERE id=?", (fiyat2, k["id"]))
+            # ilk fiyat DB'den
+            ilk_f = get_fiyat(k["sembol"], ilk_tarih)
+            if ilk_f:
+                with get_db() as conn:
+                    conn.execute("UPDATE kiyaslama_kalem SET ilk_fiyat=? WHERE id=?", (ilk_f, k["id"]))
 
     # son_tarihi bugüne güncelle
     with get_db() as conn:
         conn.execute("UPDATE kiyaslama_portfoy SET son_tarih=? WHERE id=?", (bugun_str, pid))
+
 
     flash("Son fiyatlar güncellendi.", "success")
     return redirect(url_for("kiyaslama"))
