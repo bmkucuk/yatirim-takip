@@ -55,8 +55,10 @@
         <th>İlk Değer</th>
         <th>Son Değer</th>
         <th>Fark (TL)</th>
-<th>Brüt %</th>
-        <th>Net Getiri %</th>
+        <th>Brüt %</th>
+        <th>Brüt TL</th>
+        <th>Net %</th>
+        <th>Net TL</th>
         <th></th>
       </tr>
     </thead>
@@ -94,11 +96,19 @@
         <td class="{{ 'pos' if fark >= 0 else 'neg' }}">
           {% if son_toplam.val %}{{ ("▲ " if fark>=0 else "▼ ") }}{{ "{:,.2f}".format(fark|abs).replace(",",".") }} ₺{% else %}—{% endif %}
         </td>
+        {% set brut_tl = ilk_val * brut_pct / 100 %}
+        {% set net_tl = ilk_val * net_pct / 100 %}
         <td class="{{ 'pos' if brut_pct >= 0 else 'neg' }}" style="font-weight:700">
           {% if son_toplam.val %}{{ ("▲ %" if brut_pct>=0 else "▼ %") }}{{ "{:.2f}".format(brut_pct|abs).replace(".",",") }}{% else %}—{% endif %}
         </td>
+        <td class="{{ 'pos' if brut_pct >= 0 else 'neg' }}">
+          {% if son_toplam.val %}{{ ("▲ " if brut_tl>=0 else "▼ ") }}{{ "{:,.0f}".format(brut_tl|abs).replace(",",".") }} ₺{% else %}—{% endif %}
+        </td>
         <td class="{{ 'pos' if net_pct >= 0 else 'neg' }}" style="font-weight:700">
           {% if son_toplam.val %}{{ ("▲ %" if net_pct>=0 else "▼ %") }}{{ "{:.2f}".format(net_pct|abs).replace(".",",") }}{% else %}—{% endif %}
+        </td>
+        <td class="{{ 'pos' if net_pct >= 0 else 'neg' }}">
+          {% if son_toplam.val %}{{ ("▲ " if net_tl>=0 else "▼ ") }}{{ "{:,.0f}".format(net_tl|abs).replace(",",".") }} ₺{% else %}—{% endif %}
         </td>
         <td style="white-space:nowrap">
           <a href="{{ url_for('kiyaslama_portfoy_sil', pid=p.id) }}"
