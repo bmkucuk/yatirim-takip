@@ -103,6 +103,41 @@ def fetch_fon_aralik(semboller, baslangic, bitis):
         time.sleep(2)
     return tum
 
+def fetch_hisse_toplu(semboller, tur_map=None):
+    """Yahoo v7/finance/quote ile toplu anlık fiyat çek — tek istekte tüm semboller."""
+    if not semboller:
+        return {}
+    import requests as req
+    yahoo_semboller = []
+    sembol_map = {}  # yahoo_sembol → orijinal sembol
+    for sembol in semboller:
+        tur = (tur_map or {}).get(sembol, "BIST")
+        if tur == "ABD":
+            ys = sembol
+        else:
+            ys = f"{sembol}.IS" if not sembol.endswith(".IS") else sembol
+        yahoo_semboller.append(ys)
+        sembol_map[ys] = sembol
+    try:
+        r = req.get(
+            f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={','.join(yahoo_semboller)}",
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+            timeout=15
+        )
+        if r.status_code == 200:
+            data = r.json()
+            results = {}
+            for item in data.get("quoteResponse", {}).get("result", []):
+                ys = item.get("symbol", "")
+                fiyat = item.get("regularMarketPrice")
+                if fiyat and ys in sembol_map:
+                    results[sembol_map[ys]] = round(float(fiyat), 4)
+            return results
+    except Exception:
+        pass
+    return {}
+
+
 def fetch_hisse_fiyatlari(semboller, tur_map=None):
     """Yahoo Finance direkt HTTP ile BIST ve ABD hisse fiyatları.
     tur_map: {sembol: tur} — tur bilgisi varsa BIST için .IS ekle, ABD için ekleme.
