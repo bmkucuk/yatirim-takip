@@ -2064,6 +2064,12 @@ def kiyaslama_fiyat_guncelle(pid):
     ilk_tarih = p["ilk_tarih"]
     son_tarih = p["son_tarih"]
 
+    from price_fetcher import tefas_aralik_cek, fetch_hisse_toplu, fetch_hisse_fiyatlari
+    from datetime import date as _date
+    ilk_date = _date.fromisoformat(ilk_tarih)
+    son_date = _date.fromisoformat(son_tarih)
+    bugun_date = _date.fromisoformat(bugun_str)
+
     # Piyasa bilgisini belirle
     def _piyasa(sembol):
         with get_db() as c:
@@ -2076,57 +2082,52 @@ def kiyaslama_fiyat_guncelle(pid):
     fonlar = [k for k in kalemler if piyasa_map[k["sembol"]] == "FON"]
     hisseler = [k for k in kalemler if piyasa_map[k["sembol"]] != "FON"]
 
-    # FON fiyatları TEFAS'tan
-    fon_prices = {}
-    if fonlar:
-        fon_prices, _ = fetch_fon_fiyatlari([k["sembol"] for k in fonlar])
-
-    # Hisse fiyatları Yahoo'dan TOPLU
-    hisse_prices = {}
-    if hisseler:
-        tur_map = {k["sembol"]: piyasa_map[k["sembol"]] for k in hisseler}
-        hisse_prices = fetch_hisse_toplu([k["sembol"] for k in hisseler], tur_map=tur_map)
-        # Toplu başarısız olanlar için tek tek dene
-        eksik = [k for k in hisseler if k["sembol"] not in hisse_prices]
-        if eksik:
-            raw, _ = fetch_hisse_fiyatlari([k["sembol"] for k in eksik], tur_map=tur_map)
-            for s, gd in raw.items():
-                f = gd.get(son_tarih) or (list(gd.values())[-1] if gd else None)
-                if f:
-                    hisse_prices[s] = f
-
-    # İlk tarih için DB'de olmayan fonların fiyatını TEFAS'tan çek
-    from price_fetcher import tefas_aralik_cek
-    from datetime import date as _date
-    ilk_date = _date.fromisoformat(ilk_tarih)
-    son_date = _date.fromisoformat(son_tarih)
-
     # Tüm kalemleri güncelle
     for k in kalemler:
         s = k["sembol"]
         pm = piyasa_map[s]
-        son_f = fon_prices.get(s) if pm == "FON" else hisse_prices.get(s)
-        ilk_f = get_fiyat(s, ilk_tarih)
 
-        # İlk fiyat DB'de yoksa ve FON ise TEFAS'tan çek
-        if not ilk_f and pm == "FON":
-            aralik = tefas_aralik_cek(s, ilk_date, ilk_date)
-            if aralik:
-                en_yakin = max((t for t in aralik if t <= ilk_date), default=None)
-                if en_yakin:
-                    ilk_f = aralik[en_yakin]
+        ilk_f = get_fiyat(s, ilk_tarih)
+        son_f = get_fiyat(s, son_tarih)
+
+        if pm == "FON":
+            # TEFAS'tan belirli tarih aralığı için çek
+            tarihler = set()
+            if not ilk_f: tarihler.add(ilk_date)
+            if not son_f: tarihler.add(son_date)
+            if tarihler:
+                bas = min(tarihler)
+                bit = max(tarihler)
+                aralik = tefas_aralik_cek(s, bas, bit)
+                if not ilk_f and ilk_date in aralik:
+                    ilk_f = aralik[ilk_date]
                     with get_db() as conn:
                         conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                                     (s, str(en_yakin), ilk_f))
+                                     (s, ilk_tarih, ilk_f))
+                if not son_f:
+                    en_yakin = max((t for t in aralik if t <= son_date), default=None)
+                    if en_yakin:
+                        son_f = aralik[en_yakin]
+                        with get_db() as conn:
+                            conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                                         (s, son_tarih, son_f))
+        else:
+            # Hisse: toplu Yahoo
+            if not son_f:
+                tur_map = {s: pm}
+                prices = fetch_hisse_toplu([s], tur_map=tur_map)
+                son_f = prices.get(s)
+                if son_f:
+                    with get_db() as conn:
+                        conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                                     (s, son_tarih, son_f))
 
-        if son_f:
-            with get_db() as conn:
-                conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                             (s, son_tarih, son_f))
-                conn.execute("UPDATE kiyaslama_kalem SET son_fiyat=? WHERE id=?", (son_f, k["id"]))
         if ilk_f:
             with get_db() as conn:
                 conn.execute("UPDATE kiyaslama_kalem SET ilk_fiyat=? WHERE id=?", (ilk_f, k["id"]))
+        if son_f:
+            with get_db() as conn:
+                conn.execute("UPDATE kiyaslama_kalem SET son_fiyat=? WHERE id=?", (son_f, k["id"]))
 
 
 
