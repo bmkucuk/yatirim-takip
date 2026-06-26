@@ -1928,9 +1928,9 @@ def kiyaslama_tarih_guncelle():
                         conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
                                      (s, ilk_tarih, ilk_f))
                 if not son_f:
-                    en_yakin = max((t for t in aralik if t <= son_date), default=None)
-                    if en_yakin:
-                        son_f = aralik[en_yakin]
+                    # Sadece tam tarih eşleşmesinde yaz, farklı tarihin fiyatını uydurma
+                    if son_date in aralik:
+                        son_f = aralik[son_date]
                         with get_db() as conn:
                             conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
                                          (s, son_tarih, son_f))
@@ -2234,9 +2234,9 @@ def kiyaslama_fiyat_guncelle(pid):
                         conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
                                      (s, ilk_tarih, ilk_f))
                 if not son_f:
-                    en_yakin = max((t for t in aralik if t <= son_date), default=None)
-                    if en_yakin:
-                        son_f = aralik[en_yakin]
+                    # Sadece tam tarih eşleşmesinde yaz, farklı tarihin fiyatını uydurma
+                    if son_date in aralik:
+                        son_f = aralik[son_date]
                         with get_db() as conn:
                             conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
                                          (s, son_tarih, son_f))
