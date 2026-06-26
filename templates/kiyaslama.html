@@ -187,6 +187,8 @@
                  onclick="return confirm('Kalemi sil?')">×</a>
             </div>
           </div>
+          {% set adet = (p.toplam_para * k.agirlik / 100 / k.ilk_fiyat) if k.ilk_fiyat else 0 %}
+          {% set gun_onceki = namespace(fiyat=none) %}
           <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:0.8rem">
             <span style="color:var(--text2)">Ağırlık</span>
             <span>%{{ "{:.2f}".format(k.agirlik).replace(".",",") }}</span>
@@ -194,6 +196,16 @@
             <span>{{ "{:.4f}".format(k.ilk_fiyat).rstrip('0').rstrip('.') if k.ilk_fiyat else "—" }}</span>
             <span style="color:var(--text2)">Son Fiyat</span>
             <span>{{ "{:.4f}".format(k.son_fiyat).rstrip('0').rstrip('.') if k.son_fiyat else "—" }}</span>
+            {% if gunluk.get(k.id) %}
+            {% set gl = gunluk[k.id] %}
+            {% set adet = (p.toplam_para * k.agirlik / 100 / k.ilk_fiyat) if k.ilk_fiyat else 0 %}
+            {% set gl_tl = (k.son_fiyat - gl.dun) * adet %}
+            <span style="color:var(--text2)">Günlük</span>
+            <span class="{{ 'pos' if gl.pct >= 0 else 'neg' }}" style="font-weight:600">
+              {{ ("▲ %" if gl.pct>=0 else "▼ %") }}{{ "{:.2f}".format(gl.pct|abs).replace(".",",") }}
+              / {{ ("+" if gl_tl>=0 else "") }}{{ "{:,.0f}".format(gl_tl).replace(",",".") }} ₺
+            </span>
+            {% endif %}
             <span style="color:var(--text2)">Vergi</span>
             <span>{% if vergi %}%{{ "{:.1f}".format(vergi).replace(".",",") }}{% else %}—{% endif %}</span>
             <span style="color:var(--text2)">Brüt Getiri</span>

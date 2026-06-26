@@ -1847,6 +1847,8 @@ def kiyaslama():
                 "SELECT * FROM kiyaslama_kalem WHERE portfoy_id=?", (p["id"],)
             ).fetchall()
     bugun_str = str(bugun())
+    from datetime import datetime as _dt2, timedelta as _td2
+    dun_str = (_dt2.now() - _td2(days=1)).strftime("%Y-%m-%d")
     with get_db() as conn:
         gt = conn.execute("SELECT ilk_tarih, son_tarih FROM kiyaslama_global_tarih WHERE user_id=?",
                           (user_id,)).fetchone()
@@ -1855,8 +1857,24 @@ def kiyaslama():
     except (IndexError, KeyError):
         toplam_para_gt = 0
     global_tarih = {"ilk": gt["ilk_tarih"] if gt else "", "son": gt["son_tarih"] if gt else bugun_str, "toplam_para": toplam_para_gt}
+    # Her kalem için günlük getiri hesapla
+    gunluk = {}
+    with get_db() as conn:
+        for pid, kl in kalemler.items():
+            for k in kl:
+                s = k["sembol"]
+                if k["son_fiyat"]:
+                    dun_fiyat = conn.execute(
+                        "SELECT fiyat FROM fiyat_gecmisi WHERE sembol=? AND tarih=?",
+                        (s, dun_str)
+                    ).fetchone()
+                    if dun_fiyat and dun_fiyat["fiyat"]:
+                        pct = (k["son_fiyat"] / dun_fiyat["fiyat"] - 1) * 100
+                        gunluk[k["id"]] = {"pct": pct, "dun": dun_fiyat["fiyat"]}
+
     return render_template("kiyaslama.html",
-        portfoyler=portfoyler, kalemler=kalemler, bugun=bugun_str, global_tarih=global_tarih)
+        portfoyler=portfoyler, kalemler=kalemler, bugun=bugun_str,
+        global_tarih=global_tarih, gunluk=gunluk)
 
 
 @app.route("/kiyaslama/tarih-guncelle", methods=["POST"])
