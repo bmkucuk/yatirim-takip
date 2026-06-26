@@ -76,6 +76,11 @@ def init_db():
             piyasa TEXT NOT NULL,
             UNIQUE(kod, piyasa)
         );
+        CREATE TABLE IF NOT EXISTS kiyaslama_global_tarih (
+            user_id INTEGER PRIMARY KEY,
+            ilk_tarih TEXT NOT NULL DEFAULT '',
+            son_tarih TEXT NOT NULL DEFAULT ''
+        );
         CREATE TABLE IF NOT EXISTS nakit_bakiye (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -1837,8 +1842,113 @@ def kiyaslama():
                 "SELECT * FROM kiyaslama_kalem WHERE portfoy_id=?", (p["id"],)
             ).fetchall()
     bugun_str = str(bugun())
+    with get_db() as conn:
+        gt = conn.execute("SELECT ilk_tarih, son_tarih FROM kiyaslama_global_tarih WHERE user_id=?",
+                          (user_id,)).fetchone()
+    global_tarih = {"ilk": gt["ilk_tarih"] if gt else "", "son": gt["son_tarih"] if gt else bugun_str}
     return render_template("kiyaslama.html",
-        portfoyler=portfoyler, kalemler=kalemler, bugun=bugun_str)
+        portfoyler=portfoyler, kalemler=kalemler, bugun=bugun_str, global_tarih=global_tarih)
+
+
+@app.route("/kiyaslama/tarih-guncelle", methods=["POST"])
+@login_required
+def kiyaslama_tarih_guncelle():
+    """Global tarihi kaydet ve tüm portföylerin fiyatlarını güncelle."""
+    from price_fetcher import tefas_aralik_cek, fetch_hisse_toplu, fetch_hisse_fiyatlari
+    user_id = session["user_id"]
+    ilk_tarih = request.form["ilk_tarih"]
+    son_tarih = request.form["son_tarih"]
+
+    # Global tarihi kaydet
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO kiyaslama_global_tarih (user_id, ilk_tarih, son_tarih)
+            VALUES (?,?,?)
+            ON CONFLICT(user_id) DO UPDATE SET ilk_tarih=excluded.ilk_tarih, son_tarih=excluded.son_tarih
+        """, (user_id, ilk_tarih, son_tarih))
+        # Tüm portföylerin tarihlerini güncelle
+        conn.execute("""
+            UPDATE kiyaslama_portfoy SET ilk_tarih=?, son_tarih=? WHERE user_id=?
+        """, (ilk_tarih, son_tarih, user_id))
+        portfoyler = conn.execute(
+            "SELECT id FROM kiyaslama_portfoy WHERE user_id=?", (user_id,)
+        ).fetchall()
+
+    from datetime import date as _date
+    ilk_date = _date.fromisoformat(ilk_tarih)
+    son_date = _date.fromisoformat(son_tarih)
+    bugun_str = str(bugun())
+
+    def _piyasa(sembol):
+        with get_db() as c:
+            r = c.execute("SELECT piyasa FROM semboller WHERE kod=? LIMIT 1", (sembol,)).fetchone()
+            if r: return r["piyasa"]
+            r2 = c.execute("SELECT tur FROM islemler WHERE sembol=? LIMIT 1", (sembol,)).fetchone()
+            return r2["tur"] if r2 else "BIST"
+
+    def _tam_fiyat(sembol, tarih):
+        with get_db() as c:
+            r = c.execute("SELECT fiyat FROM fiyat_gecmisi WHERE sembol=? AND tarih=?",
+                          (sembol, tarih)).fetchone()
+            return r["fiyat"] if r else None
+
+    for p in portfoyler:
+        with get_db() as conn:
+            kalemler = conn.execute(
+                "SELECT * FROM kiyaslama_kalem WHERE portfoy_id=?", (p["id"],)
+            ).fetchall()
+
+        fonlar = [k for k in kalemler if _piyasa(k["sembol"]) == "FON"]
+        hisseler = [k for k in kalemler if _piyasa(k["sembol"]) != "FON"]
+
+        # FON fiyatları TEFAS'tan
+        for k in fonlar:
+            s = k["sembol"]
+            ilk_f = _tam_fiyat(s, ilk_tarih)
+            son_f = _tam_fiyat(s, son_tarih)
+            tarihler = set()
+            if not ilk_f: tarihler.add(ilk_date)
+            if not son_f: tarihler.add(son_date)
+            if tarihler:
+                aralik = tefas_aralik_cek(s, min(tarihler), max(tarihler))
+                if not ilk_f and ilk_date in aralik:
+                    ilk_f = aralik[ilk_date]
+                    with get_db() as conn:
+                        conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                                     (s, ilk_tarih, ilk_f))
+                if not son_f:
+                    en_yakin = max((t for t in aralik if t <= son_date), default=None)
+                    if en_yakin:
+                        son_f = aralik[en_yakin]
+                        with get_db() as conn:
+                            conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                                         (s, son_tarih, son_f))
+            if ilk_f:
+                with get_db() as conn:
+                    conn.execute("UPDATE kiyaslama_kalem SET ilk_fiyat=? WHERE id=?", (ilk_f, k["id"]))
+            if son_f:
+                with get_db() as conn:
+                    conn.execute("UPDATE kiyaslama_kalem SET son_fiyat=? WHERE id=?", (son_f, k["id"]))
+
+        # Hisse fiyatları toplu Yahoo
+        if hisseler:
+            tur_map = {k["sembol"]: _piyasa(k["sembol"]) for k in hisseler}
+            prices = fetch_hisse_toplu([k["sembol"] for k in hisseler], tur_map=tur_map)
+            for k in hisseler:
+                s = k["sembol"]
+                ilk_f = _tam_fiyat(s, ilk_tarih)
+                son_f = prices.get(s)
+                if son_f:
+                    with get_db() as conn:
+                        conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                                     (s, son_tarih, son_f))
+                        conn.execute("UPDATE kiyaslama_kalem SET son_fiyat=? WHERE id=?", (son_f, k["id"]))
+                if ilk_f:
+                    with get_db() as conn:
+                        conn.execute("UPDATE kiyaslama_kalem SET ilk_fiyat=? WHERE id=?", (ilk_f, k["id"]))
+
+    flash("Tüm portföyler güncellendi.", "success")
+    return redirect(url_for("kiyaslama"))
 
 
 @app.route("/kiyaslama/portfoy-ekle", methods=["POST"])
@@ -1853,9 +1963,13 @@ def kiyaslama_portfoy_ekle():
             flash("En fazla 4 portföy oluşturabilirsiniz.", "error")
             return redirect(url_for("kiyaslama"))
         ad = request.form["ad"].strip()
-        ilk_tarih = request.form["ilk_tarih"]
-        son_tarih = request.form["son_tarih"]
         toplam_para = float(request.form["toplam_para"].replace(",", "."))
+        # Tarihler global tarih bölümünden gelecek, şimdilik boş
+        with get_db() as c2:
+            gt = c2.execute("SELECT ilk_tarih, son_tarih FROM kiyaslama_global_tarih WHERE user_id=?",
+                           (user_id,)).fetchone()
+        ilk_tarih = gt["ilk_tarih"] if gt else ""
+        son_tarih = gt["son_tarih"] if gt else ""
         conn.execute(
             "INSERT INTO kiyaslama_portfoy (user_id,ad,ilk_tarih,son_tarih,toplam_para,sira) VALUES (?,?,?,?,?,?)",
             (user_id, ad, ilk_tarih, son_tarih, toplam_para, sayi)
