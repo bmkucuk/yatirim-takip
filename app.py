@@ -2087,8 +2087,15 @@ def kiyaslama_fiyat_guncelle(pid):
         s = k["sembol"]
         pm = piyasa_map[s]
 
-        ilk_f = get_fiyat(s, ilk_tarih)
-        son_f = get_fiyat(s, son_tarih)
+        def _tam_fiyat(sembol, tarih):
+            """Tam tarih eşleşmesi — <= değil."""
+            with get_db() as c:
+                r = c.execute("SELECT fiyat FROM fiyat_gecmisi WHERE sembol=? AND tarih=?",
+                              (sembol, tarih)).fetchone()
+                return r["fiyat"] if r else None
+
+        ilk_f = _tam_fiyat(s, ilk_tarih)
+        son_f = _tam_fiyat(s, son_tarih)
 
         if pm == "FON":
             # TEFAS'tan belirli tarih aralığı için çek
