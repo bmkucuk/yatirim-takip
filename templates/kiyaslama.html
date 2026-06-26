@@ -172,105 +172,89 @@
       </form>
     </div>
 
-    <!-- Kalem Tablosu -->
+    <!-- Kalem Listesi — Dikey -->
     {% if kl %}
-    <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin-bottom:0.75rem">
-      <thead>
-        <tr style="border-bottom:1px solid var(--border);color:var(--text2)">
-          <th style="text-align:left;padding:4px 8px;min-width:110px">Sembol</th>
-          <th style="text-align:right;padding:4px 8px;min-width:70px">Ağırlık</th>
-          <th style="text-align:right;padding:4px 8px;min-width:90px">İlk Fiyat</th>
-          <th style="text-align:right;padding:4px 8px;min-width:90px">Son Fiyat</th>
-          <th style="text-align:right;padding:4px 8px;min-width:60px">Vergi %</th>
-          <th style="text-align:right;padding:4px 8px;min-width:100px">Brüt Getiri</th>
-          <th style="text-align:right;padding:4px 8px;min-width:100px">Net Getiri</th>
-          <th style="padding:4px 6px"></th>
-        </tr>
-      </thead>
-      <tbody>
+    <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.75rem">
       {% for k in kl %}
         {% set getiri = ((k.son_fiyat / k.ilk_fiyat - 1) * 100) if k.son_fiyat and k.ilk_fiyat else none %}
         {% set vergi = k.vergi_orani if k.vergi_orani else 0 %}
         {% set net_getiri = (getiri * (1 - vergi/100)) if getiri is not none else none %}
-        <tr id="kalem-row-{{ k.id }}" style="border-bottom:1px solid var(--border)">
-          <td style="padding:5px 8px;min-width:110px"><strong>{{ k.sembol }}</strong></td>
-          <td style="padding:5px 8px;text-align:right;min-width:70px">%{{ "{:.2f}".format(k.agirlik).replace(".",",") }}</td>
-          <td style="padding:5px 8px;text-align:right;min-width:90px">
-            {{ "{:.4f}".format(k.ilk_fiyat).rstrip('0').rstrip('.') if k.ilk_fiyat else "—" }}
-          </td>
-          <td style="padding:5px 8px;text-align:right;min-width:90px">
-            {{ "{:.4f}".format(k.son_fiyat).rstrip('0').rstrip('.') if k.son_fiyat else "—" }}
-          </td>
-          <td style="padding:5px 8px;text-align:right;min-width:60px;color:var(--text2)">
-            {% if vergi %}%{{ "{:.1f}".format(vergi).replace(".",",") }}{% else %}—{% endif %}
-          </td>
-          <td style="padding:5px 8px;text-align:right;font-weight:600;min-width:100px"
-              class="{{ 'pos' if getiri and getiri>=0 else 'neg' if getiri else '' }}">
-            {% if getiri is not none %}
-              {{ ("▲ %" if getiri>=0 else "▼ %") }}{{ "{:.2f}".format(getiri|abs).replace(".",",") }}
-            {% else %}—{% endif %}
-          </td>
-          <td style="padding:5px 8px;text-align:right;font-weight:700;min-width:100px"
-              class="{{ 'pos' if net_getiri and net_getiri>=0 else 'neg' if net_getiri else '' }}">
-            {% if net_getiri is not none and vergi %}
-              {{ ("▲ %" if net_getiri>=0 else "▼ %") }}{{ "{:.2f}".format(net_getiri|abs).replace(".",",") }}
-            {% elif getiri is not none %}
-              {{ ("▲ %" if getiri>=0 else "▼ %") }}{{ "{:.2f}".format(getiri|abs).replace(".",",") }}
-            {% else %}—{% endif %}
-          </td>
-          <td style="padding:5px 6px;white-space:nowrap">
-            <button onclick="kalemDuzenle({{ k.id }}, '{{ k.sembol }}', {{ k.agirlik }}, '{{ k.ilk_fiyat or '' }}', '{{ k.son_fiyat or '' }}')"
-              style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.75rem;padding:0 4px">✏️</button>
-            <a href="{{ url_for('kiyaslama_kalem_sil', kid=k.id) }}"
-               style="color:#f85149;font-size:0.75rem;text-decoration:none"
-               onclick="return confirm('Kalemi sil?')">×</a>
-          </td>
-        </tr>
-        <tr id="kalem-edit-{{ k.id }}" style="display:none;background:var(--card2)">
-          <td colspan="6" style="padding:8px 6px">
-            <form method="POST" action="{{ url_for('kiyaslama_kalem_duzenle') }}"
-                  style="display:flex;gap:0.4rem;align-items:flex-end;flex-wrap:wrap">
-              <input type="hidden" name="kalem_id" value="{{ k.id }}">
-              <div>
-                <label style="font-size:0.7rem;color:var(--text2);display:block">Sembol</label>
-                <input type="text" name="sembol" id="edit-sembol-{{ k.id }}" value="{{ k.sembol }}"
-                  style="width:90px;background:var(--card);border:1px solid var(--border);color:var(--text);
-                         padding:5px 7px;border-radius:5px;font-size:0.82rem;text-transform:uppercase">
-              </div>
-              <div>
-                <label style="font-size:0.7rem;color:var(--text2);display:block">Ağırlık %</label>
-                <input type="number" name="agirlik" id="edit-agirlik-{{ k.id }}" value="{{ k.agirlik }}" step="any"
-                  style="width:75px;background:var(--card);border:1px solid var(--border);color:var(--text);
-                         padding:5px 7px;border-radius:5px;font-size:0.82rem">
-              </div>
-              <div>
-                <label style="font-size:0.7rem;color:var(--text2);display:block">İlk Fiyat</label>
-                <input type="text" name="ilk_fiyat" id="edit-ilk-{{ k.id }}" value="{{ k.ilk_fiyat or '' }}"
-                  style="width:90px;background:var(--card);border:1px solid var(--border);color:var(--text);
-                         padding:5px 7px;border-radius:5px;font-size:0.82rem">
-              </div>
-              <div>
-                <label style="font-size:0.7rem;color:var(--text2);display:block">Son Fiyat</label>
-                <input type="text" name="son_fiyat" id="edit-son-{{ k.id }}" value="{{ k.son_fiyat or '' }}"
-                  style="width:90px;background:var(--card);border:1px solid var(--border);color:var(--text);
-                         padding:5px 7px;border-radius:5px;font-size:0.82rem">
-              </div>
-              <div>
-                <label style="font-size:0.7rem;color:var(--text2);display:block">Vergi %</label>
-                <input type="number" name="vergi_orani" value="{{ k.vergi_orani or 0 }}" step="any" min="0" max="100"
-                  style="width:70px;background:var(--card);border:1px solid var(--border);color:var(--text);
-                         padding:5px 7px;border-radius:5px;font-size:0.82rem">
-              </div>
-              <button type="submit" class="btn-primary" style="font-size:0.78rem;padding:5px 10px">Kaydet</button>
-              <button type="button" onclick="document.getElementById('kalem-edit-{{ k.id }}').style.display='none';document.getElementById('kalem-row-{{ k.id }}').style.display=''"
-                style="background:none;border:1px solid var(--border);color:var(--text2);padding:5px 10px;
-                       border-radius:5px;font-size:0.78rem;cursor:pointer">İptal</button>
-            </form>
-          </td>
-        </tr>
+        <div id="kalem-row-{{ k.id }}"
+             style="background:var(--card2);border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <strong style="font-size:0.95rem">{{ k.sembol }}</strong>
+            <div>
+              <button onclick="kalemDuzenle({{ k.id }}, '{{ k.sembol }}', {{ k.agirlik }}, '{{ k.ilk_fiyat or '' }}', '{{ k.son_fiyat or '' }}')"
+                style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.8rem;padding:0 4px">✏️</button>
+              <a href="{{ url_for('kiyaslama_kalem_sil', kid=k.id) }}"
+                 style="color:#f85149;font-size:0.8rem;text-decoration:none"
+                 onclick="return confirm('Kalemi sil?')">×</a>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:0.8rem">
+            <span style="color:var(--text2)">Ağırlık</span>
+            <span>%{{ "{:.2f}".format(k.agirlik).replace(".",",") }}</span>
+            <span style="color:var(--text2)">İlk Fiyat</span>
+            <span>{{ "{:.4f}".format(k.ilk_fiyat).rstrip('0').rstrip('.') if k.ilk_fiyat else "—" }}</span>
+            <span style="color:var(--text2)">Son Fiyat</span>
+            <span>{{ "{:.4f}".format(k.son_fiyat).rstrip('0').rstrip('.') if k.son_fiyat else "—" }}</span>
+            <span style="color:var(--text2)">Vergi</span>
+            <span>{% if vergi %}%{{ "{:.1f}".format(vergi).replace(".",",") }}{% else %}—{% endif %}</span>
+            <span style="color:var(--text2)">Brüt Getiri</span>
+            <span class="{{ 'pos' if getiri and getiri>=0 else 'neg' if getiri else '' }}" style="font-weight:600">
+              {% if getiri is not none %}{{ ("▲ %" if getiri>=0 else "▼ %") }}{{ "{:.2f}".format(getiri|abs).replace(".",",") }}{% else %}—{% endif %}
+            </span>
+            <span style="color:var(--text2)">Net Getiri</span>
+            <span class="{{ 'pos' if net_getiri is not none and net_getiri>=0 else 'neg' if net_getiri is not none else '' }}" style="font-weight:700">
+              {% if net_getiri is not none and vergi %}{{ ("▲ %" if net_getiri>=0 else "▼ %") }}{{ "{:.2f}".format(net_getiri|abs).replace(".",",") }}
+              {% elif getiri is not none %}{{ ("▲ %" if getiri>=0 else "▼ %") }}{{ "{:.2f}".format(getiri|abs).replace(".",",") }}
+              {% else %}—{% endif %}
+            </span>
+          </div>
+        </div>
+        <div id="kalem-edit-{{ k.id }}" style="display:none;background:var(--card2);border-radius:8px;
+             padding:10px 12px;border:1px solid var(--border);margin-top:4px">
+          <form method="POST" action="{{ url_for('kiyaslama_kalem_duzenle') }}"
+                style="display:flex;gap:0.4rem;align-items:flex-end;flex-wrap:wrap">
+            <input type="hidden" name="kalem_id" value="{{ k.id }}">
+            <div>
+              <label style="font-size:0.7rem;color:var(--text2);display:block">Sembol</label>
+              <input type="text" name="sembol" id="edit-sembol-{{ k.id }}" value="{{ k.sembol }}"
+                style="width:90px;background:var(--card);border:1px solid var(--border);color:var(--text);
+                       padding:5px 7px;border-radius:5px;font-size:0.82rem;text-transform:uppercase">
+            </div>
+            <div>
+              <label style="font-size:0.7rem;color:var(--text2);display:block">Ağırlık %</label>
+              <input type="number" name="agirlik" id="edit-agirlik-{{ k.id }}" value="{{ k.agirlik }}" step="any"
+                style="width:75px;background:var(--card);border:1px solid var(--border);color:var(--text);
+                       padding:5px 7px;border-radius:5px;font-size:0.82rem">
+            </div>
+            <div>
+              <label style="font-size:0.7rem;color:var(--text2);display:block">İlk Fiyat</label>
+              <input type="text" name="ilk_fiyat" id="edit-ilk-{{ k.id }}" value="{{ k.ilk_fiyat or '' }}"
+                style="width:90px;background:var(--card);border:1px solid var(--border);color:var(--text);
+                       padding:5px 7px;border-radius:5px;font-size:0.82rem">
+            </div>
+            <div>
+              <label style="font-size:0.7rem;color:var(--text2);display:block">Son Fiyat</label>
+              <input type="text" name="son_fiyat" id="edit-son-{{ k.id }}" value="{{ k.son_fiyat or '' }}"
+                style="width:90px;background:var(--card);border:1px solid var(--border);color:var(--text);
+                       padding:5px 7px;border-radius:5px;font-size:0.82rem">
+            </div>
+            <div>
+              <label style="font-size:0.7rem;color:var(--text2);display:block">Vergi %</label>
+              <input type="number" name="vergi_orani" value="{{ k.vergi_orani or 0 }}" step="any" min="0" max="100"
+                style="width:70px;background:var(--card);border:1px solid var(--border);color:var(--text);
+                       padding:5px 7px;border-radius:5px;font-size:0.82rem">
+            </div>
+            <button type="submit" class="btn-primary" style="font-size:0.78rem;padding:5px 10px">Kaydet</button>
+            <button type="button" onclick="document.getElementById('kalem-edit-{{ k.id }}').style.display='none';document.getElementById('kalem-row-{{ k.id }}').style.display=''"
+              style="background:none;border:1px solid var(--border);color:var(--text2);padding:5px 10px;
+                     border-radius:5px;font-size:0.78rem;cursor:pointer">İptal</button>
+          </form>
+        </div>
       {% endfor %}
-      </tbody>
-    </table>
+    </div>
     {% endif %}
 
     <!-- Kalem Ekle Formu -->
@@ -318,23 +302,39 @@
 </div><!-- flex container sonu -->
 
 {% if portfoyler|length < 4 %}
-<div class="card" style="max-width:500px;border:2px dashed var(--border);background:transparent">
-  <h3 style="font-size:1rem;margin-bottom:1rem">➕ Yeni Portföy Oluştur</h3>
-  <form method="POST" action="{{ url_for('kiyaslama_portfoy_ekle') }}">
-    <div class="form-group" style="margin-bottom:0.75rem">
-      <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">Portföy Adı</label>
-      <input type="text" name="ad" placeholder="Agresif, Muhafazakar..." required
-        style="width:100%;background:var(--card2);border:1px solid var(--border);
-               color:var(--text);padding:9px 12px;border-radius:7px;font-size:0.9rem;box-sizing:border-box">
-    </div>
-    <div class="form-group" style="margin-bottom:0.75rem">
-      <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">Toplam Para (₺)</label>
-      <input type="text" name="toplam_para" placeholder="100.000" required
-        style="width:100%;background:var(--card2);border:1px solid var(--border);
-               color:var(--text);padding:9px 12px;border-radius:7px;font-size:0.9rem;box-sizing:border-box">
-    </div>
-    <button type="submit" class="btn-primary" style="width:100%">Portföy Oluştur</button>
-  </form>
+<div style="margin-bottom:1.5rem">
+  <a onclick="document.getElementById('modal-yeni-portfoy').style.display='flex'"
+     style="cursor:pointer;color:var(--accent);font-size:0.9rem;font-weight:600;
+            display:inline-flex;align-items:center;gap:0.4rem">
+    ➕ Yeni Portföy Oluştur
+  </a>
+</div>
+
+<!-- Modal -->
+<div id="modal-yeni-portfoy"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);
+            z-index:1000;align-items:center;justify-content:center">
+  <div class="card" style="width:420px;max-width:90vw;position:relative">
+    <button onclick="document.getElementById('modal-yeni-portfoy').style.display='none'"
+      style="position:absolute;top:12px;right:12px;background:none;border:none;
+             color:var(--text2);font-size:1.2rem;cursor:pointer">✕</button>
+    <h3 style="font-size:1rem;margin-bottom:1rem">Yeni Portföy Oluştur</h3>
+    <form method="POST" action="{{ url_for('kiyaslama_portfoy_ekle') }}">
+      <div style="margin-bottom:0.75rem">
+        <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">Portföy Adı</label>
+        <input type="text" name="ad" placeholder="Agresif, Muhafazakar..." required
+          style="width:100%;background:var(--card2);border:1px solid var(--border);
+                 color:var(--text);padding:9px 12px;border-radius:7px;font-size:0.9rem;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:1rem">
+        <label style="display:block;font-size:0.8rem;color:var(--text2);margin-bottom:4px">Toplam Para (₺)</label>
+        <input type="text" name="toplam_para" placeholder="100.000" required
+          style="width:100%;background:var(--card2);border:1px solid var(--border);
+                 color:var(--text);padding:9px 12px;border-radius:7px;font-size:0.9rem;box-sizing:border-box">
+      </div>
+      <button type="submit" class="btn-primary" style="width:100%">Portföy Oluştur</button>
+    </form>
+  </div>
 </div>
 {% endif %}
 
