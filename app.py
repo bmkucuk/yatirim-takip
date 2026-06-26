@@ -2130,10 +2130,6 @@ def kiyaslama_fiyat_guncelle(pid):
 
 
 
-    # son_tarihi bugüne güncelle
-    with get_db() as conn:
-        conn.execute("UPDATE kiyaslama_portfoy SET son_tarih=? WHERE id=?", (bugun_str, pid))
-
 
     flash("Son fiyatlar güncellendi.", "success")
     return redirect(url_for("kiyaslama"))
