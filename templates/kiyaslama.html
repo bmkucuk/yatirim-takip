@@ -78,15 +78,18 @@
       {% set fark = son_toplam.val - ilk_val %}
       {% set getiri_pct = (fark / ilk_val * 100) if ilk_val > 0 else 0 %}
       {% set kl = kalemler.get(p.id, []) %}
+      {% set brut_ns = namespace(val=0) %}
       {% set net_ns = namespace(val=0) %}
       {% for k in kl %}
         {% if k.ilk_fiyat and k.son_fiyat %}
           {% set k_getiri = (k.son_fiyat / k.ilk_fiyat - 1) * 100 %}
           {% set k_vergi = k.vergi_orani if k.vergi_orani else 0 %}
           {% set k_net = k_getiri * (1 - k_vergi / 100) %}
+          {% set brut_ns.val = brut_ns.val + k_getiri * k.agirlik / 100 %}
           {% set net_ns.val = net_ns.val + k_net * k.agirlik / 100 %}
         {% endif %}
       {% endfor %}
+      {% set getiri_pct = brut_ns.val if brut_ns.val else getiri_pct %}
       {% set net_pct = net_ns.val %}
       <tr>
         <td><strong>{{ p.ad }}</strong></td>
@@ -174,7 +177,7 @@
 
     <!-- Kalem Listesi — Dikey -->
     {% if kl %}
-    <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.75rem">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.5rem;margin-bottom:0.75rem">
       {% for k in kl %}
         {% set getiri = ((k.son_fiyat / k.ilk_fiyat - 1) * 100) if k.son_fiyat and k.ilk_fiyat else none %}
         {% set vergi = k.vergi_orani if k.vergi_orani else 0 %}
