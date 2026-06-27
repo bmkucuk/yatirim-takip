@@ -2022,8 +2022,7 @@ def kiyaslama_tarih_guncelle():
     t = threading.Thread(target=_guncelle_arka_plan, daemon=True)
     t.start()
 
-    flash("Tarihler kaydedildi. Fiyatlar arka planda güncelleniyor (10-20 sn)...", "success")
-    return redirect(url_for("kiyaslama"))
+    return redirect(url_for("kiyaslama", guncellendi=1))
 
 
 @app.route("/kiyaslama/portfoy-ekle", methods=["POST"])
