@@ -48,6 +48,11 @@
     <button type="submit" class="btn-primary" style="padding:8px 20px;font-size:0.9rem">
       🔄 Tüm Portföyleri Güncelle
     </button>
+    {% if global_tarih.ilk and global_tarih.son %}
+    <div style="align-self:center;font-size:0.82rem;color:var(--text2)">
+      📆 <strong style="color:var(--accent)" id="gun-sayisi">—</strong> gün
+    </div>
+    {% endif %}
   </form>
 </div>
 
@@ -399,6 +404,22 @@ document.addEventListener('blur', function(e) {
     if (dd) dd.style.display = 'none';
   }, 200);
 }, true);
+
+// Gün sayısı hesapla
+function gunSayisiGuncelle() {
+  const el = document.getElementById('gun-sayisi');
+  if (!el) return;
+  const ilk = document.querySelector('input[name="ilk_tarih"]');
+  const son = document.querySelector('input[name="son_tarih"]');
+  if (ilk && son && ilk.value && son.value) {
+    const diff = Math.round((new Date(son.value) - new Date(ilk.value)) / 86400000);
+    el.textContent = diff > 0 ? diff : '—';
+  }
+}
+document.querySelectorAll('input[name="ilk_tarih"], input[name="son_tarih"]').forEach(
+  el => el.addEventListener('change', gunSayisiGuncelle)
+);
+gunSayisiGuncelle();
 </script>
 
 {% endblock %}
