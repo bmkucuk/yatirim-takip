@@ -4,12 +4,16 @@
 
 {% with messages = get_flashed_messages(with_categories=true) %}
 {% if messages %}
-  {% for cat, msg in messages %}
-  <div class="flash flash-{{ cat }}">{{ msg }}</div>
-  {% endfor %}
   {% if 'arka planda' in (messages|map(attribute=1)|join) %}
   <meta http-equiv="refresh" content="20;url={{ url_for('kiyaslama') }}">
-  <div style="font-size:0.8rem;color:var(--text2);margin-bottom:1rem">⏳ Sayfa 20 saniye sonra otomatik yenilenecek...</div>
+  <div style="font-size:0.8rem;color:var(--text2);margin-bottom:1rem">
+    ⏳ Sayfa <span id="geri-sayim">20</span> saniye sonra otomatik yenilenecek...
+  </div>
+  <script>
+    let s = 20;
+    const el = document.getElementById('geri-sayim');
+    const t = setInterval(() => { el.textContent = --s; if (s <= 0) clearInterval(t); }, 1000);
+  </script>
   {% endif %}
 {% endif %}
 {% endwith %}
