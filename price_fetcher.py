@@ -47,11 +47,11 @@ def tefas_aralik_cek(fon_kodu, baslangic, bitis):
             try:
                 r = requests.post(TEFAS_URL, json=body, headers=HEADERS, timeout=20)
                 if r.status_code == 429:
-                    time.sleep(15)
+                    time.sleep(1)
                     continue
                 r.raise_for_status()
                 if not r.text.strip():
-                    time.sleep(2)
+                    time.sleep(1)
                     continue
                 for row in r.json().get("resultList", []):
                     tarih_val = row.get("tarih", "")
@@ -65,9 +65,9 @@ def tefas_aralik_cek(fon_kodu, baslangic, bitis):
                         continue
                 break
             except Exception:
-                time.sleep(3)
+                time.sleep(1)
         bas = bit + timedelta(days=1)
-        time.sleep(2)
+        time.sleep(1)
     return sonuc
 
 def fetch_tefas_fon(fon_kodu, hedef_tarih=None):
@@ -87,7 +87,7 @@ def fetch_fon_fiyatlari(semboller):
         veriler = tefas_aralik_cek(sembol, hedef, hedef)
         if veriler:
             results[sembol] = list(veriler.values())[0]
-        time.sleep(2)
+        time.sleep(1)
     return results, "TEFAS" if results else None
 
 def fetch_fon_aralik(semboller, baslangic, bitis):
@@ -100,7 +100,7 @@ def fetch_fon_aralik(semboller, baslangic, bitis):
         veriler = tefas_aralik_cek(sembol, baslangic, bitis)
         for gun, fiyat in veriler.items():
             tum[(sembol, str(gun))] = fiyat
-        time.sleep(2)
+        time.sleep(1)
     return tum
 
 def fetch_hisse_toplu(semboller, tur_map=None):
