@@ -1945,9 +1945,22 @@ def kiyaslama_tarih_guncelle():
 
         def _tam_fiyat(sembol, tarih):
             with get_db() as c:
+                # Tam tarih eşleşmesi
                 r = c.execute("SELECT fiyat FROM fiyat_gecmisi WHERE sembol=? AND tarih=?",
                               (sembol, tarih)).fetchone()
-                return r["fiyat"] if r else None
+                if r: return r["fiyat"]
+                # Bulunamazsa o tarihten sonraki en yakın fiyatı al (max 5 gün)
+                from datetime import date as _d, timedelta as _td
+                try:
+                    dt = _d.fromisoformat(tarih)
+                except Exception:
+                    return None
+                for offset in range(1, 6):
+                    t2 = str(dt + _td(days=offset))
+                    r2 = c.execute("SELECT fiyat FROM fiyat_gecmisi WHERE sembol=? AND tarih=?",
+                                   (sembol, t2)).fetchone()
+                    if r2: return r2["fiyat"]
+            return None
 
         with get_db() as conn:
             portfoyler2 = conn.execute(
