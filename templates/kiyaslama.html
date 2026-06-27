@@ -2,6 +2,18 @@
 {% block title %}Getiri Kıyaslama — Yatırım Takip{% endblock %}
 {% block content %}
 
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+  {% for cat, msg in messages %}
+  <div class="flash flash-{{ cat }}">{{ msg }}</div>
+  {% endfor %}
+  {% if 'arka planda' in (messages|map(attribute=1)|join) %}
+  <meta http-equiv="refresh" content="20;url={{ url_for('kiyaslama') }}">
+  <div style="font-size:0.8rem;color:var(--text2);margin-bottom:1rem">⏳ Sayfa 20 saniye sonra otomatik yenilenecek...</div>
+  {% endif %}
+{% endif %}
+{% endwith %}
+
 <div class="page-header">
   <h2>📊 Getiri Kıyaslama</h2>
 </div>
