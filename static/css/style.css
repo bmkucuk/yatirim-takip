@@ -604,3 +604,6 @@ body.light .btn-logout { background: rgba(207,34,46,0.08); }
   align-self: center;
   white-space: nowrap;
 }
+
+/* ── Tarih inputları — tıklayınca takvim açılsın ── */
+input[type="date"] { cursor: pointer; }

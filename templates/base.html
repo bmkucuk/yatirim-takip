@@ -52,5 +52,13 @@ if (btn) {
   });
 }
 </script>
+  <script>
+    // Tarih inputlarına tıklayınca takvim aç
+    document.addEventListener('click', function(e) {
+      if (e.target.type === 'date') {
+        try { e.target.showPicker(); } catch(err) {}
+      }
+    });
+  </script>
 </body>
 </html>
