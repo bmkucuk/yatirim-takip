@@ -90,8 +90,8 @@
         <td>{{ "{:,.0f}".format(p.toplam_para).replace(",",".") }} ₺</td>
         <td class="tr-tarih">{{ p.ilk_tarih }}</td>
         <td class="tr-tarih">{{ p.son_tarih }}</td>
-        <td>{{ "{:,.2f}".format(ilk_val).replace(",",".") }} ₺</td>
-        <td>{{ "{:,.2f}".format(son_toplam.val).replace(",",".") if son_toplam.val else "—" }}</td>
+        <td>{{ "{:,.2f}".format(ilk_val).replace(",","X").replace(".",",").replace("X",".") }} ₺</td>
+        <td>{{ "{:,.2f}".format(son_toplam.val).replace(",","X").replace(".",",").replace("X",".") if son_toplam.val else "—" }}</td>
 
         {% set brut_tl = ilk_val * brut_pct / 100 %}
         {% set net_tl = ilk_val * net_pct / 100 %}

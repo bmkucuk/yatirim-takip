@@ -1857,20 +1857,38 @@ def kiyaslama():
     except (IndexError, KeyError):
         toplam_para_gt = 0
     global_tarih = {"ilk": gt["ilk_tarih"] if gt else "", "son": gt["son_tarih"] if gt else bugun_str, "toplam_para": toplam_para_gt}
-    # Her kalem için günlük getiri hesapla
+    # Her kalem için günlük getiri hesapla (son_tarih - 1 gün)
     gunluk = {}
     with get_db() as conn:
         for pid, kl in kalemler.items():
+            p = next((x for x in portfoyler if x["id"] == pid), None)
+            if not p:
+                continue
+            son_tarih_p = p["son_tarih"]
+            # Son tarihten bir önceki iş günü fiyatını bul (max 7 gün geriye git)
+            from datetime import date as _d2, timedelta as _td3
+            try:
+                son_dt = _d2.fromisoformat(son_tarih_p)
+            except Exception:
+                continue
             for k in kl:
                 s = k["sembol"]
-                if k["son_fiyat"]:
-                    dun_fiyat = conn.execute(
+                if not k["son_fiyat"]:
+                    continue
+                # Son tarihten geriye doğru fiyat ara
+                onceki_f = None
+                for offset in range(1, 8):
+                    onceki_tarih = str(son_dt - _td3(days=offset))
+                    r = conn.execute(
                         "SELECT fiyat FROM fiyat_gecmisi WHERE sembol=? AND tarih=?",
-                        (s, dun_str)
+                        (s, onceki_tarih)
                     ).fetchone()
-                    if dun_fiyat and dun_fiyat["fiyat"]:
-                        pct = (k["son_fiyat"] / dun_fiyat["fiyat"] - 1) * 100
-                        gunluk[k["id"]] = {"pct": pct, "dun": dun_fiyat["fiyat"]}
+                    if r and r["fiyat"]:
+                        onceki_f = r["fiyat"]
+                        break
+                if onceki_f:
+                    pct = (k["son_fiyat"] / onceki_f - 1) * 100
+                    gunluk[k["id"]] = {"pct": pct, "dun": onceki_f}
 
     return render_template("kiyaslama.html",
         portfoyler=portfoyler, kalemler=kalemler, bugun=bugun_str,
