@@ -10,7 +10,7 @@
 <body>
 {% if session.user_id %}
 <nav class="navbar">
-  <div class="nav-brand">📈 Yatırım Takip</div>
+  <div class="nav-brand"><img src="/static/img/bmk-logo.png" style="width:32px;height:32px;border-radius:8px;object-fit:cover;vertical-align:middle;margin-right:8px"> Yatırım Takip</div>
   <div class="nav-links">
     <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint=='dashboard' %}active{% endif %}">Dashboard</a>
     <a href="{{ url_for('islemler') }}" class="{% if request.endpoint=='islemler' %}active{% endif %}">İşlemler</a>
@@ -62,3 +62,4 @@ if (btn) {
   </script>
 </body>
 </html>
+
