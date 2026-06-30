@@ -4,13 +4,56 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}Yatırım Takip{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+.bmk-logo{display:inline-block;line-height:0;cursor:pointer;vertical-align:middle;margin-right:8px}
+.bmk-logo svg{display:block;overflow:visible;transition:transform .45s cubic-bezier(.2,.8,.2,1);transform-origin:center}
+.bmk-logo:hover svg{transform:scale(1.75)}
+.bmk-logo .bmk-gear{transform-origin:100px 100px;transform-box:view-box}
+.bmk-logo:hover .bmk-gear{animation:bmk-spin 6s linear infinite}
+@keyframes bmk-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.nav-brand{position:relative;z-index:5}
+</style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
 <body>
 {% if session.user_id %}
 <nav class="navbar">
-  <div class="nav-brand"><img src="/static/img/bmk-logo.png" style="width:32px;height:32px;border-radius:8px;object-fit:cover;vertical-align:middle;margin-right:8px"> Yatırım Takip</div>
+  <div class="nav-brand"><span class="bmk-logo" role="img" aria-label="BMK">
+  <svg width="32" height="32" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="bmkGrad" x1="24" y1="24" x2="176" y2="176" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#3B82F6"/><stop offset="0.5" stop-color="#14B8A6"/><stop offset="1" stop-color="#8B5CF6"/>
+      </linearGradient>
+    </defs>
+    <g class="bmk-gear">
+      <g fill="url(#bmkGrad)">
+        <g><rect x="91" y="2" width="18" height="26" rx="5"/></g>
+        <g transform="rotate(30 100 100)"><rect x="91" y="2" width="18" height="26" rx="5"/></g>
+        <g transform="rotate(60 100 100)"><rect x="91" y="2" width="18" height="26" rx="5"/></g>
+        <g transform="rotate(90 100 100)"><rect x="91" y="2" width="18" height="26" rx="5"/></g>
+        <g transform="rotate(120 100 100)"><rect x="91" y="2" width="18" height="26" rx="5"/></g>
+        <g transform="rotate(150 100 100)"><rect x="91" y="2" width="18" height="26" rx="5"/></g>
+        <g transform="rotate(180 100 100)"><rect x="91" y="2" width="18" height="26" rx="5"/></g>
+        <g transform="rotate(210 100 100)"><rect x="91" y="2" width="18" height="26" rx="5"/></g>
+        <g transform="rotate(240 100 100)"><rect x="91" y="2" width="18" height="26" rx="5"/></g>
+        <g transform="rotate(270 100 100)"><rect x="91" y="2" width="18" height="26" rx="5"/></g>
+        <g transform="rotate(300 100 100)"><rect x="91" y="2" width="18" height="26" rx="5"/></g>
+        <g transform="rotate(330 100 100)"><rect x="91" y="2" width="18" height="26" rx="5"/></g>
+      </g>
+      <circle cx="100" cy="100" r="76" fill="url(#bmkGrad)"/>
+    </g>
+    <circle cx="100" cy="100" r="58" fill="#0b1120"/>
+    <path id="bmkTop2" d="M 33 100 A 67 67 0 0 1 167 100" fill="none"/>
+    <path id="bmkBot2" d="M 33 100 A 67 67 0 0 0 167 100" fill="none"/>
+    <text font-family="JetBrains Mono, monospace" font-weight="500" font-size="10" letter-spacing="3" fill="#fff" dominant-baseline="middle"><textPath href="#bmkTop2" startOffset="50%" text-anchor="middle">INNOVATIVE</textPath></text>
+    <text font-family="JetBrains Mono, monospace" font-weight="500" font-size="10" letter-spacing="3" fill="#fff" dominant-baseline="middle"><textPath href="#bmkBot2" startOffset="50%" text-anchor="middle">CODING</textPath></text>
+    <text x="100" y="112" text-anchor="middle" font-family="Archivo Black, sans-serif" font-weight="400" font-size="31" letter-spacing="-1" fill="#FBBF24">BMK</text>
+  </svg>
+</span> Yatırım Takip</div>
   <div class="nav-links">
     <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint=='dashboard' %}active{% endif %}">Dashboard</a>
     <a href="{{ url_for('islemler') }}" class="{% if request.endpoint=='islemler' %}active{% endif %}">İşlemler</a>
@@ -62,4 +105,5 @@ if (btn) {
   </script>
 </body>
 </html>
+
 
