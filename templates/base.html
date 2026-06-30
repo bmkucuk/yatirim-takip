@@ -9,11 +9,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 <style>
-.bmk-logo{display:inline-block;line-height:0;cursor:pointer;vertical-align:middle;margin-right:8px}
-.bmk-logo svg{display:block;overflow:visible;transition:transform .45s cubic-bezier(.2,.8,.2,1);transform-origin:center}
-.bmk-logo:hover svg{transform:scale(3)}
+.bmk-logo{display:inline-block;line-height:0;cursor:pointer;vertical-align:middle;margin-right:8px;position:relative}
+.bmk-logo svg{display:block;overflow:visible;transition:transform .45s cubic-bezier(.2,.8,.2,1);transform-origin:center;position:relative;z-index:1}
+.bmk-logo:hover svg{transform:translate(-50%,-50%) scale(5);position:fixed;left:90px;top:50vh;z-index:9999}
 .bmk-logo .bmk-gear{transform-origin:100px 100px;transform-box:view-box}
 .bmk-logo:hover .bmk-gear{animation:bmk-spin 6s linear infinite}
+.bmk-logo::before{content:'';position:fixed;inset:0;background:rgba(8,12,20,0);transition:background .3s;pointer-events:none;z-index:9998}
+.bmk-logo:hover::before{background:rgba(8,12,20,.55)}
 @keyframes bmk-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .nav-brand{position:relative;z-index:5}
 </style>
@@ -105,6 +107,7 @@ if (btn) {
   </script>
 </body>
 </html>
+
 
 
 
