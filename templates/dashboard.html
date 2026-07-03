@@ -161,12 +161,15 @@
     <td class="{{ 'pos' if p.kar_zarar >= 0 else 'neg' }}">
       {{ ("+" if p.kar_zarar>=0 else "") }}{{ "{:,.0f}".format(p.kar_zarar).replace(",",".") }} {{ para }}
       {% if p.alis_maliyet %}
-      <br><small>{{ ("▲ %" if p.kar_zarar>=0 else "▼ %") }}{{ "{:.2f}".format((p.kar_zarar / p.alis_maliyet * 100)|abs).replace(".",",") }}</small>
+      <br><small>{{ ("▲ %" if p.kar_zarar>=0 else "▼ %") }}{{ "{:.2f}".format((p.kar_zarar / p.alis_maliyet * 100)|abs).replace(".",",") }}{% if not p.vergisiz and not p.abd_vergi and p.kar_zarar > 0 %} <span style="color:var(--text2);font-weight:400;font-size:0.7rem">brüt</span>{% endif %}</small>
       {% endif %}
       {% if p.abd_vergi and p.kar_zarar > 0 %}
       <br><small style="color:var(--text2);font-weight:400;font-size:0.7rem">brüt</small>
       {% elif not p.vergisiz and not p.abd_vergi and p.kar_zarar > 0 %}
       <br><small style="color:#e8923a;font-weight:600">Net: {{ "{:,.0f}".format(p.net_kar).replace(",",".") }} {{ para }}</small>
+      {% if p.alis_maliyet %}
+      <br><small style="color:#e8923a;font-weight:600">%{{ "{:.2f}".format((p.net_kar / p.alis_maliyet * 100)).replace(".",",") }}</small>
+      {% endif %}
       {% endif %}
     </td>
   </tr>
