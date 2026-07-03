@@ -58,7 +58,10 @@
   </div>
 </div>
 
-{% macro bolum_ozet(deger, kar, gunluk, para, deger_tl, kar_tl, gunluk_tl=none) %}
+{% macro bolum_ozet(deger, kar, gunluk, para, deger_tl, kar_tl, gunluk_tl=none, baslik=none) %}
+{% if baslik %}
+<div style="font-size:0.78rem;color:var(--text2);font-weight:600;margin-bottom:0.35rem">{{ baslik }} özeti</div>
+{% endif %}
 <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:0.75rem">
   <div class="summary-card" style="padding:0.6rem 1rem;text-align:center">
     <div class="card-label" style="font-size:0.72rem">Toplam Değer</div>
@@ -157,6 +160,9 @@
     <td><strong>{{ "{:,.0f}".format(p.mevcut_deger).replace(",",".") }} {{ para }}</strong></td>
     <td class="{{ 'pos' if p.kar_zarar >= 0 else 'neg' }}">
       {{ ("+" if p.kar_zarar>=0 else "") }}{{ "{:,.0f}".format(p.kar_zarar).replace(",",".") }} {{ para }}
+      {% if p.alis_maliyet %}
+      <br><small>{{ ("▲ %" if p.kar_zarar>=0 else "▼ %") }}{{ "{:.2f}".format((p.kar_zarar / p.alis_maliyet * 100)|abs).replace(".",",") }}</small>
+      {% endif %}
       {% if p.abd_vergi and p.kar_zarar > 0 %}
       <br><small style="color:var(--text2);font-weight:400;font-size:0.7rem">brüt</small>
       {% elif not p.vergisiz and not p.abd_vergi and p.kar_zarar > 0 %}
@@ -173,19 +179,19 @@
 
 <!-- Yatırım Fonları -->
 {% if fon_portfoy %}
-{{ bolum_ozet(fon_deger, fon_kar, fon_portfoy|sum(attribute='gunluk_tl'), "₺", none, none) }}
+{{ bolum_ozet(fon_deger, fon_kar, fon_portfoy|sum(attribute='gunluk_tl'), "₺", none, none, baslik="📊 Yatırım Fonları") }}
 {% endif %}
 {{ portfoy_tablosu(fon_portfoy, "₺", "📊 Yatırım Fonları", "var(--accent)") }}
 
 <!-- BIST -->
 {% if bist_portfoy %}
-{{ bolum_ozet(bist_deger, bist_kar, bist_portfoy|sum(attribute='gunluk_tl'), "₺", none, none) }}
+{{ bolum_ozet(bist_deger, bist_kar, bist_portfoy|sum(attribute='gunluk_tl'), "₺", none, none, baslik="📈 Borsa TR (BIST)") }}
 {% endif %}
 {{ portfoy_tablosu(bist_portfoy, "₺", "📈 Borsa TR (BIST)", "var(--pos)") }}
 
 <!-- ABD -->
 {% if abd_portfoy %}
-{{ bolum_ozet(abd_deger_usd, abd_kar_usd, abd_portfoy|sum(attribute='gunluk_tl'), "$", abd_deger_tl, abd_kar_tl, gunluk_tl=abd_gunluk_tl) }}
+{{ bolum_ozet(abd_deger_usd, abd_kar_usd, abd_portfoy|sum(attribute='gunluk_tl'), "$", abd_deger_tl, abd_kar_tl, gunluk_tl=abd_gunluk_tl, baslik="🇺🇸 Borsa USA") }}
 {% endif %}
 {{ portfoy_tablosu(abd_portfoy, "$", "🇺🇸 Borsa USA", "#58a6ff") }}
 
