@@ -1742,6 +1742,20 @@ def fiyat_guncelle_manuel():
     return jsonify({"ok": True, "guncellenen": basarili, "kaynak": sonuc.get("method","?")})
 
 
+@app.route("/export-db")
+def export_db():
+    """
+    Canlı SQLite veritabanını indirir. CRON_KEY env var ile korunur.
+    Geçici taşıma amaçlı — taşıma bitince kaldırılabilir.
+    """
+    import os
+    from flask import send_file
+    key = request.args.get("key","")
+    if key != os.environ.get("CRON_KEY",""):
+        return "yetkisiz", 403
+    return send_file(DB_PATH, as_attachment=True, download_name="yatirim.db")
+
+
 @app.route("/cron/guncelle")
 def cron_guncelle():
     """
