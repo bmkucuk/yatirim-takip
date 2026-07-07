@@ -1,0 +1,22 @@
+app = "yatirim-takip-murat"
+primary_region = "fra"
+
+[build]
+
+[env]
+  DB_PATH = "/data/yatirim.db"
+
+[[mounts]]
+  source = "yatirim_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
