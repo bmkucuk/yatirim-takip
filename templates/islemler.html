@@ -82,11 +82,11 @@
   </form>
 </div>
 
-<!-- Filtre — Kompakt 2 Satır -->
-<div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.75rem">
+<!-- Filtre — Tek Satır, 4 Grup -->
+<div style="margin-bottom:0.75rem;overflow-x:auto">
+  <div class="filter-bar" style="flex-wrap:nowrap;white-space:nowrap;gap:0.5rem;align-items:center;display:inline-flex">
 
-  <!-- Satır 1: Hesap + İşlem (Alış/Satış) -->
-  <div class="filter-bar" style="flex-wrap:wrap;gap:0.5rem;align-items:center">
+    <!-- Grup 1: Hesap -->
     <span style="font-size:0.78rem;color:var(--text2);font-weight:600">👤 Hesap:</span>
     <a href="{{ url_for('islemler') }}{% if tur_filtre %}?tur={{ tur_filtre }}{% endif %}{% if filtre %}?sembol={{ filtre }}{% endif %}{% if alissat_filtre %}{% if tur_filtre or filtre %}&{% else %}?{% endif %}alissat={{ alissat_filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if not hesap_filtre %}active{% endif %}">Tümü</a>
@@ -95,8 +95,9 @@
        class="filter-btn filter-btn-sm {% if hesap_filtre==h %}active{% endif %}">{{ h }}</a>
     {% endfor %}
 
-    <span style="width:1px;height:1.1rem;background:var(--border);margin:0 0.3rem"></span>
+    <span style="width:2px;height:1.4rem;background:var(--accent);opacity:0.5;margin:0 0.4rem;border-radius:1px"></span>
 
+    <!-- Grup 2: İşlem (Alış/Satış) -->
     <span style="font-size:0.78rem;color:var(--text2);font-weight:600">↕️ İşlem:</span>
     <a href="?{% if hesap_filtre %}hesap={{ hesap_filtre }}{% endif %}{% if tur_filtre %}&tur={{ tur_filtre }}{% endif %}{% if filtre %}&sembol={{ filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if not alissat_filtre %}active{% endif %}">Tümü</a>
@@ -104,36 +105,30 @@
        class="filter-btn filter-btn-sm {% if alissat_filtre=='Alış' %}active{% endif %}">Alış</a>
     <a href="?alissat=Satış{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if tur_filtre %}&tur={{ tur_filtre }}{% endif %}{% if filtre %}&sembol={{ filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if alissat_filtre=='Satış' %}active{% endif %}">Satış</a>
-  </div>
 
-  <!-- Satır 2: Kategori + Sembol (seçili kategoriye göre) -->
-  <div class="filter-bar" style="flex-wrap:wrap;gap:0.5rem;align-items:center">
+    <span style="width:2px;height:1.4rem;background:var(--accent);opacity:0.5;margin:0 0.4rem;border-radius:1px"></span>
+
+    <!-- Grup 3: Kategori -->
+    <span style="font-size:0.78rem;color:var(--text2);font-weight:600">📂 Kategori:</span>
     <a href="?{% if hesap_filtre %}hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if not filtre and not tur_filtre %}active{% endif %}">Tümü</a>
-
     {% if fon_semboller %}
     <a href="?tur=FON{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
-       class="filter-btn filter-btn-sm {% if tur_filtre=='FON' or filtre in fon_semboller %}active{% endif %}">
-      📊 Fon
-    </a>
+       class="filter-btn filter-btn-sm {% if tur_filtre=='FON' or filtre in fon_semboller %}active{% endif %}">📊 Fon</a>
     {% endif %}
-
     {% if abd_semboller %}
     <a href="?tur=ABD{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
-       class="filter-btn filter-btn-sm {% if tur_filtre=='ABD' or filtre in abd_semboller %}active{% endif %}">
-      🇺🇸 ABD
-    </a>
+       class="filter-btn filter-btn-sm {% if tur_filtre=='ABD' or filtre in abd_semboller %}active{% endif %}">🇺🇸 ABD</a>
     {% endif %}
-
     {% if bist_semboller %}
     <a href="?tur=BIST{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
-       class="filter-btn filter-btn-sm {% if tur_filtre=='BIST' or filtre in bist_semboller %}active{% endif %}">
-      📈 BİST
-    </a>
+       class="filter-btn filter-btn-sm {% if tur_filtre=='BIST' or filtre in bist_semboller %}active{% endif %}">📈 BİST</a>
     {% endif %}
 
+    <!-- Grup 4: Sembol (seçili kategoriye göre) -->
     {% if tur_filtre == 'FON' or filtre in fon_semboller %}
-    <span style="width:1px;height:1.1rem;background:var(--border);margin:0 0.3rem"></span>
+    <span style="width:2px;height:1.4rem;background:var(--accent);opacity:0.5;margin:0 0.4rem;border-radius:1px"></span>
+    <span style="font-size:0.78rem;color:var(--text2);font-weight:600">🏷️ Sembol:</span>
     {% for s in fon_semboller %}
     <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if filtre==s %}active{% endif %}">{{ s }}</a>
@@ -141,7 +136,8 @@
     {% endif %}
 
     {% if tur_filtre == 'ABD' or filtre in abd_semboller %}
-    <span style="width:1px;height:1.1rem;background:var(--border);margin:0 0.3rem"></span>
+    <span style="width:2px;height:1.4rem;background:var(--accent);opacity:0.5;margin:0 0.4rem;border-radius:1px"></span>
+    <span style="font-size:0.78rem;color:var(--text2);font-weight:600">🏷️ Sembol:</span>
     {% for s in abd_semboller %}
     <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if filtre==s %}active{% endif %}">{{ s }}</a>
@@ -149,14 +145,15 @@
     {% endif %}
 
     {% if tur_filtre == 'BIST' or filtre in bist_semboller %}
-    <span style="width:1px;height:1.1rem;background:var(--border);margin:0 0.3rem"></span>
+    <span style="width:2px;height:1.4rem;background:var(--accent);opacity:0.5;margin:0 0.4rem;border-radius:1px"></span>
+    <span style="font-size:0.78rem;color:var(--text2);font-weight:600">🏷️ Sembol:</span>
     {% for s in bist_semboller %}
     <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
        class="filter-btn filter-btn-sm {% if filtre==s %}active{% endif %}">{{ s }}</a>
     {% endfor %}
     {% endif %}
-  </div>
 
+  </div>
 </div>
 
 <!-- İşlemler Tablosu -->
