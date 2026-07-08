@@ -157,6 +157,8 @@
         <h3 style="margin:0;font-size:1rem">{{ p.ad }}</h3>
         <div style="display:flex;align-items:center;gap:0.75rem">
           <span style="font-size:0.75rem;color:var(--text2)"><span class="tr-tarih">{{ p.ilk_tarih }}</span> → <span class="tr-tarih">{{ p.son_tarih }}</span></span>
+          <a onclick="portfoyDuzenle({{ p.id }})"
+             style="cursor:pointer;font-size:0.75rem;color:var(--accent)">✏️ Düzenle</a>
           <a href="{{ url_for('kiyaslama_portfoy_sil', pid=p.id) }}"
              class="btn-del" style="font-size:0.75rem"
              onclick="return confirm('Portföyü ve tüm kalemleri sil?')">🗑️ Sil</a>
