@@ -505,6 +505,7 @@ def islemler():
     filtre = request.args.get("sembol", "")
     tur_filtre = request.args.get("tur", "")
     hesap_filtre = request.args.get("hesap", "")
+    alissat_filtre = request.args.get("alissat", "")
     with get_db() as conn:
         hesaplar = [r["ad"] for r in conn.execute("SELECT ad FROM hesaplar WHERE user_id=?", (user_id,)).fetchall()]
         aracilar = [r["ad"] for r in conn.execute("SELECT ad FROM aracilar WHERE user_id=?", (user_id,)).fetchall()]
@@ -520,6 +521,9 @@ def islemler():
         if hesap_filtre:
             conditions.append("hesap=?")
             params.append(hesap_filtre)
+        if alissat_filtre:
+            conditions.append("alissat=?")
+            params.append(alissat_filtre)
 
         where = " AND ".join(conditions)
         rows = conn.execute(
@@ -538,6 +542,7 @@ def islemler():
     return render_template("islemler.html",
         islemler=rows, hesaplar=hesaplar, aracilar=aracilar,
         filtre=filtre, tur_filtre=tur_filtre, hesap_filtre=hesap_filtre,
+        alissat_filtre=alissat_filtre,
         fon_semboller=fon_semboller,
         bist_semboller=bist_semboller,
         abd_semboller=abd_semboller)
