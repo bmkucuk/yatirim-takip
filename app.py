@@ -1999,6 +1999,58 @@ def fon_icerik_fon_ekle():
     })
 
 
+@app.route("/fon-icerik/pdf-yukle", methods=["POST"])
+@login_required
+def fon_icerik_pdf_yukle():
+    """KAP'ta otomatik bulunamayan fonlar için: kullanıcı Portföy Dağılım Raporu
+    PDF'ini elle yükler, biz ayrıştırıp doğrularız (KAP arama adımı hiç yok)."""
+    fon_kodu = (request.form.get("fon_kodu") or "").strip().upper()
+    dosya = request.files.get("pdf")
+    if not fon_kodu:
+        return jsonify({"basarili": False, "hata": "Fon kodu boş olamaz."}), 400
+    if not dosya or not dosya.filename:
+        return jsonify({"basarili": False, "hata": "PDF dosyası seçilmedi."}), 400
+
+    try:
+        pdf_bytes = dosya.read()
+        hisseler, kap_toplam = kap_client.pdf_hisse_dagilimi_ayikla(pdf_bytes)
+    except Exception as e:
+        return jsonify({"basarili": False, "hata": f"PDF ayrıştırılamadı: {e}"}), 200
+
+    if not hisseler:
+        return jsonify({"basarili": False, "hata": "PDF'te 'HİSSE SENETLERİ' bölümü bulunamadı."}), 200
+
+    hesaplanan_toplam = round(sum(a for _, a in hisseler), 2)
+    dogrulandi = kap_toplam is not None and abs(hesaplanan_toplam - kap_toplam) < 0.5
+
+    if not dogrulandi:
+        return jsonify({
+            "basarili": False,
+            "hata": f"Ayrıştırma güvenilir çıkmadı (hesaplanan %{hesaplanan_toplam}, "
+                    f"KAP'ın kendi toplamı %{kap_toplam if kap_toplam is not None else '—'}). "
+                    f"Bu PDF'in sütun düzeni farklı olabilir — bana PDF'i chat'ten gönderirsen elle işlerim.",
+        }), 200
+
+    with get_db() as conn:
+        conn.execute("DELETE FROM fon_kompozisyon WHERE fon_kod = ?", (fon_kodu,))
+        for kod, agirlik in hisseler:
+            conn.execute(
+                "INSERT INTO fon_kompozisyon (fon_kod, fon_ad, hisse_kod, agirlik, donem) "
+                "VALUES (?,?,?,?,?)",
+                (fon_kodu, fon_kodu, kod, agirlik, None),
+            )
+
+    guncel = fon_icerik_hesapla()
+    return jsonify({
+        "basarili": True,
+        "fon_kodu": fon_kodu,
+        "kap_toplam": kap_toplam,
+        "hesaplanan_toplam": hesaplanan_toplam,
+        "dogrulandi": dogrulandi,
+        "fonlar": guncel,
+    })
+
+
 @app.route("/kiyaslama")
 @login_required
 def kiyaslama():
