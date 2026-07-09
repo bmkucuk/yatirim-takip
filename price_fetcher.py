@@ -180,8 +180,8 @@ def fetch_hisse_fiyatlari(semboller, tur_map=None):
     return results, "Yahoo-Finance" if results else None
 
 def fetch_hisse_detay_toplu(semboller):
-    """Yahoo v7/finance/quote ile toplu anlık fiyat + günlük değişim (%) — tek istekte.
-    Döndürür: {sembol: {"fiyat": float, "degisim": float|None}}
+    """Yahoo v7/finance/quote ile toplu anlık fiyat + günlük değişim (%) + şirket adı — tek istekte.
+    Döndürür: {sembol: {"fiyat": float, "degisim": float|None, "isim": str|None}}
     """
     if not semboller:
         return {}
@@ -204,10 +204,12 @@ def fetch_hisse_detay_toplu(semboller):
                 ys = item.get("symbol", "")
                 fiyat = item.get("regularMarketPrice")
                 degisim = item.get("regularMarketChangePercent")
+                isim = item.get("longName") or item.get("shortName")
                 if fiyat is not None and ys in sembol_map:
                     sonuc[sembol_map[ys]] = {
                         "fiyat": round(float(fiyat), 4),
                         "degisim": round(float(degisim), 2) if degisim is not None else None,
+                        "isim": isim,
                     }
             return sonuc
     except Exception:
@@ -265,7 +267,7 @@ def fetch_milliyet_fiyatlar(semboller):
                             degisim = _tl_sayi(v)
                             break
                 if fiyat is not None and degisim is not None:
-                    sonuc[kod] = {"fiyat": fiyat, "degisim": degisim}
+                    sonuc[kod] = {"fiyat": fiyat, "degisim": degisim, "isim": None}
         except Exception:
             continue
         time.sleep(0.2)

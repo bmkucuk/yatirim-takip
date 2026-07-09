@@ -38,7 +38,7 @@
         <tbody class="fon-tbody">
           {% for s in fon.satirlar %}
           <tr>
-            <td>{{ s.kod }}</td>
+            <td title="{{ s.isim or '' }}" style="{{ 'cursor:help;border-bottom:1px dotted var(--text2)' if s.isim else '' }}">{{ s.kod }}</td>
             <td>{{ "%.2f"|format(s.agirlik) }}%</td>
             <td>{{ "%.2f"|format(s.fiyat) if s.fiyat is not none else "—" }}</td>
             <td class="{{ 'pos' if (s.degisim or 0) >= 0 else 'neg' }}">
@@ -105,8 +105,10 @@ function fonSatirHtml(s) {
   const fiyat = s.fiyat !== null && s.fiyat !== undefined ? s.fiyat.toFixed(2) : '—';
   const degisim = s.degisim !== null && s.degisim !== undefined ? (s.degisim >= 0 ? '+' : '') + s.degisim.toFixed(2) + '%' : '—';
   const katki = s.katki !== null && s.katki !== undefined ? (s.katki >= 0 ? '+' : '') + s.katki.toFixed(3) + '%' : '—';
+  const isim = s.isim || '';
+  const kodStil = isim ? ' style="cursor:help;border-bottom:1px dotted var(--text2)"' : '';
   return `<tr>
-    <td>${s.kod}</td>
+    <td title="${isim}"${kodStil}>${s.kod}</td>
     <td>${s.agirlik.toFixed(2)}%</td>
     <td>${fiyat}</td>
     <td class="${pozNeg(s.degisim)}">${degisim}</td>

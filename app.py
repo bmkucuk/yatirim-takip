@@ -201,12 +201,13 @@ def fon_icerik_hesapla():
             veri = fiyatlar.get(kod)
             degisim = veri["degisim"] if veri else None
             fiyat = veri["fiyat"] if veri else None
+            isim = veri.get("isim") if veri else None
             katki = (agirlik * degisim / 100.0) if degisim is not None else None
             if katki is not None:
                 toplam_katki += katki
             satirlar.append({
                 "kod": kod, "agirlik": agirlik, "fiyat": fiyat,
-                "degisim": degisim, "katki": katki,
+                "degisim": degisim, "katki": katki, "isim": isim,
             })
         satirlar.sort(key=lambda x: (x["katki"] is None, -(x["katki"] or 0)))
         sonuc[fon_kod] = {
