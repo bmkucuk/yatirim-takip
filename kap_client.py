@@ -99,9 +99,15 @@ def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3):
 
             eslesen = [
                 d for d in sonuclar
-                if (d.get("fundCode") or "").strip().upper() == kod
+                if kod in [s.strip().upper() for s in (d.get("stockCodes") or "").split(",") if s.strip()]
                 and "portföy dağılım raporu" in (d.get("subject") or "").lower()
             ]
+            if not eslesen:
+                eslesen = [
+                    d for d in sonuclar
+                    if (d.get("fundCode") or "").strip().upper() == kod
+                    and "portföy dağılım raporu" in (d.get("subject") or "").lower()
+                ]
             if not eslesen:
                 eslesen = [
                     d for d in sonuclar
