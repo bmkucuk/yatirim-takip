@@ -26,17 +26,45 @@ def normalize_yahoo_sembol(sembol):
         return sembol
     return f"{sembol.split('.')[0]}.IS"
 
+import os as _os
+
 # TEFAS'ın kendi API'si dakikada 6 istekle sınırlı (429 ERR-224 "Throttling limit").
-# Uygulama genelinde TÜM TEFAS isteklerinin arasına en az bu kadar saniye koyuyoruz.
+# Uygulama gunicorn'da 2 worker (2 ayrı process) ile çalışıyor — process-içi bir kilit
+# yeterli değil, workerlar birbirinden habersiz aynı anda istek gönderip TEFAS'ı
+# throttle'a düşürebiliyordu. Bu yüzden DB ile aynı kalıcı diskte, dosya kilidiyle
+# (fcntl.flock) process'ler arası paylaşılan bir zaman damgası kullanıyoruz.
 _TEFAS_MIN_ARALIK_SN = 11.0
-_tefas_son_istek_zamani = [0.0]
+_tefas_son_istek_zamani = [0.0]  # fallback: dosya kilidi başarısız olursa process-local
+_tefas_lock_dizin = _os.path.dirname(_os.environ.get("DB_PATH", "")) or "/tmp"
+_TEFAS_LOCK_PATH = _os.path.join(_tefas_lock_dizin, "tefas_rate.lock")
 
 def _tefas_hiz_sinirla():
-    simdi = time.monotonic()
-    beklenecek = _TEFAS_MIN_ARALIK_SN - (simdi - _tefas_son_istek_zamani[0])
-    if beklenecek > 0:
-        time.sleep(beklenecek)
-    _tefas_son_istek_zamani[0] = time.monotonic()
+    try:
+        import fcntl
+        with open(_TEFAS_LOCK_PATH, "a+") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                f.seek(0)
+                icerik = f.read().strip()
+                son_zaman = float(icerik) if icerik else 0.0
+                simdi = time.time()
+                beklenecek = _TEFAS_MIN_ARALIK_SN - (simdi - son_zaman)
+                if beklenecek > 0:
+                    time.sleep(beklenecek)
+                f.seek(0)
+                f.truncate()
+                f.write(str(time.time()))
+                f.flush()
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+    except Exception:
+        # Dosya kilidi bir sebeple çalışmazsa (izin, disk vb.) process-local'a düş —
+        # tek worker'da hâlâ doğru çalışır, çok worker'da en kötü ihtimalle eski davranış.
+        simdi = time.monotonic()
+        beklenecek = _TEFAS_MIN_ARALIK_SN - (simdi - _tefas_son_istek_zamani[0])
+        if beklenecek > 0:
+            time.sleep(beklenecek)
+        _tefas_son_istek_zamani[0] = time.monotonic()
 
 def _tefas_nokta_fiyat(fon_kodu, hedef_tarih, pencere_gun=4, timeout=8):
     """Belirli bir tarihe yakın (±pencere_gun) TEK bir fiyat noktası çeker — tam
