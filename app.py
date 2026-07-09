@@ -2060,11 +2060,13 @@ def cron_guncelle():
     # Fon İçerik Analizi sayfasındaki TEFAS getiri cache'ini de tazele.
     # TEFAS dakikada 6 istekle sınırlı olduğu için burada (günlük, unattended cron'da,
     # kullanıcıyı bir düğmenin önünde bekletmeden) fon başına ~55 saniye aralıklarla yapılır.
+    # ?force_getiri=1 ile tazelik (staleness) kontrolü atlanır, tüm fonlar sıfırdan çekilir.
+    zorla = request.args.get("force_getiri") == "1"
     getiri_guncellenen = 0
     try:
         for fon_kod in fon_tum_kompozisyonlari_getir():
             try:
-                fon_getiri_yenile(fon_kod, max_yas_saat=20)
+                fon_getiri_yenile(fon_kod, max_yas_saat=(0 if zorla else 20))
                 getiri_guncellenen += 1
             except Exception:
                 pass

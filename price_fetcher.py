@@ -66,11 +66,11 @@ def _tefas_hiz_sinirla():
             time.sleep(beklenecek)
         _tefas_son_istek_zamani[0] = time.monotonic()
 
-def _tefas_nokta_fiyat(fon_kodu, hedef_tarih, pencere_gun=4, timeout=8):
+def _tefas_nokta_fiyat(fon_kodu, hedef_tarih, pencere_gun=4, timeout=8, deneme=2):
     """Belirli bir tarihe yakın (±pencere_gun) TEK bir fiyat noktası çeker — tam
     yıllık backfill yapmadan getiri hesaplamak için hafif/hızlı bir sorgu.
-    Tek deneme, kısa timeout; hata durumunda None döner (getiri hesaplaması
-    bu yüzden sayfayı bloklamaz, sadece o alan '—' görünür)."""
+    429 (throttle) veya geçici hatalarda birkaç kez tekrar dener (aksi halde tek
+    bir başarısız istek o veri noktasını kalıcı olarak '—' bırakıyordu)."""
     bas = hedef_tarih - timedelta(days=pencere_gun)
     bit = hedef_tarih + timedelta(days=pencere_gun)
     bugun = son_is_gunu()
@@ -87,28 +87,33 @@ def _tefas_nokta_fiyat(fon_kodu, hedef_tarih, pencere_gun=4, timeout=8):
         "dil": "TR", "sFonTurKod": "",
         "fonKod": "", "fonGrup": "", "fonUnvanTip": "",
     }
-    try:
-        _tefas_hiz_sinirla()
-        r = requests.post(TEFAS_URL, json=body, headers=HEADERS, timeout=timeout)
-        if r.status_code != 200 or not r.text.strip():
-            return None
-        gunler = {}
-        for row in r.json().get("resultList", []):
-            tarih_val = row.get("tarih", "")
-            fiyat = row.get("fiyat")
-            if not tarih_val or fiyat is None:
+    for deneme_no in range(deneme):
+        try:
+            _tefas_hiz_sinirla()
+            r = requests.post(TEFAS_URL, json=body, headers=HEADERS, timeout=timeout)
+            if r.status_code == 429:
+                time.sleep(5)  # throttle'a düştük, kısa ek bekleme sonrası tekrar dene
                 continue
-            try:
-                t = datetime.strptime(str(tarih_val)[:10], "%Y-%m-%d").date()
-                gunler[t] = float(fiyat)
-            except Exception:
+            if r.status_code != 200 or not r.text.strip():
                 continue
-        if not gunler:
-            return None
-        en_yakin = min(gunler.keys(), key=lambda d: abs((d - hedef_tarih).days))
-        return gunler[en_yakin]
-    except Exception:
-        return None
+            gunler = {}
+            for row in r.json().get("resultList", []):
+                tarih_val = row.get("tarih", "")
+                fiyat = row.get("fiyat")
+                if not tarih_val or fiyat is None:
+                    continue
+                try:
+                    t = datetime.strptime(str(tarih_val)[:10], "%Y-%m-%d").date()
+                    gunler[t] = float(fiyat)
+                except Exception:
+                    continue
+            if not gunler:
+                continue
+            en_yakin = min(gunler.keys(), key=lambda d: abs((d - hedef_tarih).days))
+            return gunler[en_yakin]
+        except Exception:
+            continue
+    return None
 
 
 def fon_getiri_hesapla(fon_kodu):
