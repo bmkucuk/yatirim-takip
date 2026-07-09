@@ -2145,6 +2145,44 @@ def api_fon_icerik_guncelle():
     return jsonify(veri)
 
 
+@app.route("/fon-icerik/tefas-sayfa-debug")
+def fon_icerik_tefas_sayfa_debug():
+    """Geçici tanılama uç noktası: TEFAS'ın fon-detayli-analiz sayfasının ham HTML'ini
+    çeker (bu sayfa Next.js ile render ediliyor, veriler HTML içine gömülü JSON olarak
+    geliyor). Risk Değeri/Valör gibi alanların bu gömülü JSON'da olup olmadığını görmek
+    için. CRON_KEY ile korunur."""
+    key = request.args.get("key", "")
+    if key != os.environ.get("CRON_KEY", ""):
+        return "yetkisiz", 403
+
+    import requests as _req
+    fon_kodu = (request.args.get("fon") or "YHZ").strip().upper()
+    try:
+        r = _req.get(
+            f"https://www.tefas.gov.tr/tr/fon-detayli-analiz/{fon_kodu}",
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/146.0.0.0 Safari/537.36"},
+            timeout=15,
+        )
+        html = r.text
+        # "risk" ve "valör" gecen JSON parcalarini bulmaya calis (kucuk harfe cevirip ara)
+        import re as _re
+        ilgili_parcalar = []
+        for anahtar in ["risk", "valör", "valor", "riskDeger", "islemSaat", "emirSaat"]:
+            for m in _re.finditer(_re.escape(anahtar), html, _re.IGNORECASE):
+                baslangic = max(0, m.start() - 80)
+                bitis = min(len(html), m.end() + 80)
+                ilgili_parcalar.append(html[baslangic:bitis])
+        return jsonify({
+            "fon_kodu": fon_kodu,
+            "http_status": r.status_code,
+            "html_uzunluk": len(html),
+            "ilgili_parcalar_orn": ilgili_parcalar[:15],
+            "html_ilk_2000": html[:2000],
+        })
+    except Exception as e:
+        return jsonify({"hata": str(e)}), 200
+
+
 @app.route("/fon-icerik/ybf-debug")
 def fon_icerik_ybf_debug():
     """Geçici tanılama uç noktası: fonun 'Yatırımcı Bilgi Formu' bildirimini KAP'ta
