@@ -2145,6 +2145,50 @@ def api_fon_icerik_guncelle():
     return jsonify(veri)
 
 
+@app.route("/fon-icerik/ybf-debug")
+def fon_icerik_ybf_debug():
+    """Geçici tanılama uç noktası: fonun 'Yatırımcı Bilgi Formu' bildirimini KAP'ta
+    bulur, PDF'ini indirir ve ham metnini döner — bu belgede Risk Değeri/Valör/
+    Son Emir Saati bilgilerinin gerçek formatını görüp otomatik ayrıştırıcı
+    yazabilmek için. CRON_KEY ile korunur."""
+    key = request.args.get("key", "")
+    if key != os.environ.get("CRON_KEY", ""):
+        return "yetkisiz", 403
+
+    fon_kodu = (request.args.get("fon") or "YHZ").strip().upper()
+    disclosure_index, publish_date, debug1 = kap_client.kap_fon_kodu_ile_rapor_bul(
+        fon_kodu, toplam_gun=3650, pencere_gun=30, konu_metni="yatırımcı bilgi formu"
+    )
+    if not disclosure_index:
+        return jsonify({"basarili": False, "hata": "Bildirim bulunamadı", "debug": debug1})
+
+    obj_id = kap_client.kap_pdf_obj_id_bul(disclosure_index)
+    if not obj_id:
+        return jsonify({"basarili": False, "hata": "PDF eki bulunamadı", "disclosure_index": disclosure_index})
+
+    try:
+        pdf_bytes = kap_client.kap_pdf_indir(obj_id, disclosure_index)
+    except Exception as e:
+        return jsonify({"basarili": False, "hata": f"PDF indirilemedi: {e}"})
+
+    import pdfplumber, io
+    metin = ""
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            for sayfa in pdf.pages[:3]:
+                metin += (sayfa.extract_text() or "") + "\n---SAYFA SONU---\n"
+    except Exception as e:
+        return jsonify({"basarili": False, "hata": f"PDF ayrıştırılamadı: {e}"})
+
+    return jsonify({
+        "basarili": True,
+        "fon_kodu": fon_kodu,
+        "disclosure_index": disclosure_index,
+        "publish_date": publish_date,
+        "ham_metin_ilk_3_sayfa": metin,
+    })
+
+
 @app.route("/fon-icerik/tefas-ham-veri")
 def fon_icerik_tefas_ham_veri():
     """Geçici tanılama uç noktası: TEFAS'ın fonGnlBlgSiraliGetir API'sinin bir fon

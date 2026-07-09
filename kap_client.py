@@ -59,15 +59,19 @@ def kap_portfoy_dagilim_subject_oid_bul():
     return None, " | ".join(debug)
 
 
-def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3):
+def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3, konu_metni="portföy dağılım raporu"):
     """OID/subject aramaya gerek kalmadan: tarihi küçük pencerelere bölüp (varsayılan
     3 gün) her pencerede TÜM bildirimleri tarar (mkkMemberOidList ve subjectList boş).
     2000 kayıt limitine yaklaşmadan geniş bir tarih aralığını güvenle tarayabilmek için
     bu şekilde parçalıyoruz (subjectOid tahminine dayanmıyor, KAP'ın şemasını olduğu
     gibi kullanıyor). En yeni pencereden başlar, eşleşme bulunca hemen durur.
+    `konu_metni`: bildirim başlığında (subject) aranan alt metin, küçük harfe çevrilip
+    karşılaştırılır — böylece bu fonksiyon Portföy Dağılım Raporu dışında (örn.
+    'yatırımcı bilgi formu') başka bildirim türleri için de kullanılabilir.
     Döner: (disclosureIndex, publishDate, debug_str) veya (None, None, debug_str)
     """
     kod = fon_kodu.strip().upper()
+    konu_metni = konu_metni.lower()
     bugun = date.today()
     debug_satirlari = []
     toplam_tarama = 0
@@ -110,19 +114,19 @@ def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3):
             eslesen = [
                 d for d in sonuclar
                 if kod in [s.strip().upper() for s in (d.get("stockCodes") or "").split(",") if s.strip()]
-                and "portföy dağılım raporu" in (d.get("subject") or "").lower()
+                and konu_metni in (d.get("subject") or "").lower()
             ]
             if not eslesen:
                 eslesen = [
                     d for d in sonuclar
                     if (d.get("fundCode") or "").strip().upper() == kod
-                    and "portföy dağılım raporu" in (d.get("subject") or "").lower()
+                    and konu_metni in (d.get("subject") or "").lower()
                 ]
             if not eslesen:
                 eslesen = [
                     d for d in sonuclar
                     if (d.get("relatedStocks") or "").strip().upper() == kod
-                    and "portföy dağılım raporu" in (d.get("subject") or "").lower()
+                    and konu_metni in (d.get("subject") or "").lower()
                 ]
             if eslesen:
                 eslesen.sort(key=lambda d: d.get("publishDate", ""), reverse=True)
@@ -130,12 +134,12 @@ def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3):
                 return en_son.get("disclosureIndex"), en_son.get("publishDate"), None
 
             # Hicbir eslesme yoksa, ornek toplamaya devam et (en fazla 4 ornek):
-            # 'portfoy' gecen HERHANGI bir subject VEYA fundCode alani dolu olan kayitlar
+            # konu_metni gecen HERHANGI bir subject VEYA fundCode alani dolu olan kayitlar
             if len(son_ornekler) < 2:
                 for d in sonuclar:
                     subj = d.get("subject") or ""
                     fc = d.get("fundCode")
-                    if "dağılım raporu" in subj.lower() or "portföy" in subj.lower() or fc:
+                    if konu_metni in subj.lower() or fc:
                         import json as _json
                         son_ornekler.append(_json.dumps(d, ensure_ascii=False))
                         if len(son_ornekler) >= 2:
