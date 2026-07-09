@@ -363,6 +363,81 @@ def pdf_hisse_dagilimi_ayikla(pdf_bytes):
                 agirliklar[ilk] = agirliklar.get(ilk, 0.0) + grup_pct
 
     hisseler = sorted(agirliklar.items(), key=lambda x: -x[1])
+    if hisseler:
+        return hisseler, kap_toplam
+    # Tablo yöntemi hiçbir satır bulamadıysa (bazı kurucuların raporlarında
+    # pdfplumber'ın tablo tespiti kelimeleri ortadan bölüp anlamsız hale
+    # getiriyor — örn. Yapı Kredi Portföy raporları), düz metin satırlarını
+    # deneyen yedek yönteme düş.
+    return pdf_hisse_dagilimi_ayikla_metin_bazli(pdf_bytes)
+
+
+_KOD_ISIN_SATIR_RE = re.compile(r"^([A-Z]{3,6})\s+(TR[A-Z0-9]{8,15})\s+(.*)$")
+_SAYI_TOKEN_US_RE = re.compile(r"^-?[\d,]+\.\d+$")
+
+
+def _us_sayi(token):
+    """ABD biçimli sayıyı (virgül binlik, nokta ondalık — örn. '13,651,250.00')
+    float'a çevirir."""
+    try:
+        return float(token.replace(",", ""))
+    except Exception:
+        return None
+
+
+def pdf_hisse_dagilimi_ayikla_metin_bazli(pdf_bytes):
+    """Bazı kurucuların raporları (örn. Yapı Kredi Portföy) pdfplumber'ın tablo
+    tespitini karman çorman ediyor — kelimeler hücreler arasında rastgele
+    bölünüyor. Bu formatlarda her hisse satırı düz metinde tek satırda ve
+    tutarlı şekilde geliyor: 'KOD ISIN İHRAÇÇI ADI NOMİNAL RAYİÇ %' (sayılar
+    ABD biçiminde: virgül binlik ayracı, nokta ondalık ayracı — PBR gibi
+    Türkçe biçimli raporlardan farklı). Son sütun (%) doğrudan fonun toplam
+    portföy değerine göre ağırlıktır. 'A) HİSSE SENETLERİ' başlığından sonraki
+    'TOPLAM ... %' satırına kadar olan satırlar işlenir; şirket adı bir alt
+    satıra taştığında (kod+ISIN ile başlamayan satır) o satır yok sayılır.
+    Döner: (hisseler: [(kod, agirlik), ...] aggregated, kap_grup_toplami: float|None)
+    """
+    import pdfplumber
+    import io
+
+    agirliklar = {}
+    kap_toplam = None
+    bolum_bulundu = False
+    bolum_bitti = False
+
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        for page in pdf.pages:
+            if bolum_bitti:
+                break
+            metin = page.extract_text() or ""
+            for satir in metin.split("\n"):
+                satir = satir.strip()
+                if not satir:
+                    continue
+                if not bolum_bulundu:
+                    if "HİSSE SENETLERİ" in re.sub(r"\s+", " ", satir).upper():
+                        bolum_bulundu = True
+                    continue
+                if satir.upper().startswith("TOPLAM"):
+                    sayi_tokenlari = [t for t in satir.split() if _SAYI_TOKEN_US_RE.match(t)]
+                    if sayi_tokenlari:
+                        kap_toplam = _us_sayi(sayi_tokenlari[-1])
+                    bolum_bitti = True
+                    break
+                esleme = _KOD_ISIN_SATIR_RE.match(satir)
+                if not esleme:
+                    continue
+                kod = esleme.group(1)
+                kalan = esleme.group(3)
+                sayi_tokenlari = [t for t in kalan.split() if _SAYI_TOKEN_US_RE.match(t)]
+                if len(sayi_tokenlari) < 3:
+                    continue
+                yuzde = _us_sayi(sayi_tokenlari[-1])
+                if yuzde is None:
+                    continue
+                agirliklar[kod] = agirliklar.get(kod, 0.0) + yuzde
+
+    hisseler = sorted(agirliklar.items(), key=lambda x: -x[1])
     return hisseler, kap_toplam
 
 

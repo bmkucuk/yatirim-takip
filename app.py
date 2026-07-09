@@ -250,6 +250,7 @@ _FON_ADI_CACHE = {}
 # bilinen doğru unvanları burada statik tutup önce bunlara bakıyoruz.
 FON_ADI_BILINEN = {
     "PBR": "Pusula Portföy Birinci Değişken Fon",
+    "YHZ": "Yapı Kredi Portföy BIST Teknoloji Ağırlık Sınırlamalı Endeksi Hisse Senedi Fonu",
 }
 
 def _fon_adi_tamamla(fon_kodu, mevcut_ad):
