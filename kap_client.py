@@ -196,10 +196,15 @@ def kap_fon_oid_bul(fon_kodu):
     return None, None, " | ".join(debug)
 
 
-def kap_son_portfoy_raporu_bul(mkk_member_oid, gun_araligi=75):
-    """Verilen fon OID'si için son 'Portföy Dağılım Raporu' bildirimini bulur.
+def kap_son_portfoy_raporu_bul(mkk_member_oid, gun_araligi=75, konu_metni="portföy dağılım raporu"):
+    """Verilen fon OID'si için son bildirimi bulur (varsayılan: Portföy Dağılım
+    Raporu, ama `konu_metni` ile başka bildirim türleri de aranabilir — örn.
+    'yatırımcı bilgi formu'). mkkMemberOidList ile filtrelendiği için KAP'ın
+    2000 kayıt/istek limitine çarpma riski yok — bu yüzden `gun_araligi` çok
+    büyük (yıllar) verilebilir, tek istekte taranır.
     Döner: (disclosureIndex, publishDate) veya (None, None)
     """
+    konu_metni = konu_metni.lower()
     bugun = date.today()
     baslangic = bugun - timedelta(days=gun_araligi)
     body = {
@@ -218,7 +223,7 @@ def kap_son_portfoy_raporu_bul(mkk_member_oid, gun_araligi=75):
         sonuclar = r.json()
         raporlar = [
             d for d in sonuclar
-            if "portföy dağılım raporu" in (d.get("subject") or "").lower()
+            if konu_metni in (d.get("subject") or "").lower()
         ]
         if not raporlar:
             return None, None

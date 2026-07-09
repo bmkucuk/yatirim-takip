@@ -2186,19 +2186,23 @@ def fon_icerik_tefas_sayfa_debug():
 @app.route("/fon-icerik/ybf-debug")
 def fon_icerik_ybf_debug():
     """Geçici tanılama uç noktası: fonun 'Yatırımcı Bilgi Formu' bildirimini KAP'ta
-    bulur, PDF'ini indirir ve ham metnini döner — bu belgede Risk Değeri/Valör/
-    Son Emir Saati bilgilerinin gerçek formatını görüp otomatik ayrıştırıcı
-    yazabilmek için. CRON_KEY ile korunur."""
+    OID-bazlı (mkkMemberOidList ile filtrelenmiş, 2000 kayıt limitine çarpmayan)
+    aramayla bulur, PDF'ini indirir ve ham metnini döner. CRON_KEY ile korunur."""
     key = request.args.get("key", "")
     if key != os.environ.get("CRON_KEY", ""):
         return "yetkisiz", 403
 
     fon_kodu = (request.args.get("fon") or "YHZ").strip().upper()
-    disclosure_index, publish_date, debug1 = kap_client.kap_fon_kodu_ile_rapor_bul(
-        fon_kodu, toplam_gun=3650, pencere_gun=30, konu_metni="yatırımcı bilgi formu"
+
+    oid, unvan, oid_debug = kap_client.kap_fon_oid_bul(fon_kodu)
+    if not oid:
+        return jsonify({"basarili": False, "hata": "OID bulunamadı", "debug": oid_debug})
+
+    disclosure_index, publish_date = kap_client.kap_son_portfoy_raporu_bul(
+        oid, gun_araligi=3650, konu_metni="yatırımcı bilgi formu"
     )
     if not disclosure_index:
-        return jsonify({"basarili": False, "hata": "Bildirim bulunamadı", "debug": debug1})
+        return jsonify({"basarili": False, "hata": "Bildirim bulunamadı (OID bulundu ama YBF bildirimi yok)", "oid": oid, "unvan": unvan})
 
     obj_id = kap_client.kap_pdf_obj_id_bul(disclosure_index)
     if not obj_id:
@@ -2221,6 +2225,8 @@ def fon_icerik_ybf_debug():
     return jsonify({
         "basarili": True,
         "fon_kodu": fon_kodu,
+        "oid": oid,
+        "unvan": unvan,
         "disclosure_index": disclosure_index,
         "publish_date": publish_date,
         "ham_metin_ilk_3_sayfa": metin,
