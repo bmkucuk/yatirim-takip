@@ -71,6 +71,7 @@ def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3):
     bugun = date.today()
     debug_satirlari = []
     toplam_tarama = 0
+    son_ornekler = []
     pencere_sayisi = max(1, toplam_gun // pencere_gun)
 
     for i in range(pencere_sayisi):
@@ -112,8 +113,19 @@ def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3):
                 en_son = eslesen[0]
                 return en_son.get("disclosureIndex"), en_son.get("publishDate"), None
 
-            # Bu pencere 2000 limitine tam denk gelmisse muhtemelen bazi kayitlar
-            # kacirilmis olabilir - bunu debug'a not et
+            # Hicbir eslesme yoksa, ornek toplamaya devam et (en fazla 4 ornek):
+            # 'portfoy' gecen HERHANGI bir subject VEYA fundCode alani dolu olan kayitlar
+            if len(son_ornekler) < 4:
+                for d in sonuclar:
+                    subj = d.get("subject") or ""
+                    fc = d.get("fundCode")
+                    if "portföy" in subj.lower() or fc:
+                        son_ornekler.append(
+                            f"fundCode={fc!r} relatedStocks={d.get('relatedStocks')!r} subject={subj!r} disclosureClass={d.get('disclosureClass')!r}"
+                        )
+                        if len(son_ornekler) >= 4:
+                            break
+
             if len(sonuclar) >= 1990:
                 debug_satirlari.append(f"[{baslangic}-{bitis}] {len(sonuclar)} kayit (limite yakin!)")
         except Exception as e:
@@ -121,6 +133,8 @@ def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3):
         time.sleep(0.5)
 
     debug = f"{pencere_sayisi} pencere ({toplam_gun} gün), toplam {toplam_tarama} bildirim tarandı, '{kod}' eşleşmesi yok."
+    if son_ornekler:
+        debug += " ÖRNEK KAYITLAR: " + " ;; ".join(son_ornekler)
     if debug_satirlari:
         debug += " " + " | ".join(debug_satirlari)
     return None, None, debug
