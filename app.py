@@ -190,6 +190,7 @@ FON_DETAY_BILGI = {
     "PHE": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "6/7", "son_emir_saati": "13:30"},
     "PBR": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "4/7", "son_emir_saati": "13:30"},
     "TTE": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "7/7", "son_emir_saati": "13:30"},
+    "YHZ": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "7/7", "son_emir_saati": "13:30"},
 }
 # ── Fon İçerik Analizi ────────────────────────────────────────────────────────
 # Her fonun hisse bazlı ağırlıkları (%). KAP'ta yayınlanan resmi aylık Portföy
