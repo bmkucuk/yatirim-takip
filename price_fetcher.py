@@ -179,6 +179,113 @@ def fetch_hisse_fiyatlari(semboller, tur_map=None):
             pass
     return results, "Yahoo-Finance" if results else None
 
+def fetch_hisse_detay_toplu(semboller):
+    """Yahoo v7/finance/quote ile toplu anlık fiyat + günlük değişim (%) — tek istekte.
+    Döndürür: {sembol: {"fiyat": float, "degisim": float|None}}
+    """
+    if not semboller:
+        return {}
+    yahoo_semboller = []
+    sembol_map = {}
+    for sembol in semboller:
+        ys = f"{sembol}.IS" if not sembol.endswith(".IS") else sembol
+        yahoo_semboller.append(ys)
+        sembol_map[ys] = sembol
+    try:
+        r = requests.get(
+            f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={','.join(yahoo_semboller)}",
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+            timeout=15
+        )
+        if r.status_code == 200:
+            data = r.json()
+            sonuc = {}
+            for item in data.get("quoteResponse", {}).get("result", []):
+                ys = item.get("symbol", "")
+                fiyat = item.get("regularMarketPrice")
+                degisim = item.get("regularMarketChangePercent")
+                if fiyat is not None and ys in sembol_map:
+                    sonuc[sembol_map[ys]] = {
+                        "fiyat": round(float(fiyat), 4),
+                        "degisim": round(float(degisim), 2) if degisim is not None else None,
+                    }
+            return sonuc
+    except Exception:
+        pass
+    return {}
+
+
+def _tl_sayi(s):
+    """'1.343,00' veya '-3,93' gibi TR formatlı sayıyı float'a çevir."""
+    s = s.strip()
+    try:
+        return float(s.replace(".", "").replace(",", "."))
+    except Exception:
+        return None
+
+
+def fetch_milliyet_fiyatlar(semboller):
+    """uzmanpara.milliyet.com.tr 'Tüm Hisseler' sayfasından (harf bazlı) fiyat + günlük değişim çek.
+    Yahoo'da bulunamayan sembolleri tamamlamak için fallback olarak kullanılır.
+    Döndürür: {sembol: {"fiyat": float, "degisim": float}}
+    """
+    import re
+    from bs4 import BeautifulSoup
+
+    hedef = {s.upper() for s in semboller if s}
+    if not hedef:
+        return {}
+    harfler = sorted({s[0] for s in hedef})
+    sayi_re = re.compile(r"^-?[\d\.]+,\d+$")
+    sonuc = {}
+    for harf in harfler:
+        try:
+            url = f"https://uzmanpara.milliyet.com.tr/canli-borsa/bist-TUM-hisseleri/?Harf={harf}"
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            if r.status_code != 200:
+                continue
+            soup = BeautifulSoup(r.text, "html.parser")
+            for tr in soup.find_all("tr"):
+                tds = tr.find_all("td")
+                if len(tds) < 4:
+                    continue
+                a = tds[0].find("a")
+                if not a:
+                    continue
+                kod = a.get_text(strip=True).upper()
+                if kod not in hedef or kod in sonuc:
+                    continue
+                degerler = [td.get_text(strip=True) for td in tds[1:]]
+                fiyat = degisim = None
+                for v in degerler:
+                    if sayi_re.match(v):
+                        if fiyat is None:
+                            fiyat = _tl_sayi(v)
+                        elif degisim is None:
+                            degisim = _tl_sayi(v)
+                            break
+                if fiyat is not None and degisim is not None:
+                    sonuc[kod] = {"fiyat": fiyat, "degisim": degisim}
+        except Exception:
+            continue
+        time.sleep(0.2)
+    return sonuc
+
+
+def fetch_fon_icerik_fiyatlari(semboller):
+    """Fon içerik analizi için: önce Yahoo (tek istek, hızlı), eksik kalanlar için
+    Milliyet Uzmanpara (harf bazlı) fallback. Döndürür: {sembol: {"fiyat", "degisim"}}
+    """
+    semboller = list(dict.fromkeys(semboller))  # sırayı koru, tekilleştir
+    sonuc = fetch_hisse_detay_toplu(semboller)
+    eksikler = [s for s in semboller if s not in sonuc or sonuc[s].get("degisim") is None]
+    if eksikler:
+        milliyet = fetch_milliyet_fiyatlar(eksikler)
+        for k, v in milliyet.items():
+            sonuc[k] = v
+    return sonuc
+
+
 def fetch_all_prices(fon_sembolleri, hisse_sembolleri, tur_map=None):
     today = bugun_str()
     prices, methods, errors = [], [], []

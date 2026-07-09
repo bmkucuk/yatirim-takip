@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Fon İçerik Analizi — Yatırım Takip{% endblock %}
+{% block content %}
+
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+  <h2>🔍 Fon İçerik Analizi</h2>
+  <button id="guncelle-btn" class="btn-primary" style="padding:8px 20px;font-size:0.9rem" onclick="fonIcerikGuncelle()">
+    🔄 Güncelle
+  </button>
+</div>
+
+<div style="font-size:0.8rem;color:var(--text2);margin-bottom:1rem">
+  Hisse ağırlıkları Fintables'ın aylık KAP portföy dağılım raporuna dayanır (ayda bir değişir).
+  Fiyat ve günlük değişim her açılışta / "Güncelle" ile canlı çekilir.
+  <span id="son-guncelleme"></span>
+</div>
+
+<div class="fon-icerik-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1.2rem" id="fon-icerik-container">
+{% for fon_kod, fon in fonlar.items() %}
+  <div class="card fon-karti" data-fon="{{ fon_kod }}">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
+      <div style="font-weight:700;font-size:0.95rem">{{ fon.ad }}</div>
+      <div class="fon-toplam {{ 'pos' if fon.toplam_katki >= 0 else 'neg' }}" style="font-weight:700;font-size:1rem">
+        {{ "%+.2f"|format(fon.toplam_katki) }}%
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table" style="font-size:0.82rem">
+        <thead>
+          <tr>
+            <th>Hisse</th>
+            <th>Ağırlık</th>
+            <th>Fiyat</th>
+            <th>Değişim</th>
+            <th>Katkı</th>
+          </tr>
+        </thead>
+        <tbody class="fon-tbody">
+          {% for s in fon.satirlar %}
+          <tr>
+            <td>{{ s.kod }}</td>
+            <td>{{ "%.2f"|format(s.agirlik) }}%</td>
+            <td>{{ "%.2f"|format(s.fiyat) if s.fiyat is not none else "—" }}</td>
+            <td class="{{ 'pos' if (s.degisim or 0) >= 0 else 'neg' }}">
+              {{ "%+.2f"|format(s.degisim) + "%" if s.degisim is not none else "—" }}
+            </td>
+            <td class="{{ 'pos' if (s.katki or 0) >= 0 else 'neg' }}">
+              {{ "%+.3f"|format(s.katki) + "%" if s.katki is not none else "—" }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endfor %}
+</div>
+
+<script>
+function fonSatirHtml(s) {
+  const pozNeg = (v) => (v || 0) >= 0 ? 'pos' : 'neg';
+  const fiyat = s.fiyat !== null && s.fiyat !== undefined ? s.fiyat.toFixed(2) : '—';
+  const degisim = s.degisim !== null && s.degisim !== undefined ? (s.degisim >= 0 ? '+' : '') + s.degisim.toFixed(2) + '%' : '—';
+  const katki = s.katki !== null && s.katki !== undefined ? (s.katki >= 0 ? '+' : '') + s.katki.toFixed(3) + '%' : '—';
+  return `<tr>
+    <td>${s.kod}</td>
+    <td>${s.agirlik.toFixed(2)}%</td>
+    <td>${fiyat}</td>
+    <td class="${pozNeg(s.degisim)}">${degisim}</td>
+    <td class="${pozNeg(s.katki)}">${katki}</td>
+  </tr>`;
+}
+
+async function fonIcerikGuncelle() {
+  const btn = document.getElementById('guncelle-btn');
+  const eskiMetin = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Güncelleniyor...';
+  try {
+    const r = await fetch("{{ url_for('api_fon_icerik_guncelle') }}");
+    const data = await r.json();
+    for (const [fonKod, fon] of Object.entries(data)) {
+      const kart = document.querySelector(`.fon-karti[data-fon="${fonKod}"]`);
+      if (!kart) continue;
+      const toplamEl = kart.querySelector('.fon-toplam');
+      toplamEl.textContent = (fon.toplam_katki >= 0 ? '+' : '') + fon.toplam_katki.toFixed(2) + '%';
+      toplamEl.className = 'fon-toplam ' + (fon.toplam_katki >= 0 ? 'pos' : 'neg');
+      const tbody = kart.querySelector('.fon-tbody');
+      tbody.innerHTML = fon.satirlar.map(fonSatirHtml).join('');
+    }
+    document.getElementById('son-guncelleme').textContent = ' — son güncelleme: ' + new Date().toLocaleTimeString('tr-TR');
+  } catch (e) {
+    alert('Güncelleme başarısız: ' + e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = eskiMetin;
+  }
+}
+</script>
+
+{% endblock %}

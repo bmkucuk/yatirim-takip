@@ -4,7 +4,7 @@ from functools import wraps
 import sqlite3, os, hashlib, secrets
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-from price_fetcher import fetch_all_prices
+from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
@@ -137,6 +137,83 @@ def bugun():
 # Vergi muaf fonlar (PHE altın fonu - stopaj yok)
 VERGISIZ_FONLAR = {"PHE"}
 VERGI_ORANI = 0.175  # %17.5
+# ── Fon İçerik Analizi ────────────────────────────────────────────────────────
+# Her fonun hisse bazlı ağırlıkları (%). Fintables'ın aylık KAP portföy dağılım
+# raporuna dayanır — ayda bir güncellenir, günlük değişmez. Fiyat/günlük değişim
+# kısmı ise sayfa her açıldığında (veya "Güncelle" ile) canlı çekilir.
+# NOT: TTE fonunun alt sıralarındaki ağırlıklar kaynak şablonda negatif görünüyor
+# (muhtemelen demo/placeholder veri) — gerçek KAP raporuyla teyit edilmeli.
+FON_ICERIK = {
+    "TLY": {
+        "ad": "TLY Portföyü",
+        "hisseler": [
+            ("DSTKF", 17.71), ("OZATD", 17.16), ("TERA", 11.50), ("PEKGY", 9.89),
+            ("TRHOL", 6.59), ("TEHOL", 5.50), ("ANELE", 2.15), ("ALKLC", 0.66),
+            ("SVGYO", 0.55), ("TMPOL", 0.33), ("HEDEF", 0.28), ("EUPWR", 0.03),
+            ("CWENE", 0.03),
+        ],
+    },
+    "PHE": {
+        "ad": "PHE Portföyü",
+        "hisseler": [
+            ("GUNDG", 12.38), ("KTLEV", 10.70), ("ODINE", 9.17), ("PASEU", 7.79),
+            ("HEDEF", 4.54), ("THYAO", 4.36), ("TATEN", 3.79), ("TRALT", 3.29),
+            ("AKBNK", 3.17), ("DSTKF", 3.09), ("YKBNK", 2.98), ("TCELL", 2.94),
+            ("MGROS", 2.49), ("SAHOL", 2.35), ("KCHOL", 2.11), ("ISCTR", 1.81),
+            ("ALKLC", 1.29), ("BIMAS", 1.28), ("DAPGM", 1.14), ("TTKOM", 0.89),
+            ("TERA", 0.85), ("GARAN", 0.83), ("ENKAI", 0.58), ("PEKGY", 0.44),
+            ("AKSEN", 0.42), ("ALVES", 0.37), ("PGSUS", 0.35), ("IZFAS", 0.29),
+            ("GUBRF", 0.26), ("TRHOL", 0.22), ("TEHOL", 0.04), ("TOASO", 0.02),
+        ],
+    },
+    "TTE": {
+        "ad": "İş Portföy BIST Teknoloji Endeksi (TTE)",
+        "hisseler": [
+            ("ASELS", 18.87), ("ODINE", 15.39), ("MIATK", 6.20), ("LOGO", 4.65),
+            ("MANAS", 3.56), ("ARDYZ", 3.28), ("DOFRB", 3.15), ("INDES", 3.13),
+            ("PATEK", 3.04), ("NETCD", 2.77), ("ALTNY", 2.69), ("HTTBT", 1.88),
+            ("MCARD", 1.87), ("KAREL", 1.84), ("ATATP", 1.82), ("SDTTR", 1.73),
+            ("LINK", 1.71), ("REEDR", 1.70), ("FONET", 1.39), ("PAPIL", 1.39),
+            ("MOBTL", 1.38), ("BINBN", 1.27), ("EMPAE", 1.22), ("EDATA", 1.01),
+            ("PENTA", 1.01), ("ESCOM", 0.99), ("FORTE", 0.90), ("KRONT", 0.78),
+            ("ALCTL", 0.74), ("ONRYT", 0.68), ("NETAS", 0.67), ("KFEIN", 0.66),
+            ("ARENA", -1.64), ("VBTYZ", -1.91), ("AZTEK", -2.19), ("DGATE", -2.46),
+            ("INGRM", -2.74), ("PKART", -3.02), ("SMART", -3.29), ("MTRKS", -3.57),
+            ("OBASE", -3.84), ("DESPC", -4.12),
+        ],
+    },
+}
+
+
+def fon_icerik_hesapla():
+    """Her fon için tüm hisselerin güncel fiyat/değişimini çekip katkı hesaplar."""
+    tum_semboller = []
+    for fon in FON_ICERIK.values():
+        for kod, _ in fon["hisseler"]:
+            tum_semboller.append(kod)
+    fiyatlar = fetch_fon_icerik_fiyatlari(tum_semboller)
+
+    sonuc = {}
+    for fon_kod, fon in FON_ICERIK.items():
+        satirlar = []
+        toplam_katki = 0.0
+        for kod, agirlik in fon["hisseler"]:
+            veri = fiyatlar.get(kod)
+            degisim = veri["degisim"] if veri else None
+            fiyat = veri["fiyat"] if veri else None
+            katki = (agirlik * degisim / 100.0) if degisim is not None else None
+            if katki is not None:
+                toplam_katki += katki
+            satirlar.append({
+                "kod": kod, "agirlik": agirlik, "fiyat": fiyat,
+                "degisim": degisim, "katki": katki,
+            })
+        satirlar.sort(key=lambda x: (x["katki"] is None, -(x["katki"] or 0)))
+        sonuc[fon_kod] = {
+            "ad": fon["ad"], "satirlar": satirlar, "toplam_katki": round(toplam_katki, 3),
+        }
+    return sonuc
+
 
 def net_kar(sembol, tur, kar_zarar):
     """Vergi sonrası net kar hesapla."""
@@ -1837,6 +1914,20 @@ if __name__ == "__main__":
 # ── Sembol Arama ──────────────────────────────────────────────────────────────
 
 # ── Getiri Kıyaslama ─────────────────────────────────────────────────────────
+
+@app.route("/fon-icerik")
+@login_required
+def fon_icerik():
+    veri = fon_icerik_hesapla()
+    return render_template("fon_icerik.html", fonlar=veri)
+
+
+@app.route("/api/fon-icerik-guncelle")
+@login_required
+def api_fon_icerik_guncelle():
+    veri = fon_icerik_hesapla()
+    return jsonify(veri)
+
 
 @app.route("/kiyaslama")
 @login_required
