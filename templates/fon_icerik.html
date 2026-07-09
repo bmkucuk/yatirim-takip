@@ -17,24 +17,44 @@
 
 <div id="fon-ekle-durum" style="font-size:0.85rem;margin-bottom:0.6rem;display:none"></div>
 
-
 <div style="font-size:0.8rem;color:var(--text2);margin-bottom:1rem">
   Hisse ağırlıkları Fintables'ın aylık KAP portföy dağılım raporuna dayanır (ayda bir değişir).
   Fiyat ve günlük değişim her açılışta / "Güncelle" ile canlı çekilir.
   <span id="son-guncelleme"></span>
 </div>
 
-<div class="fon-icerik-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1.2rem" id="fon-icerik-container">
+<div class="fon-icerik-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem" id="fon-icerik-container">
 {% for fon_kod, fon in fonlar.items() %}
-  <div class="card fon-karti" data-fon="{{ fon_kod }}">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
-      <div style="font-weight:700;font-size:0.95rem">{{ fon.ad }}</div>
-      <div class="fon-toplam {{ 'pos' if fon.toplam_katki >= 0 else 'neg' }}" style="font-weight:700;font-size:1rem">
+  <div class="card fon-karti-ozet" data-fon="{{ fon_kod }}">
+    <div class="fon-ozet-ust">
+      <div class="fon-ozet-ad" title="{{ fon.ad }}">{{ fon.ad }}</div>
+      <button class="fon-sil-btn" title="Fonu sil" onclick="fonSil('{{ fon_kod }}')">🗑</button>
+    </div>
+    <div class="fon-ozet-alt">
+      <div class="fon-toplam {{ 'pos' if fon.toplam_katki >= 0 else 'neg' }}">
         {{ "%+.2f"|format(fon.toplam_katki) }}%
       </div>
+      <button class="btn-detay" onclick="fonDetayAc('{{ fon_kod }}')">Detay <span style="font-weight:400">＋</span></button>
+    </div>
+  </div>
+{% endfor %}
+</div>
+
+<!-- Detay Modalı -->
+<div id="fon-detay-modal" class="fon-modal-overlay" onclick="if(event.target===this) fonDetayKapat()">
+  <div class="fon-modal-box">
+    <div class="fon-modal-header">
+      <div>
+        <div id="fon-modal-baslik" style="font-weight:700;font-size:1.05rem"></div>
+        <div id="fon-modal-toplam" style="font-weight:700;font-size:1.1rem;margin-top:2px"></div>
+      </div>
+      <button class="fon-modal-kapat" onclick="fonDetayKapat()" title="Kapat">✕</button>
+    </div>
+    <div class="fon-modal-filtre">
+      <input type="text" id="fon-modal-arama" placeholder="🔎 Hisse kodu veya adı ara..." oninput="fonModalFiltrele()">
     </div>
     <div class="table-wrap">
-      <table class="data-table" style="font-size:0.82rem">
+      <table class="data-table" id="fon-modal-table" style="font-size:0.82rem">
         <thead>
           <tr>
             <th class="sortable" data-type="str" onclick="sortFonTable(this)">Hisse</th>
@@ -44,31 +64,136 @@
             <th class="sortable" data-type="num" onclick="sortFonTable(this)">Katkı</th>
           </tr>
         </thead>
-        <tbody class="fon-tbody">
-          {% for s in fon.satirlar %}
-          <tr>
-            <td><span class="hisse-kod" data-isim="{{ s.isim or '' }}">{{ s.kod }}</span></td>
-            <td>{{ "%.2f"|format(s.agirlik) }}%</td>
-            <td>{{ "%.2f"|format(s.fiyat) if s.fiyat is not none else "—" }}</td>
-            <td class="{{ 'pos' if (s.degisim or 0) >= 0 else 'neg' }}">
-              {{ "%+.2f"|format(s.degisim) + "%" if s.degisim is not none else "—" }}
-            </td>
-            <td class="{{ 'pos' if (s.katki or 0) >= 0 else 'neg' }}">
-              {{ "%+.3f"|format(s.katki) + "%" if s.katki is not none else "—" }}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
+        <tbody class="fon-tbody" id="fon-modal-tbody"></tbody>
       </table>
     </div>
+    <div id="fon-modal-bos" style="display:none;text-align:center;color:var(--text2);padding:1.2rem;font-size:0.85rem">
+      Aramanızla eşleşen hisse bulunamadı.
+    </div>
   </div>
-{% endfor %}
 </div>
 
 <style>
-.fon-karti th.sortable { cursor: pointer; user-select: none; }
-.fon-karti th.sortable:hover { color: var(--accent); }
-.fon-karti .sort-arrow { font-size: 0.7em; opacity: 0.8; }
+.fon-karti-ozet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1rem 1.1rem;
+}
+.fon-ozet-ust {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.fon-ozet-ad {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.fon-sil-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 3px 7px;
+  line-height: 1;
+  flex-shrink: 0;
+  color: var(--text2);
+  transition: 0.15s;
+}
+.fon-sil-btn:hover {
+  border-color: var(--neg);
+  color: var(--neg);
+  background: rgba(239, 68, 68, 0.08);
+}
+.fon-ozet-alt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.fon-toplam { font-size: 1.15rem; }
+.btn-detay {
+  background: var(--accent);
+  color: #0b0e14;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: 0.15s;
+}
+.btn-detay:hover { opacity: 0.85; }
+
+.fon-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.fon-modal-overlay.acik { display: flex; }
+.fon-modal-box {
+  background: var(--card, #14161c);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 640px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+.fon-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 1rem 1.2rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+.fon-modal-kapat {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text2);
+  cursor: pointer;
+  padding: 4px 9px;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+.fon-modal-kapat:hover { color: #fff; border-color: var(--text2); }
+.fon-modal-filtre { padding: 0.8rem 1.2rem 0; }
+.fon-modal-filtre input {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: inherit;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  box-sizing: border-box;
+}
+.fon-modal-box .table-wrap { padding: 0.8rem 1.2rem 1.2rem; overflow-y: auto; }
+
+.fon-karti-ozet th.sortable,
+.fon-modal-box th.sortable { cursor: pointer; user-select: none; }
+.fon-karti-ozet th.sortable:hover,
+.fon-modal-box th.sortable:hover { color: var(--accent); }
+.sort-arrow { font-size: 0.7em; opacity: 0.8; }
 .hisse-kod { position: relative; }
 .hisse-kod[data-isim]:not([data-isim=""]) {
   cursor: help;
@@ -87,12 +212,15 @@
   font-size: 0.78rem;
   font-weight: 400;
   white-space: nowrap;
-  z-index: 50;
+  z-index: 1001;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 </style>
 
 <script>
+const FON_VERI = {{ fonlar | tojson }};
+let aktifFonKod = null;
+
 async function fonPdfSecildi() {
   const dosyaInput = document.getElementById('yeni-fon-pdf');
   const dosya = dosyaInput.files[0];
@@ -164,6 +292,7 @@ function sortFonTable(th) {
     return dir === 'asc' ? na - nb : nb - na;
   });
   rows.forEach(r => tbody.appendChild(r));
+  fonModalFiltrele();
 }
 
 function fonSatirHtml(s) {
@@ -181,6 +310,78 @@ function fonSatirHtml(s) {
   </tr>`;
 }
 
+function fonOzetKartiGuncelle(fonKod, fon) {
+  const kart = document.querySelector(`.fon-karti-ozet[data-fon="${fonKod}"]`);
+  if (!kart) return;
+  const toplamEl = kart.querySelector('.fon-toplam');
+  toplamEl.textContent = (fon.toplam_katki >= 0 ? '+' : '') + fon.toplam_katki.toFixed(2) + '%';
+  toplamEl.className = 'fon-toplam ' + (fon.toplam_katki >= 0 ? 'pos' : 'neg');
+}
+
+function fonDetayAc(fonKod) {
+  const fon = FON_VERI[fonKod];
+  if (!fon) return;
+  aktifFonKod = fonKod;
+  document.getElementById('fon-modal-baslik').textContent = fon.ad;
+  const toplamEl = document.getElementById('fon-modal-toplam');
+  toplamEl.textContent = (fon.toplam_katki >= 0 ? '+' : '') + fon.toplam_katki.toFixed(2) + '%';
+  toplamEl.className = fon.toplam_katki >= 0 ? 'pos' : 'neg';
+  document.getElementById('fon-modal-arama').value = '';
+  document.querySelectorAll('#fon-modal-table th').forEach(h => {
+    h.dataset.dir = '';
+    const arrow = h.querySelector('.sort-arrow');
+    if (arrow) arrow.remove();
+  });
+  document.getElementById('fon-modal-tbody').innerHTML = fon.satirlar.map(fonSatirHtml).join('');
+  document.getElementById('fon-modal-bos').style.display = 'none';
+  document.getElementById('fon-detay-modal').classList.add('acik');
+}
+
+function fonDetayKapat() {
+  document.getElementById('fon-detay-modal').classList.remove('acik');
+  aktifFonKod = null;
+}
+
+function fonModalFiltrele() {
+  const qEl = document.getElementById('fon-modal-arama');
+  const q = qEl.value.trim().toLocaleUpperCase('tr');
+  const rows = document.querySelectorAll('#fon-modal-tbody tr');
+  let gorunenSayisi = 0;
+  rows.forEach(r => {
+    const kodEl = r.querySelector('.hisse-kod');
+    const kod = (kodEl?.textContent || '').toLocaleUpperCase('tr');
+    const isim = (kodEl?.dataset.isim || '').toLocaleUpperCase('tr');
+    const eslesir = !q || kod.includes(q) || isim.includes(q);
+    r.style.display = eslesir ? '' : 'none';
+    if (eslesir) gorunenSayisi++;
+  });
+  document.getElementById('fon-modal-bos').style.display = (rows.length > 0 && gorunenSayisi === 0) ? 'block' : 'none';
+}
+
+async function fonSil(fonKod) {
+  const fon = FON_VERI[fonKod];
+  const ad = fon ? fon.ad : fonKod;
+  if (!confirm(`"${ad}" fonunu bu sayfadan kaldırmak istediğinize emin misiniz?`)) return;
+  try {
+    const r = await fetch("{{ url_for('fon_icerik_fon_sil') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fon_kodu: fonKod }),
+    });
+    const data = await r.json();
+    if (!data.basarili) {
+      alert('❌ ' + (data.hata || 'Silme başarısız'));
+      return;
+    }
+    delete FON_VERI[fonKod];
+    const kart = document.querySelector(`.fon-karti-ozet[data-fon="${fonKod}"]`);
+    if (kart) kart.remove();
+    if (aktifFonKod === fonKod) fonDetayKapat();
+  } catch (e) {
+    alert('❌ Silme başarısız: ' + e);
+  }
+}
+
 async function fonIcerikGuncelle() {
   const btn = document.getElementById('guncelle-btn');
   const eskiMetin = btn.textContent;
@@ -190,19 +391,22 @@ async function fonIcerikGuncelle() {
     const r = await fetch("{{ url_for('api_fon_icerik_guncelle') }}");
     const data = await r.json();
     for (const [fonKod, fon] of Object.entries(data)) {
-      const kart = document.querySelector(`.fon-karti[data-fon="${fonKod}"]`);
-      if (!kart) continue;
-      const toplamEl = kart.querySelector('.fon-toplam');
-      toplamEl.textContent = (fon.toplam_katki >= 0 ? '+' : '') + fon.toplam_katki.toFixed(2) + '%';
-      toplamEl.className = 'fon-toplam ' + (fon.toplam_katki >= 0 ? 'pos' : 'neg');
-      const tbody = kart.querySelector('.fon-tbody');
-      tbody.innerHTML = fon.satirlar.map(fonSatirHtml).join('');
-      const table = kart.querySelector('table');
-      const aktifTh = table.querySelector('th[data-dir="asc"], th[data-dir="desc"]');
-      if (aktifTh) {
-        const korunacakDir = aktifTh.dataset.dir;
-        aktifTh.dataset.dir = korunacakDir === 'asc' ? 'desc' : 'asc';
-        sortFonTable(aktifTh);
+      FON_VERI[fonKod] = fon;
+      fonOzetKartiGuncelle(fonKod, fon);
+      if (aktifFonKod === fonKod) {
+        const toplamEl = document.getElementById('fon-modal-toplam');
+        toplamEl.textContent = (fon.toplam_katki >= 0 ? '+' : '') + fon.toplam_katki.toFixed(2) + '%';
+        toplamEl.className = fon.toplam_katki >= 0 ? 'pos' : 'neg';
+        document.getElementById('fon-modal-tbody').innerHTML = fon.satirlar.map(fonSatirHtml).join('');
+        const table = document.getElementById('fon-modal-table');
+        const aktifTh = table.querySelector('th[data-dir="asc"], th[data-dir="desc"]');
+        if (aktifTh) {
+          const korunacakDir = aktifTh.dataset.dir;
+          aktifTh.dataset.dir = korunacakDir === 'asc' ? 'desc' : 'asc';
+          sortFonTable(aktifTh);
+        } else {
+          fonModalFiltrele();
+        }
       }
     }
     document.getElementById('son-guncelleme').textContent = ' — son güncelleme: ' + new Date().toLocaleTimeString('tr-TR');

@@ -119,6 +119,10 @@ def init_db():
             guncelleme_tarihi TEXT DEFAULT (datetime('now')),
             UNIQUE(fon_kod, hisse_kod)
         );
+        CREATE TABLE IF NOT EXISTS fon_silinen (
+            fon_kod TEXT PRIMARY KEY,
+            silinme_tarihi TEXT DEFAULT (datetime('now'))
+        );
         """)
     # Migration: mevcut tablolara eksik kolonları ekle
     try:
@@ -201,10 +205,17 @@ FON_ICERIK = {
 }
 
 
+def fon_silinenleri_getir():
+    with get_db() as conn:
+        satirlar = conn.execute("SELECT fon_kod FROM fon_silinen").fetchall()
+    return {s["fon_kod"] for s in satirlar}
+
+
 def fon_tum_kompozisyonlari_getir():
     """FON_ICERIK (hardcoded, doğrulanmış) + DB'ye KAP'tan otomatik eklenmiş fonları
     birleştirir. Aynı fon kodu DB'de varsa (yeniden çekilmiş/güncellenmiş), DB'deki
-    veri hardcoded olanın üzerine yazar.
+    veri hardcoded olanın üzerine yazar. Kullanıcı tarafından silinmiş fonlar
+    (fon_silinen tablosu) sonuçtan çıkarılır.
     """
     birlesik = {k: dict(v) for k, v in FON_ICERIK.items()}
     with get_db() as conn:
@@ -218,6 +229,9 @@ def fon_tum_kompozisyonlari_getir():
             db_fonlar[fk] = {"ad": s["fon_ad"] or fk, "hisseler": []}
         db_fonlar[fk]["hisseler"].append((s["hisse_kod"], s["agirlik"]))
     birlesik.update(db_fonlar)
+    silinenler = fon_silinenleri_getir()
+    for fk in silinenler:
+        birlesik.pop(fk, None)
     return birlesik
 
 
@@ -1980,6 +1994,7 @@ def fon_icerik_fon_ekle():
 
     with get_db() as conn:
         conn.execute("DELETE FROM fon_kompozisyon WHERE fon_kod = ?", (fon_kodu,))
+        conn.execute("DELETE FROM fon_silinen WHERE fon_kod = ?", (fon_kodu,))
         for kod, agirlik in sonuc["hisseler"]:
             conn.execute(
                 "INSERT INTO fon_kompozisyon (fon_kod, fon_ad, hisse_kod, agirlik, donem) "
@@ -1997,6 +2012,31 @@ def fon_icerik_fon_ekle():
         "dogrulandi": sonuc.get("dogrulandi"),
         "fonlar": guncel,
     })
+
+
+@app.route("/fon-icerik/fon-sil", methods=["POST"])
+@login_required
+def fon_icerik_fon_sil():
+    """Bir fonu Fon İçerik Analizi sayfasından kaldırır. Hardcoded (FON_ICERIK)
+    fonlar için fon_silinen tablosuna işaretlenir; KAP/PDF ile DB'ye eklenmiş
+    fonlar için ayrıca fon_kompozisyon satırları da silinir."""
+    fon_kodu = (request.json or {}).get("fon_kodu", "").strip().upper()
+    if not fon_kodu:
+        return jsonify({"basarili": False, "hata": "Fon kodu boş olamaz."}), 400
+
+    tum_fonlar = fon_tum_kompozisyonlari_getir()
+    if fon_kodu not in tum_fonlar:
+        return jsonify({"basarili": False, "hata": "Fon bulunamadı."}), 404
+
+    with get_db() as conn:
+        conn.execute("DELETE FROM fon_kompozisyon WHERE fon_kod = ?", (fon_kodu,))
+        conn.execute(
+            "INSERT INTO fon_silinen (fon_kod) VALUES (?) "
+            "ON CONFLICT(fon_kod) DO NOTHING",
+            (fon_kodu,),
+        )
+
+    return jsonify({"basarili": True, "fon_kodu": fon_kodu})
 
 
 @app.route("/fon-icerik/pdf-yukle", methods=["POST"])
@@ -2033,6 +2073,7 @@ def fon_icerik_pdf_yukle():
 
     with get_db() as conn:
         conn.execute("DELETE FROM fon_kompozisyon WHERE fon_kod = ?", (fon_kodu,))
+        conn.execute("DELETE FROM fon_silinen WHERE fon_kod = ?", (fon_kodu,))
         for kod, agirlik in hisseler:
             conn.execute(
                 "INSERT INTO fon_kompozisyon (fon_kod, fon_ad, hisse_kod, agirlik, donem) "
