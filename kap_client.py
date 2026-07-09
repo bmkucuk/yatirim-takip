@@ -115,15 +115,14 @@ def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3):
 
             # Hicbir eslesme yoksa, ornek toplamaya devam et (en fazla 4 ornek):
             # 'portfoy' gecen HERHANGI bir subject VEYA fundCode alani dolu olan kayitlar
-            if len(son_ornekler) < 4:
+            if len(son_ornekler) < 2:
                 for d in sonuclar:
                     subj = d.get("subject") or ""
                     fc = d.get("fundCode")
-                    if "portföy" in subj.lower() or fc:
-                        son_ornekler.append(
-                            f"fundCode={fc!r} relatedStocks={d.get('relatedStocks')!r} subject={subj!r} disclosureClass={d.get('disclosureClass')!r}"
-                        )
-                        if len(son_ornekler) >= 4:
+                    if "dağılım raporu" in subj.lower() or "portföy" in subj.lower() or fc:
+                        import json as _json
+                        son_ornekler.append(_json.dumps(d, ensure_ascii=False))
+                        if len(son_ornekler) >= 2:
                             break
 
             if len(sonuclar) >= 1990:
