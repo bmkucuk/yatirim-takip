@@ -53,6 +53,36 @@
     <div class="fon-modal-filtre">
       <input type="text" id="fon-modal-arama" placeholder="🔎 Hisse kodu veya adı ara..." oninput="fonModalFiltrele()">
     </div>
+    <div class="fon-bilgi-panel">
+      <div class="fon-bilgi-satir">
+        <span class="fon-bilgi-etiket">Son Emir Saati</span>
+        <span class="fon-bilgi-deger" id="fon-modal-son-emir">—</span>
+      </div>
+      <div class="fon-bilgi-satir">
+        <span class="fon-bilgi-etiket">Stopaj Oranı</span>
+        <span class="fon-bilgi-deger" id="fon-modal-stopaj">—</span>
+      </div>
+      <div class="fon-bilgi-satir">
+        <span class="fon-bilgi-etiket">Varlık Sınıfı Dağılımı</span>
+        <span class="fon-bilgi-deger" id="fon-modal-varlik-dagilimi">—</span>
+      </div>
+      <div class="fon-bilgi-satir fon-bilgi-editable">
+        <span class="fon-bilgi-etiket">Alış Valörü</span>
+        <input type="text" id="fon-modal-alis-valoru" class="fon-bilgi-input" placeholder="örn. T+1">
+      </div>
+      <div class="fon-bilgi-satir fon-bilgi-editable">
+        <span class="fon-bilgi-etiket">Satış Valörü</span>
+        <input type="text" id="fon-modal-satis-valoru" class="fon-bilgi-input" placeholder="örn. T+2">
+      </div>
+      <div class="fon-bilgi-satir fon-bilgi-editable">
+        <span class="fon-bilgi-etiket">Risk Değeri</span>
+        <input type="text" id="fon-modal-risk-degeri" class="fon-bilgi-input" placeholder="örn. 6/7">
+      </div>
+      <div class="fon-bilgi-kaydet-satir">
+        <button class="fon-bilgi-kaydet-btn" onclick="fonBilgiKaydet()">Bilgileri Kaydet</button>
+        <span id="fon-bilgi-kaydet-durum"></span>
+      </div>
+    </div>
     <div class="table-wrap">
       <table class="data-table" id="fon-modal-table" style="font-size:0.82rem">
         <thead>
@@ -189,6 +219,58 @@
 }
 .fon-modal-box .table-wrap { padding: 0.8rem 1.2rem 1.2rem; overflow-y: auto; }
 
+.fon-bilgi-panel {
+  padding: 0.9rem 1.2rem;
+  margin: 0.6rem 1.2rem 0;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+.fon-bilgi-satir {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+.fon-bilgi-etiket { color: var(--text2); flex-shrink: 0; }
+.fon-bilgi-deger { font-weight: 600; text-align: right; }
+.fon-bilgi-input {
+  width: 90px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: inherit;
+  padding: 4px 7px;
+  font-size: 0.8rem;
+  text-align: right;
+}
+.fon-bilgi-kaydet-satir {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.fon-bilgi-kaydet-btn {
+  background: var(--accent);
+  color: #0b0e14;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.fon-bilgi-kaydet-btn:hover { opacity: 0.85; }
+#fon-bilgi-kaydet-durum { font-size: 0.75rem; color: var(--text2); }
+@media (max-width: 480px) {
+  .fon-bilgi-panel { grid-template-columns: 1fr; }
+}
+
 .fon-karti-ozet th.sortable,
 .fon-modal-box th.sortable { cursor: pointer; user-select: none; }
 .fon-karti-ozet th.sortable:hover,
@@ -225,18 +307,14 @@ async function fonPdfSecildi() {
   const dosyaInput = document.getElementById('yeni-fon-pdf');
   const dosya = dosyaInput.files[0];
   if (!dosya) return;
-  let kod = prompt('Bu PDF hangi fona ait? Fon kodunu yaz (örn. PBR):', '');
-  if (!kod) { dosyaInput.value = ''; return; }
-  kod = kod.trim().toUpperCase();
   const durum = document.getElementById('fon-ekle-durum');
   const btn = document.getElementById('pdf-yukle-btn');
   durum.style.display = 'block';
   durum.style.color = 'var(--text2)';
-  durum.textContent = `⏳ ${dosya.name} ayrıştırılıyor...`;
+  durum.textContent = `⏳ ${dosya.name} ayrıştırılıyor (fon kodu otomatik tespit ediliyor)...`;
   btn.disabled = true;
   try {
     const formData = new FormData();
-    formData.append('fon_kodu', kod);
     formData.append('pdf', dosya);
     const r = await fetch("{{ url_for('fon_icerik_pdf_yukle') }}", { method: 'POST', body: formData });
     const data = await r.json();
@@ -334,7 +412,63 @@ function fonDetayAc(fonKod) {
   });
   document.getElementById('fon-modal-tbody').innerHTML = fon.satirlar.map(fonSatirHtml).join('');
   document.getElementById('fon-modal-bos').style.display = 'none';
+  fonBilgiPaneliDoldur(fon);
+  document.getElementById('fon-bilgi-kaydet-durum').textContent = '';
   document.getElementById('fon-detay-modal').classList.add('acik');
+}
+
+function fonBilgiPaneliDoldur(fon) {
+  const bilgi = fon.bilgi || {};
+  document.getElementById('fon-modal-son-emir').textContent = bilgi.son_emir_saati || '—';
+  document.getElementById('fon-modal-stopaj').textContent = bilgi.stopaj_orani || '—';
+  const hisseYuzde = bilgi.hisse_agirlik_toplam;
+  const digerYuzde = bilgi.diger_varlik_toplam;
+  document.getElementById('fon-modal-varlik-dagilimi').textContent =
+    (hisseYuzde !== undefined && hisseYuzde !== null)
+      ? `Hisse %${hisseYuzde.toFixed(2)} · Diğer (nakit/tahvil/repo vb.) %${(digerYuzde ?? 0).toFixed(2)}`
+      : '—';
+  document.getElementById('fon-modal-alis-valoru').value = bilgi.alis_valoru || '';
+  document.getElementById('fon-modal-satis-valoru').value = bilgi.satis_valoru || '';
+  document.getElementById('fon-modal-risk-degeri').value = bilgi.risk_degeri || '';
+}
+
+async function fonBilgiKaydet() {
+  if (!aktifFonKod) return;
+  const durum = document.getElementById('fon-bilgi-kaydet-durum');
+  const alisValoru = document.getElementById('fon-modal-alis-valoru').value.trim();
+  const satisValoru = document.getElementById('fon-modal-satis-valoru').value.trim();
+  const riskDegeri = document.getElementById('fon-modal-risk-degeri').value.trim();
+  durum.style.color = 'var(--text2)';
+  durum.textContent = 'Kaydediliyor...';
+  try {
+    const r = await fetch("{{ url_for('fon_icerik_bilgi_kaydet') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fon_kodu: aktifFonKod,
+        alis_valoru: alisValoru,
+        satis_valoru: satisValoru,
+        risk_degeri: riskDegeri,
+      }),
+    });
+    const data = await r.json();
+    if (!data.basarili) {
+      durum.style.color = 'var(--neg)';
+      durum.textContent = '❌ ' + (data.hata || 'Kaydedilemedi');
+      return;
+    }
+    if (FON_VERI[aktifFonKod]) {
+      FON_VERI[aktifFonKod].bilgi = FON_VERI[aktifFonKod].bilgi || {};
+      FON_VERI[aktifFonKod].bilgi.alis_valoru = alisValoru;
+      FON_VERI[aktifFonKod].bilgi.satis_valoru = satisValoru;
+      FON_VERI[aktifFonKod].bilgi.risk_degeri = riskDegeri;
+    }
+    durum.style.color = 'var(--pos)';
+    durum.textContent = '✅ Kaydedildi';
+  } catch (e) {
+    durum.style.color = 'var(--neg)';
+    durum.textContent = '❌ Kaydedilemedi: ' + e;
+  }
 }
 
 function fonDetayKapat() {
@@ -398,6 +532,7 @@ async function fonIcerikGuncelle() {
         toplamEl.textContent = (fon.toplam_katki >= 0 ? '+' : '') + fon.toplam_katki.toFixed(2) + '%';
         toplamEl.className = fon.toplam_katki >= 0 ? 'pos' : 'neg';
         document.getElementById('fon-modal-tbody').innerHTML = fon.satirlar.map(fonSatirHtml).join('');
+        fonBilgiPaneliDoldur(fon);
         const table = document.getElementById('fon-modal-table');
         const aktifTh = table.querySelector('th[data-dir="asc"], th[data-dir="desc"]');
         if (aktifTh) {

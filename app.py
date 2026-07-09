@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from functools import wraps
-import sqlite3, os, hashlib, secrets
+import sqlite3, os, hashlib, secrets, re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari
@@ -122,6 +122,13 @@ def init_db():
         CREATE TABLE IF NOT EXISTS fon_silinen (
             fon_kod TEXT PRIMARY KEY,
             silinme_tarihi TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS fon_bilgi (
+            fon_kod TEXT PRIMARY KEY,
+            alis_valoru TEXT,
+            satis_valoru TEXT,
+            risk_degeri TEXT,
+            guncelleme_tarihi TEXT DEFAULT (datetime('now'))
         );
         """)
     # Migration: mevcut tablolara eksik kolonları ekle
@@ -256,6 +263,14 @@ def fon_tum_kompozisyonlari_getir():
     return birlesik
 
 
+def fon_bilgi_map_getir():
+    with get_db() as conn:
+        satirlar = conn.execute(
+            "SELECT fon_kod, alis_valoru, satis_valoru, risk_degeri FROM fon_bilgi"
+        ).fetchall()
+    return {s["fon_kod"]: dict(s) for s in satirlar}
+
+
 def fon_icerik_hesapla():
     """Her fon için tüm hisselerin güncel fiyat/değişimini çekip katkı hesaplar."""
     tum_fonlar = fon_tum_kompozisyonlari_getir()
@@ -264,11 +279,13 @@ def fon_icerik_hesapla():
         for kod, _ in fon["hisseler"]:
             tum_semboller.append(kod)
     fiyatlar = fetch_fon_icerik_fiyatlari(tum_semboller)
+    bilgi_map = fon_bilgi_map_getir()
 
     sonuc = {}
     for fon_kod, fon in tum_fonlar.items():
         satirlar = []
         toplam_katki = 0.0
+        hisse_agirlik_toplam = 0.0
         for kod, agirlik in fon["hisseler"]:
             veri = fiyatlar.get(kod)
             degisim = veri["degisim"] if veri else None
@@ -277,13 +294,28 @@ def fon_icerik_hesapla():
             katki = (agirlik * degisim / 100.0) if degisim is not None else None
             if katki is not None:
                 toplam_katki += katki
+            hisse_agirlik_toplam += agirlik
             satirlar.append({
                 "kod": kod, "agirlik": agirlik, "fiyat": fiyat,
                 "degisim": degisim, "katki": katki, "isim": isim,
             })
         satirlar.sort(key=lambda x: (x["katki"] is None, -(x["katki"] or 0)))
+        bilgi_kayit = bilgi_map.get(fon_kod, {})
+        diger_toplam = round(max(0.0, 100.0 - hisse_agirlik_toplam), 2)
         sonuc[fon_kod] = {
             "ad": fon["ad"], "satirlar": satirlar, "toplam_katki": round(toplam_katki, 3),
+            "bilgi": {
+                "alis_valoru": bilgi_kayit.get("alis_valoru") or None,
+                "satis_valoru": bilgi_kayit.get("satis_valoru") or None,
+                "risk_degeri": bilgi_kayit.get("risk_degeri") or None,
+                "son_emir_saati": "13:30 (TEFAS genel kuralı)",
+                "stopaj_orani": (
+                    "Muaf (Hisse Yoğun Fon)" if fon_kod in VERGISIZ_FONLAR
+                    else f"%{VERGI_ORANI * 100:.1f}"
+                ),
+                "hisse_agirlik_toplam": round(hisse_agirlik_toplam, 2),
+                "diger_varlik_toplam": diger_toplam,
+            },
         }
     return sonuc
 
@@ -2046,6 +2078,33 @@ def fon_icerik_fon_ekle():
     })
 
 
+@app.route("/fon-icerik/bilgi-kaydet", methods=["POST"])
+@login_required
+def fon_icerik_bilgi_kaydet():
+    """Alış Valörü, Satış Valörü, Risk Değeri gibi TEFAS'tan otomatik çekilemeyen
+    alanları kullanıcının bir kere elle girip kaydetmesini sağlar."""
+    veri = request.json or {}
+    fon_kodu = (veri.get("fon_kodu") or "").strip().upper()
+    if not fon_kodu:
+        return jsonify({"basarili": False, "hata": "Fon kodu boş olamaz."}), 400
+
+    alis_valoru = (veri.get("alis_valoru") or "").strip()[:40]
+    satis_valoru = (veri.get("satis_valoru") or "").strip()[:40]
+    risk_degeri = (veri.get("risk_degeri") or "").strip()[:40]
+
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO fon_bilgi (fon_kod, alis_valoru, satis_valoru, risk_degeri, guncelleme_tarihi) "
+            "VALUES (?,?,?,?, datetime('now')) "
+            "ON CONFLICT(fon_kod) DO UPDATE SET "
+            "alis_valoru=excluded.alis_valoru, satis_valoru=excluded.satis_valoru, "
+            "risk_degeri=excluded.risk_degeri, guncelleme_tarihi=excluded.guncelleme_tarihi",
+            (fon_kodu, alis_valoru, satis_valoru, risk_degeri),
+        )
+
+    return jsonify({"basarili": True, "fon_kodu": fon_kodu})
+
+
 @app.route("/fon-icerik/fon-sil", methods=["POST"])
 @login_required
 def fon_icerik_fon_sil():
@@ -2062,6 +2121,7 @@ def fon_icerik_fon_sil():
 
     with get_db() as conn:
         conn.execute("DELETE FROM fon_kompozisyon WHERE fon_kod = ?", (fon_kodu,))
+        conn.execute("DELETE FROM fon_bilgi WHERE fon_kod = ?", (fon_kodu,))
         conn.execute(
             "INSERT INTO fon_silinen (fon_kod) VALUES (?) "
             "ON CONFLICT(fon_kod) DO NOTHING",
@@ -2075,11 +2135,10 @@ def fon_icerik_fon_sil():
 @login_required
 def fon_icerik_pdf_yukle():
     """KAP'ta otomatik bulunamayan fonlar için: kullanıcı Portföy Dağılım Raporu
-    PDF'ini elle yükler, biz ayrıştırıp doğrularız (KAP arama adımı hiç yok)."""
-    fon_kodu = (request.form.get("fon_kodu") or "").strip().upper()
+    PDF'ini elle yükler, biz ayrıştırıp doğrularız (KAP arama adımı hiç yok).
+    Fon kodu artık kullanıcıya sorulmuyor — PDF'in başlığından otomatik tespit
+    edilir; bulunamazsa dosya adından tahmin edilir."""
     dosya = request.files.get("pdf")
-    if not fon_kodu:
-        return jsonify({"basarili": False, "hata": "Fon kodu boş olamaz."}), 400
     if not dosya or not dosya.filename:
         return jsonify({"basarili": False, "hata": "PDF dosyası seçilmedi."}), 400
 
@@ -2091,6 +2150,27 @@ def fon_icerik_pdf_yukle():
 
     if not hisseler:
         return jsonify({"basarili": False, "hata": "PDF'te 'HİSSE SENETLERİ' bölümü bulunamadı."}), 200
+
+    # Fon kodunu manuel sormak yerine otomatik tespit et: önce PDF başlığından,
+    # bulunamazsa dosya adından (uzantısız, ilk kelime) tahmin et.
+    fon_kodu = (request.form.get("fon_kodu") or "").strip().upper()
+    if not fon_kodu:
+        try:
+            fon_kodu = kap_client.pdf_fon_kodu_tespit_et(pdf_bytes) or ""
+        except Exception:
+            fon_kodu = ""
+    if not fon_kodu:
+        dosya_adi = re.sub(r"\.[^.]+$", "", dosya.filename or "")
+        aday = re.split(r"[\s_\-.]+", dosya_adi.strip())
+        aday = (aday[0] if aday else "").upper()
+        if re.match(r"^[A-Z]{2,6}$", aday):
+            fon_kodu = aday
+    if not fon_kodu:
+        return jsonify({
+            "basarili": False,
+            "hata": "Fon kodu PDF'ten otomatik tespit edilemedi. "
+                    "Dosya adını fon koduyla başlayacak şekilde değiştirip (örn. TLY.pdf) tekrar deneyebilir misin?",
+        }), 200
 
     hesaplanan_toplam = round(sum(a for _, a in hisseler), 2)
     dogrulandi = kap_toplam is not None and abs(hesaplanan_toplam - kap_toplam) < 0.5

@@ -366,6 +366,30 @@ def pdf_hisse_dagilimi_ayikla(pdf_bytes):
     return hisseler, kap_toplam
 
 
+_FON_KODU_ADAY_RE = re.compile(r"\(([A-Z]{2,6})\)")
+
+
+def pdf_fon_kodu_tespit_et(pdf_bytes):
+    """Portföy Dağılım Raporu PDF'inin ilk sayfasından fon kodunu otomatik tespit
+    etmeye çalışır. KAP'taki bu raporların başlığı genelde '... FON UNVANI (KOD)'
+    biçiminde biter; ilk sayfanın üst kısmında parantez içindeki 2-6 harfli büyük
+    harf kodu aranır. Bulunamazsa None döner."""
+    import pdfplumber
+    import io
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            if not pdf.pages:
+                return None
+            ilk_sayfa_metni = pdf.pages[0].extract_text() or ""
+    except Exception:
+        return None
+    baslik_blogu = ilk_sayfa_metni[:800]
+    adaylar = _FON_KODU_ADAY_RE.findall(baslik_blogu)
+    if adaylar:
+        return adaylar[0].upper()
+    return None
+
+
 def kap_fon_kompozisyon_getir(fon_kodu):
     """Tam pipeline: fon kodu -> KAP'tan en son Portföy Dağılım Raporu -> ayrıştırılmış
     hisse listesi. Önce 'fundCode' ile doğrudan filtreleme dener (OID gerektirmez);
