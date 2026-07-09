@@ -28,24 +28,39 @@ KAP_HEADERS = {
 
 
 def kap_fon_oid_bul(fon_kodu):
-    """Fon koduna (örn. 'PBR') karşılık gelen KAP mkkMemberOid'sini bulur."""
-    try:
-        r = requests.get(
-            f"{KAP_BASE}/tr/api/member/filter/{fon_kodu.strip().upper()}",
-            headers=KAP_HEADERS, timeout=10
-        )
-        if r.status_code != 200:
-            return None, None
-        data = r.json()
-        if isinstance(data, list):
-            if not data:
-                return None, None
-            data = data[0]
-        oid = data.get("mkkMemberOid")
-        unvan = data.get("title") or data.get("kapMemberTitle")
-        return oid, unvan
-    except Exception:
-        return None, None
+    """Fon koduna (örn. 'PBR') karşılık gelen KAP mkkMemberOid'sini bulur.
+    Fonlar KAP'ta şirketlerden farklı bir üyelik tipinde olabileceği için birkaç
+    olası uç noktayı sırayla dener. Bulamazsa, hata ayıklama için denenen her
+    uç noktanın durum kodunu/gövdesini de döndürür.
+    """
+    kod = fon_kodu.strip().upper()
+    denemeler = [
+        f"{KAP_BASE}/tr/api/member/filter/{kod}",
+        f"{KAP_BASE}/tr/api/fund/filter/{kod}",
+        f"{KAP_BASE}/tr/api/fon/filter/{kod}",
+        f"{KAP_BASE}/tr/api/member-fund/filter/{kod}",
+    ]
+    debug = []
+    for url in denemeler:
+        try:
+            r = requests.get(url, headers=KAP_HEADERS, timeout=10)
+            debug.append(f"{url} -> {r.status_code}: {r.text[:200]}")
+            if r.status_code != 200:
+                continue
+            data = r.json()
+            if isinstance(data, list):
+                if not data:
+                    continue
+                data = data[0]
+            if not isinstance(data, dict):
+                continue
+            oid = data.get("mkkMemberOid") or data.get("kapMemberOid")
+            unvan = data.get("title") or data.get("kapMemberTitle")
+            if oid:
+                return oid, unvan, None
+        except Exception as e:
+            debug.append(f"{url} -> İSTİSNA: {e}")
+    return None, None, " | ".join(debug)
 
 
 def kap_son_portfoy_raporu_bul(mkk_member_oid, gun_araligi=75):
@@ -226,9 +241,12 @@ def kap_fon_kompozisyon_getir(fon_kodu):
     """Tam pipeline: fon kodu -> KAP'tan en son Portföy Dağılım Raporu -> ayrıştırılmış
     hisse listesi. Döner: dict {basarili, hata, fon_adi, donem, hisseler, kap_toplam, hesaplanan_toplam}
     """
-    oid, fon_adi = kap_fon_oid_bul(fon_kodu)
+    oid, fon_adi, debug = kap_fon_oid_bul(fon_kodu)
     if not oid:
-        return {"basarili": False, "hata": f"'{fon_kodu}' için KAP'ta fon bulunamadı."}
+        hata = f"'{fon_kodu}' için KAP'ta fon bulunamadı."
+        if debug:
+            hata += f" [DEBUG: {debug}]"
+        return {"basarili": False, "hata": hata}
 
     disclosure_index, publish_date = kap_son_portfoy_raporu_bul(oid)
     if not disclosure_index:
