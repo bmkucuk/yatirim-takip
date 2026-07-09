@@ -72,6 +72,7 @@ def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3):
     debug_satirlari = []
     toplam_tarama = 0
     son_ornekler = []
+    kod_herhangi_bir_yerde_goruldu = [None]
     pencere_sayisi = max(1, toplam_gun // pencere_gun)
 
     for i in range(pencere_sayisi):
@@ -96,6 +97,15 @@ def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3):
                 debug_satirlari.append(f"[{baslangic}-{bitis}] beklenmeyen tip")
                 continue
             toplam_tarama += len(sonuclar)
+
+            # Kesin teshis: bu kod HIC bu veri setinde geciyor mu (konudan bagimsiz)?
+            if not kod_herhangi_bir_yerde_goruldu[0]:
+                for d in sonuclar:
+                    kodlar = [s.strip().upper() for s in (d.get("stockCodes") or "").split(",") if s.strip()]
+                    if kod in kodlar:
+                        import json as _json
+                        kod_herhangi_bir_yerde_goruldu[0] = _json.dumps(d, ensure_ascii=False)
+                        break
 
             eslesen = [
                 d for d in sonuclar
@@ -138,6 +148,7 @@ def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3):
         time.sleep(0.5)
 
     debug = f"{pencere_sayisi} pencere ({toplam_gun} gün), toplam {toplam_tarama} bildirim tarandı, '{kod}' eşleşmesi yok."
+    debug += f" KOD_HERHANGİ_BİR_KAYITTA_GÖRÜLDÜ_MÜ: {kod_herhangi_bir_yerde_goruldu[0] or 'HAYIR, hiç görülmedi.'}"
     if son_ornekler:
         debug += " ÖRNEK KAYITLAR: " + " ;; ".join(son_ornekler)
     if debug_satirlari:
