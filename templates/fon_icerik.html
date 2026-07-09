@@ -38,7 +38,7 @@
         <tbody class="fon-tbody">
           {% for s in fon.satirlar %}
           <tr>
-            <td title="{{ s.isim or '' }}" style="{{ 'cursor:help;border-bottom:1px dotted var(--text2)' if s.isim else '' }}">{{ s.kod }}</td>
+            <td><span class="hisse-kod" data-isim="{{ s.isim or '' }}">{{ s.kod }}</span></td>
             <td>{{ "%.2f"|format(s.agirlik) }}%</td>
             <td>{{ "%.2f"|format(s.fiyat) if s.fiyat is not none else "—" }}</td>
             <td class="{{ 'pos' if (s.degisim or 0) >= 0 else 'neg' }}">
@@ -60,6 +60,27 @@
 .fon-karti th.sortable { cursor: pointer; user-select: none; }
 .fon-karti th.sortable:hover { color: var(--accent); }
 .fon-karti .sort-arrow { font-size: 0.7em; opacity: 0.8; }
+.hisse-kod { position: relative; }
+.hisse-kod[data-isim]:not([data-isim=""]) {
+  cursor: help;
+  border-bottom: 1px dotted var(--text2);
+}
+.hisse-kod[data-isim]:not([data-isim=""]):hover::after {
+  content: attr(data-isim);
+  position: absolute;
+  left: 0;
+  top: 130%;
+  background: #1c1f26;
+  color: #fff;
+  border: 1px solid var(--border);
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  white-space: nowrap;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
 </style>
 
 <script>
@@ -105,10 +126,9 @@ function fonSatirHtml(s) {
   const fiyat = s.fiyat !== null && s.fiyat !== undefined ? s.fiyat.toFixed(2) : '—';
   const degisim = s.degisim !== null && s.degisim !== undefined ? (s.degisim >= 0 ? '+' : '') + s.degisim.toFixed(2) + '%' : '—';
   const katki = s.katki !== null && s.katki !== undefined ? (s.katki >= 0 ? '+' : '') + s.katki.toFixed(3) + '%' : '—';
-  const isim = s.isim || '';
-  const kodStil = isim ? ' style="cursor:help;border-bottom:1px dotted var(--text2)"' : '';
+  const isim = (s.isim || '').replace(/"/g, '&quot;');
   return `<tr>
-    <td title="${isim}"${kodStil}>${s.kod}</td>
+    <td><span class="hisse-kod" data-isim="${isim}">${s.kod}</span></td>
     <td>${s.agirlik.toFixed(2)}%</td>
     <td>${fiyat}</td>
     <td class="${pozNeg(s.degisim)}">${degisim}</td>

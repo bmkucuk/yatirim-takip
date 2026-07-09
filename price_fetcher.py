@@ -204,7 +204,7 @@ def fetch_hisse_detay_toplu(semboller):
                 ys = item.get("symbol", "")
                 fiyat = item.get("regularMarketPrice")
                 degisim = item.get("regularMarketChangePercent")
-                isim = item.get("longName") or item.get("shortName")
+                isim = item.get("longName") or item.get("shortName") or item.get("displayName")
                 if fiyat is not None and ys in sembol_map:
                     sonuc[sembol_map[ys]] = {
                         "fiyat": round(float(fiyat), 4),
