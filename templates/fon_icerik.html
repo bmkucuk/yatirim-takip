@@ -48,6 +48,24 @@
         <b>Hisse %{{ "%.1f"|format(fon.bilgi.hisse_agirlik_toplam) }} · Diğer %{{ "%.1f"|format(fon.bilgi.diger_varlik_toplam) }}</b>
       </div>
     </div>
+    <div class="fon-mini-bilgi fon-getiri-bilgi">
+      <div class="fon-mini-satir">
+        <span>1 Ay</span>
+        <b class="fon-getiri-1ay {{ 'pos' if (fon.bilgi.getiri_1ay or 0) >= 0 else 'neg' }}">{{ "%+.2f"|format(fon.bilgi.getiri_1ay) + '%' if fon.bilgi.getiri_1ay is not none else '—' }}</b>
+      </div>
+      <div class="fon-mini-satir">
+        <span>3 Ay</span>
+        <b class="fon-getiri-3ay {{ 'pos' if (fon.bilgi.getiri_3ay or 0) >= 0 else 'neg' }}">{{ "%+.2f"|format(fon.bilgi.getiri_3ay) + '%' if fon.bilgi.getiri_3ay is not none else '—' }}</b>
+      </div>
+      <div class="fon-mini-satir">
+        <span>6 Ay</span>
+        <b class="fon-getiri-6ay {{ 'pos' if (fon.bilgi.getiri_6ay or 0) >= 0 else 'neg' }}">{{ "%+.2f"|format(fon.bilgi.getiri_6ay) + '%' if fon.bilgi.getiri_6ay is not none else '—' }}</b>
+      </div>
+      <div class="fon-mini-satir">
+        <span>1 Yıl</span>
+        <b class="fon-getiri-1yil {{ 'pos' if (fon.bilgi.getiri_1yil or 0) >= 0 else 'neg' }}">{{ "%+.2f"|format(fon.bilgi.getiri_1yil) + '%' if fon.bilgi.getiri_1yil is not none else '—' }}</b>
+      </div>
+    </div>
   </div>
 {% endfor %}
 </div>
@@ -172,6 +190,24 @@
 .fon-mini-satir b { font-weight: 600; text-align: right; }
 .fon-mini-varlik { grid-column: 1 / -1; }
 .fon-mini-varlik b { max-width: 100%; }
+.fon-getiri-bilgi {
+  border-top: 1px solid var(--border);
+  position: relative;
+  padding-top: 0.65rem;
+  margin-top: 2px;
+}
+.fon-getiri-bilgi::before {
+  content: "TEFAS Getirisi";
+  position: absolute;
+  top: -0.55rem;
+  left: 0;
+  background: var(--card, #14161c);
+  padding: 0 6px;
+  font-size: 0.62rem;
+  color: var(--text2);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
 
 .fon-modal-overlay {
   display: none;
@@ -351,6 +387,21 @@ function fonOzetKartiGuncelle(fonKod, fon) {
   const toplamEl = kart.querySelector('.fon-toplam');
   toplamEl.textContent = (fon.toplam_katki >= 0 ? '+' : '') + fon.toplam_katki.toFixed(2) + '%';
   toplamEl.className = 'fon-toplam ' + (fon.toplam_katki >= 0 ? 'pos' : 'neg');
+
+  const bilgi = fon.bilgi || {};
+  [['getiri_1ay', '.fon-getiri-1ay'], ['getiri_3ay', '.fon-getiri-3ay'],
+   ['getiri_6ay', '.fon-getiri-6ay'], ['getiri_1yil', '.fon-getiri-1yil']].forEach(([alan, sec]) => {
+    const el = kart.querySelector(sec);
+    if (!el) return;
+    const deger = bilgi[alan];
+    if (deger === null || deger === undefined) {
+      el.textContent = '—';
+      el.className = sec.slice(1);
+    } else {
+      el.textContent = (deger >= 0 ? '+' : '') + deger.toFixed(2) + '%';
+      el.className = sec.slice(1) + ' ' + (deger >= 0 ? 'pos' : 'neg');
+    }
+  });
 }
 
 function fonDetayAc(fonKod) {

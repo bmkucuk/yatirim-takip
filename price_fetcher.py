@@ -26,6 +26,72 @@ def normalize_yahoo_sembol(sembol):
         return sembol
     return f"{sembol.split('.')[0]}.IS"
 
+def _tefas_nokta_fiyat(fon_kodu, hedef_tarih, pencere_gun=4, timeout=8):
+    """Belirli bir tarihe yakın (±pencere_gun) TEK bir fiyat noktası çeker — tam
+    yıllık backfill yapmadan getiri hesaplamak için hafif/hızlı bir sorgu.
+    Tek deneme, kısa timeout; hata durumunda None döner (getiri hesaplaması
+    bu yüzden sayfayı bloklamaz, sadece o alan '—' görünür)."""
+    bas = hedef_tarih - timedelta(days=pencere_gun)
+    bit = hedef_tarih + timedelta(days=pencere_gun)
+    bugun = son_is_gunu()
+    if bit > bugun:
+        bit = bugun
+    body = {
+        "fonTipi": "YAT", "fonKodu": fon_kodu,
+        "aramaMetni": fon_kodu, "fonTurKod": None,
+        "fonGrubu": None, "sfonTurKod": None,
+        "fonTurAciklama": None, "kurucuKod": None,
+        "basTarih": bas.strftime("%Y%m%d"),
+        "bitTarih": bit.strftime("%Y%m%d"),
+        "basSira": 1, "bitSira": 100000,
+        "dil": "TR", "sFonTurKod": "",
+        "fonKod": "", "fonGrup": "", "fonUnvanTip": "",
+    }
+    try:
+        r = requests.post(TEFAS_URL, json=body, headers=HEADERS, timeout=timeout)
+        if r.status_code != 200 or not r.text.strip():
+            return None
+        gunler = {}
+        for row in r.json().get("resultList", []):
+            tarih_val = row.get("tarih", "")
+            fiyat = row.get("fiyat")
+            if not tarih_val or fiyat is None:
+                continue
+            try:
+                t = datetime.strptime(str(tarih_val)[:10], "%Y-%m-%d").date()
+                gunler[t] = float(fiyat)
+            except Exception:
+                continue
+        if not gunler:
+            return None
+        en_yakin = min(gunler.keys(), key=lambda d: abs((d - hedef_tarih).days))
+        return gunler[en_yakin]
+    except Exception:
+        return None
+
+
+def fon_getiri_hesapla(fon_kodu):
+    """Fonun TEFAS'taki güncel fiyatına göre son 1/3/6 ay ve 1 yıllık getirisini
+    hesaplar (fon-detayli-analiz sayfasındaki 'Getiri Bilgisi' paneliyle aynı mantık).
+    Her nokta ayrı, küçük pencereli, hızlı bir sorgu ile çekilir — toplam istek
+    sayısı sabit (5) ve her biri kısa timeout'lu, bu yüzden yavaş/kilitleyici değildir.
+    Döner: {"son_fiyat", "son_tarih", "getiri_1ay", "getiri_3ay", "getiri_6ay", "getiri_1yil"}
+    veya fon bulunamazsa None.
+    """
+    bugun = son_is_gunu()
+    son = _tefas_nokta_fiyat(fon_kodu, bugun, pencere_gun=6)
+    if son is None:
+        return None
+    son_fiyat = son
+
+    sonuc = {"son_fiyat": son_fiyat, "son_tarih": str(bugun)}
+    pencereler = {"getiri_1ay": 30, "getiri_3ay": 90, "getiri_6ay": 180, "getiri_1yil": 365}
+    for etiket, gun in pencereler.items():
+        eski_fiyat = _tefas_nokta_fiyat(fon_kodu, bugun - timedelta(days=gun))
+        sonuc[etiket] = round((son_fiyat / eski_fiyat - 1) * 100, 2) if eski_fiyat else None
+    return sonuc
+
+
 def tefas_aralik_cek(fon_kodu, baslangic, bitis):
     """{date: fiyat} dict döndürür. 28 günlük parçalara böler."""
     sonuc = {}

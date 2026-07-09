@@ -4,7 +4,7 @@ from functools import wraps
 import sqlite3, os, hashlib, secrets, re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari
+from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari, fon_getiri_hesapla
 import kap_client
 
 app = Flask(__name__)
@@ -130,6 +130,15 @@ def init_db():
             alis_valoru TEXT,
             satis_valoru TEXT,
             risk_degeri TEXT,
+            guncelleme_tarihi TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS fon_getiri_cache (
+            fon_kod TEXT PRIMARY KEY,
+            son_fiyat REAL,
+            getiri_1ay REAL,
+            getiri_3ay REAL,
+            getiri_6ay REAL,
+            getiri_1yil REAL,
             guncelleme_tarihi TEXT DEFAULT (datetime('now'))
         );
         """)
@@ -294,6 +303,49 @@ def fon_tum_kompozisyonlari_getir():
     return birlesik
 
 
+def fon_getiri_cache_getir():
+    """DB'deki getiri cache'ini okur (ağa gitmez, hızlı). Sayfa yüklenirken bu kullanılır."""
+    with get_db() as conn:
+        satirlar = conn.execute(
+            "SELECT fon_kod, getiri_1ay, getiri_3ay, getiri_6ay, getiri_1yil, guncelleme_tarihi "
+            "FROM fon_getiri_cache"
+        ).fetchall()
+    return {s["fon_kod"]: dict(s) for s in satirlar}
+
+
+def fon_getiri_yenile(fon_kod, max_yas_saat=6):
+    """Bir fon için getiri cache'i eskiyse (veya hiç yoksa) TEFAS'tan tazeler.
+    Sadece 'Fiyat Güncelle' butonuna basıldığında çağrılır — sayfa GET'inde asla
+    ağa gidilmez. Her fon için sabit sayıda (5) hafif/hızlı istek yapılır."""
+    with get_db() as conn:
+        satir = conn.execute(
+            "SELECT guncelleme_tarihi FROM fon_getiri_cache WHERE fon_kod = ?", (fon_kod,)
+        ).fetchone()
+    if satir:
+        try:
+            son_guncelleme = datetime.fromisoformat(satir["guncelleme_tarihi"])
+            if datetime.now() - son_guncelleme < timedelta(hours=max_yas_saat):
+                return  # yeterince güncel, tekrar TEFAS'a gitme
+        except Exception:
+            pass
+    try:
+        veri = fon_getiri_hesapla(fon_kod)
+    except Exception:
+        veri = None
+    if not veri:
+        return
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO fon_getiri_cache (fon_kod, son_fiyat, getiri_1ay, getiri_3ay, getiri_6ay, getiri_1yil, guncelleme_tarihi) "
+            "VALUES (?,?,?,?,?,?, datetime('now')) "
+            "ON CONFLICT(fon_kod) DO UPDATE SET "
+            "son_fiyat=excluded.son_fiyat, getiri_1ay=excluded.getiri_1ay, getiri_3ay=excluded.getiri_3ay, "
+            "getiri_6ay=excluded.getiri_6ay, getiri_1yil=excluded.getiri_1yil, guncelleme_tarihi=excluded.guncelleme_tarihi",
+            (fon_kod, veri.get("son_fiyat"), veri.get("getiri_1ay"), veri.get("getiri_3ay"),
+             veri.get("getiri_6ay"), veri.get("getiri_1yil")),
+        )
+
+
 def fon_sira_map_getir():
     with get_db() as conn:
         satirlar = conn.execute("SELECT fon_kod, sira FROM fon_bilgi WHERE sira IS NOT NULL").fetchall()
@@ -309,6 +361,7 @@ def fon_icerik_hesapla():
             tum_semboller.append(kod)
     fiyatlar = fetch_fon_icerik_fiyatlari(tum_semboller)
     sira_map = fon_sira_map_getir()
+    getiri_cache = fon_getiri_cache_getir()
 
     sonuc = {}
     for fon_kod, fon in tum_fonlar.items():
@@ -330,6 +383,7 @@ def fon_icerik_hesapla():
             })
         satirlar.sort(key=lambda x: (x["katki"] is None, -(x["katki"] or 0)))
         detay = FON_DETAY_BILGI.get(fon_kod, {})
+        getiri = getiri_cache.get(fon_kod, {})
         diger_toplam = round(max(0.0, 100.0 - hisse_agirlik_toplam), 2)
         sonuc[fon_kod] = {
             "ad": fon["ad"], "satirlar": satirlar, "toplam_katki": round(toplam_katki, 3),
@@ -344,6 +398,10 @@ def fon_icerik_hesapla():
                 ),
                 "hisse_agirlik_toplam": round(hisse_agirlik_toplam, 2),
                 "diger_varlik_toplam": diger_toplam,
+                "getiri_1ay": getiri.get("getiri_1ay"),
+                "getiri_3ay": getiri.get("getiri_3ay"),
+                "getiri_6ay": getiri.get("getiri_6ay"),
+                "getiri_1yil": getiri.get("getiri_1yil"),
             },
         }
 
@@ -2063,6 +2121,9 @@ def fon_icerik():
 @app.route("/api/fon-icerik-guncelle")
 @login_required
 def api_fon_icerik_guncelle():
+    tum_fonlar = fon_tum_kompozisyonlari_getir()
+    for fon_kod in tum_fonlar:
+        fon_getiri_yenile(fon_kod)  # cache 6 saatten eskiyse tazeler, değilse ağa gitmez
     veri = fon_icerik_hesapla()
     return jsonify(veri)
 
@@ -2152,6 +2213,7 @@ def fon_icerik_fon_sil():
     with get_db() as conn:
         conn.execute("DELETE FROM fon_kompozisyon WHERE fon_kod = ?", (fon_kodu,))
         conn.execute("DELETE FROM fon_bilgi WHERE fon_kod = ?", (fon_kodu,))
+        conn.execute("DELETE FROM fon_getiri_cache WHERE fon_kod = ?", (fon_kodu,))
         conn.execute(
             "INSERT INTO fon_silinen (fon_kod) VALUES (?) "
             "ON CONFLICT(fon_kod) DO NOTHING",
