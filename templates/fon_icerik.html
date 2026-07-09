@@ -296,6 +296,8 @@
 <script>
 const FON_VERI = {{ fonlar | tojson }};
 let aktifFonKod = null;
+let sonSiralamaKolonIndex = null;
+let sonSiralamaDir = null;
 
 async function fonPdfSecildi() {
   const dosyaInput = document.getElementById('yeni-fon-pdf');
@@ -329,14 +331,16 @@ async function fonPdfSecildi() {
   }
 }
 
-function sortFonTable(th) {
+function sortFonTable(th, zorlaDir) {
   const table = th.closest('table');
   const tbody = table.querySelector('tbody');
   const headerRow = th.parentElement;
   const ths = Array.from(headerRow.children);
   const colIndex = ths.indexOf(th);
   const type = th.dataset.type || 'num';
-  const dir = th.dataset.dir === 'asc' ? 'desc' : 'asc';
+  const dir = zorlaDir || (th.dataset.dir === 'asc' ? 'desc' : 'asc');
+  sonSiralamaKolonIndex = colIndex;
+  sonSiralamaDir = dir;
 
   ths.forEach(h => {
     h.dataset.dir = '';
@@ -421,6 +425,11 @@ function fonDetayAc(fonKod) {
   });
   document.getElementById('fon-modal-tbody').innerHTML = fon.satirlar.map(fonSatirHtml).join('');
   document.getElementById('fon-modal-bos').style.display = 'none';
+  if (sonSiralamaKolonIndex !== null) {
+    const ths2 = document.querySelectorAll('#fon-modal-table th');
+    const th2 = ths2[sonSiralamaKolonIndex];
+    if (th2) sortFonTable(th2, sonSiralamaDir);
+  }
   document.getElementById('fon-detay-modal').classList.add('acik');
 }
 
