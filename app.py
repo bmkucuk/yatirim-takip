@@ -138,48 +138,53 @@ def bugun():
 VERGISIZ_FONLAR = {"PHE"}
 VERGI_ORANI = 0.175  # %17.5
 # ── Fon İçerik Analizi ────────────────────────────────────────────────────────
-# Her fonun hisse bazlı ağırlıkları (%). Fintables'ın aylık KAP portföy dağılım
-# raporuna dayanır — ayda bir güncellenir, günlük değişmez. Fiyat/günlük değişim
-# kısmı ise sayfa her açıldığında (veya "Güncelle" ile) canlı çekilir.
-# NOT: TTE fonunun alt sıralarındaki ağırlıklar kaynak şablonda negatif görünüyor
-# (muhtemelen demo/placeholder veri) — gerçek KAP raporuyla teyit edilmeli.
+# Her fonun hisse bazlı ağırlıkları (%). KAP'ta yayınlanan resmi aylık Portföy
+# Dağılım Raporu'ndan (Haziran 2026) alınmıştır — ayda bir güncellenir, günlük
+# değişmez. Fiyat/günlük değişim kısmı ise sayfa her açıldığında (veya
+# "Güncelle" ile) canlı çekilir. Ağırlıklar KAP raporundaki "GRUP (%)" (fonun
+# toplam portföy değerine göre) sütunundan, aynı hissenin birden fazla
+# işlem/lot satırı toplanarak hesaplanmıştır; her fon için KAP'ın kendi grup
+# toplamıyla (GRUP TOPLAMI) tek tek doğrulanmıştır.
 FON_ICERIK = {
     "TLY": {
         "ad": "TLY Portföyü",
         "hisseler": [
-            ("DSTKF", 17.71), ("OZATD", 17.16), ("TERA", 11.50), ("PEKGY", 9.89),
-            ("TRHOL", 6.59), ("TEHOL", 5.50), ("ANELE", 2.15), ("ALKLC", 0.66),
-            ("SVGYO", 0.55), ("TMPOL", 0.33), ("HEDEF", 0.28), ("EUPWR", 0.03),
-            ("CWENE", 0.03),
+            ("DSTKF", 22.69), ("OZATD", 14.17), ("PEKGY", 7.66), ("TEHOL", 7.07),
+            ("TERA", 6.57), ("TRHOL", 5.55), ("ANELE", 1.98), ("SELEC", 1.03),
+            ("SVGYO", 0.51), ("ALKLC", 0.53), ("HEDEF", 0.27), ("MANAS", 0.14),
+            ("DAPGM", 0.07), ("TMPOL", 0.01), ("EUPWR", 0.01), ("EFOR", 0.00),
+            ("EUREN", 0.00), ("GESAN", 0.00),
         ],
     },
     "PHE": {
         "ad": "PHE Portföyü",
         "hisseler": [
-            ("GUNDG", 12.38), ("KTLEV", 10.70), ("ODINE", 9.17), ("PASEU", 7.79),
-            ("HEDEF", 4.54), ("THYAO", 4.36), ("TATEN", 3.79), ("TRALT", 3.29),
-            ("AKBNK", 3.17), ("DSTKF", 3.09), ("YKBNK", 2.98), ("TCELL", 2.94),
-            ("MGROS", 2.49), ("SAHOL", 2.35), ("KCHOL", 2.11), ("ISCTR", 1.81),
-            ("ALKLC", 1.29), ("BIMAS", 1.28), ("DAPGM", 1.14), ("TTKOM", 0.89),
-            ("TERA", 0.85), ("GARAN", 0.83), ("ENKAI", 0.58), ("PEKGY", 0.44),
-            ("AKSEN", 0.42), ("ALVES", 0.37), ("PGSUS", 0.35), ("IZFAS", 0.29),
-            ("GUBRF", 0.26), ("TRHOL", 0.22), ("TEHOL", 0.04), ("TOASO", 0.02),
+            ("KTLEV", 9.12), ("ODINE", 9.01), ("GUNDG", 8.46), ("PASEU", 6.31),
+            ("HEDEF", 4.86), ("THYAO", 4.51), ("AKBNK", 3.85), ("TRALT", 3.68),
+            ("YKBNK", 3.44), ("BALSU", 2.73), ("DSTKF", 2.64), ("ISCTR", 2.51),
+            ("ANELE", 2.09), ("TATEN", 1.77), ("MGROS", 1.67), ("SAHOL", 1.65),
+            ("BIMAS", 1.51), ("TCELL", 1.44), ("KCHOL", 1.33), ("TTKOM", 1.30),
+            ("GARAN", 1.23), ("PEKGY", 0.74), ("PGSUS", 0.72), ("ALKLC", 0.61),
+            ("DAPGM", 0.57), ("BRSAN", 0.41), ("AKSEN", 0.40), ("ENKAI", 0.37),
+            ("IZENR", 0.35), ("IZFAS", 0.35), ("TAVHL", 0.34), ("TERA", 0.27),
+            ("ALVES", 0.18), ("TRHOL", 0.12), ("MOPAS", 0.08), ("EREGL", 0.05),
+            ("TRMET", 0.04), ("GUBRF", 0.03), ("BETAE", 0.03), ("TURSG", 0.00),
         ],
     },
     "TTE": {
         "ad": "İş Portföy BIST Teknoloji Endeksi (TTE)",
         "hisseler": [
-            ("ASELS", 18.87), ("ODINE", 15.39), ("MIATK", 6.20), ("LOGO", 4.65),
-            ("MANAS", 3.56), ("ARDYZ", 3.28), ("DOFRB", 3.15), ("INDES", 3.13),
-            ("PATEK", 3.04), ("NETCD", 2.77), ("ALTNY", 2.69), ("HTTBT", 1.88),
-            ("MCARD", 1.87), ("KAREL", 1.84), ("ATATP", 1.82), ("SDTTR", 1.73),
-            ("LINK", 1.71), ("REEDR", 1.70), ("FONET", 1.39), ("PAPIL", 1.39),
-            ("MOBTL", 1.38), ("BINBN", 1.27), ("EMPAE", 1.22), ("EDATA", 1.01),
-            ("PENTA", 1.01), ("ESCOM", 0.99), ("FORTE", 0.90), ("KRONT", 0.78),
-            ("ALCTL", 0.74), ("ONRYT", 0.68), ("NETAS", 0.67), ("KFEIN", 0.66),
-            ("ARENA", -1.64), ("VBTYZ", -1.91), ("AZTEK", -2.19), ("DGATE", -2.46),
-            ("INGRM", -2.74), ("PKART", -3.02), ("SMART", -3.29), ("MTRKS", -3.57),
-            ("OBASE", -3.84), ("DESPC", -4.12),
+            ("ODINE", 19.39), ("ASELS", 18.31), ("MIATK", 3.92), ("MANAS", 3.67),
+            ("ARDYZ", 2.85), ("LOGO", 3.16), ("DOFRB", 3.10), ("INDES", 2.76),
+            ("PATEK", 2.48), ("NETCD", 2.34), ("ALTNY", 2.28), ("MCARD", 1.45),
+            ("HTTBT", 1.66), ("SDTTR", 1.57), ("ATATP", 1.52), ("KAREL", 1.34),
+            ("LINK", 1.35), ("REEDR", 1.33), ("PAPIL", 1.23), ("FONET", 1.17),
+            ("BINBN", 1.11), ("MOBTL", 1.04), ("EMPAE", 1.03), ("EDATA", 0.98),
+            ("ESCOM", 0.97), ("KRONT", 0.91), ("PENTA", 0.75), ("FORTE", 0.77),
+            ("ALCTL", 0.81), ("VBTYZ", 0.56), ("NETAS", 0.55), ("ARENA", 0.53),
+            ("DGATE", 0.53), ("KFEIN", 0.52), ("ONRYT", 0.47), ("AZTEK", 0.46),
+            ("MTRKS", 0.42), ("INGRM", 0.41), ("PKART", 0.40), ("SMART", 0.36),
+            ("OBASE", 0.20), ("DESPC", 0.18),
         ],
     },
 }
