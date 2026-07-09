@@ -2128,6 +2128,60 @@ def api_fon_icerik_guncelle():
     return jsonify(veri)
 
 
+@app.route("/fon-icerik/getiri-debug")
+def fon_icerik_getiri_debug():
+    """Geçici tanılama uç noktası: TEFAS getiri hesaplamasının neden boş/başarısız
+    döndüğünü görmek için. CRON_KEY ile korunur (login gerektirmez, ben de kontrol
+    edebileyim diye)."""
+    key = request.args.get("key", "")
+    if key != os.environ.get("CRON_KEY", ""):
+        return "yetkisiz", 403
+
+    import traceback
+    from price_fetcher import _tefas_nokta_fiyat, son_is_gunu
+    fon_kodu = (request.args.get("fon") or "TLY").strip().upper()
+
+    sonuc = {"fon_kodu": fon_kodu}
+    try:
+        bugun = son_is_gunu()
+        sonuc["bugun"] = str(bugun)
+        son = _tefas_nokta_fiyat(fon_kodu, bugun, pencere_gun=6)
+        sonuc["nokta_fiyat_bugun"] = son
+    except Exception as e:
+        sonuc["nokta_fiyat_hata"] = str(e)
+        sonuc["trace"] = traceback.format_exc()
+
+    try:
+        veri = fon_getiri_hesapla(fon_kodu)
+        sonuc["fon_getiri_hesapla_sonuc"] = veri
+    except Exception as e:
+        sonuc["fon_getiri_hesapla_hata"] = str(e)
+        sonuc["trace2"] = traceback.format_exc()
+
+    # Ham TEFAS yanıtını da göster
+    try:
+        import requests as _req
+        from price_fetcher import TEFAS_URL, HEADERS
+        body = {
+            "fonTipi": "YAT", "fonKodu": fon_kodu,
+            "aramaMetni": fon_kodu, "fonTurKod": None,
+            "fonGrubu": None, "sfonTurKod": None,
+            "fonTurAciklama": None, "kurucuKod": None,
+            "basTarih": (son_is_gunu() - timedelta(days=6)).strftime("%Y%m%d"),
+            "bitTarih": son_is_gunu().strftime("%Y%m%d"),
+            "basSira": 1, "bitSira": 100000,
+            "dil": "TR", "sFonTurKod": "",
+            "fonKod": "", "fonGrup": "", "fonUnvanTip": "",
+        }
+        r = _req.post(TEFAS_URL, json=body, headers=HEADERS, timeout=10)
+        sonuc["ham_http_status"] = r.status_code
+        sonuc["ham_yanit_ilk_500"] = r.text[:500]
+    except Exception as e:
+        sonuc["ham_istek_hata"] = str(e)
+
+    return jsonify(sonuc)
+
+
 def fon_adi_formatla(ad, kod):
     """Fon adının sonuna, zaten yoksa ' (KOD)' ekler — örn. 'İş Portföy ... (TTE)' formatı."""
     ad = (ad or kod).strip()
