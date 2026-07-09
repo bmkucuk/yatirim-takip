@@ -174,7 +174,7 @@ def bugun():
 # Vergi muaf fonlar (Hisse Senedi Yoğun Fon sınıfındaki fonlarda stopaj yok)
 # PHE: Pusula Portföy Hisse Senedi Fonu (Hisse Senedi Yoğun Fon)
 # TTE: İş Portföy BIST Teknoloji Ağırlık Sınırlamalı Endeksi Hisse Senedi Fonu (Hisse Senedi Yoğun Fon)
-VERGISIZ_FONLAR = {"PHE", "TTE"}
+VERGISIZ_FONLAR = {"PHE", "TTE", "YHZ"}
 VERGI_ORANI = 0.175  # %17.5
 
 # Fon detay bilgileri (Alış/Satış Valörü, Risk Değeri, Son Emir Saati) — statik,
@@ -190,7 +190,7 @@ FON_DETAY_BILGI = {
     "PHE": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "6/7", "son_emir_saati": "13:30"},
     "PBR": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "4/7", "son_emir_saati": "13:30"},
     "TTE": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "7/7", "son_emir_saati": "13:30"},
-    "YHZ": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "7/7", "son_emir_saati": "13:30"},
+    "YHZ": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "6/7", "son_emir_saati": "13:30"},
 }
 # ── Fon İçerik Analizi ────────────────────────────────────────────────────────
 # Her fonun hisse bazlı ağırlıkları (%). KAP'ta yayınlanan resmi aylık Portföy
