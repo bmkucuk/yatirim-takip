@@ -366,18 +366,25 @@ def pdf_hisse_dagilimi_ayikla(pdf_bytes):
     return hisseler, kap_toplam
 
 
+_FON_KODU_SATIR_BASI_RE = re.compile(r"(?:^|\n)([A-Z]{3})-[A-ZÇĞİÖŞÜ]")
 _FON_KODU_ADAY_RE = re.compile(r"\(([A-Z]{2,6})\)")
 
 
 def pdf_fon_kodu_tespit_et(pdf_bytes):
     """Portföy Dağılım Raporu PDF'inin ilk sayfasından fon kodunu otomatik tespit
-    etmeye çalışır. KAP'taki bu raporların başlığı genelde '... FON UNVANI (KOD)'
-    biçiminde biter; ilk sayfanın üst kısmında parantez içindeki 2-6 harfli büyük
-    harf kodu aranır. TEFAS/KAP fon kodları her zaman tam 3 harftir (TLY, PHE, PBR,
-    TTE vb.) — bu yüzden 3 harfli adaylar önceliklidir; aksi halde başlık bloğunda
-    geçen '(TL)' (Türk Lirası birimi) gibi 2 harfli, fonla ilgisiz kısaltmalar yanlışlıkla
-    fon kodu sanılabiliyordu (gerçek bir vakada oldu: PBR yerine 'TL' tespit edilip
-    KAP'ta alakasız bir şirketle eşleşti). Bulunamazsa None döner."""
+    etmeye çalışır.
+
+    Gerçek KAP formatı (örn. PBR PDF'inde doğrulandı) '... FON UNVANI (KOD)' değil,
+    belgenin en başında, ay-yıl satırının hemen altında 'KOD-FON UNVANI' biçiminde
+    geçiyor (örn. 'PBR-PUSULA PORTFÖY BİRİNCİ DEĞİŞKEN FON'). Bu yüzden önce satır
+    başında '3 harf + tire' desenini arıyoruz — en güvenilir yöntem bu.
+
+    Eski parantez-içi '(KOD)' deseni (bazı farklı formatlı raporlarda görülebilir)
+    yedek olarak kalıyor, ama parantez içindeki 2 harfli 'TL' gibi para birimi
+    kısaltmalarıyla (örn. 'Ay Sonu Pay Fiyatı (TL)') karışabildiği için sadece
+    3 harfli adaylar kabul ediliyor — 2 harfli hiçbir aday artık kod sayılmıyor.
+    Gerçek bir vakada PBR yerine 'TL' tespit edilip KAP'ta alakasız bir şirketle
+    eşleşmişti. Bulunamazsa None döner."""
     import pdfplumber
     import io
     try:
@@ -388,13 +395,15 @@ def pdf_fon_kodu_tespit_et(pdf_bytes):
     except Exception:
         return None
     baslik_blogu = ilk_sayfa_metni[:800]
-    adaylar = _FON_KODU_ADAY_RE.findall(baslik_blogu)
-    if not adaylar:
-        return None
-    uc_harfli = [a for a in adaylar if len(a) == 3]
-    if uc_harfli:
-        return uc_harfli[0].upper()
-    return adaylar[0].upper()
+
+    satir_basi = _FON_KODU_SATIR_BASI_RE.search(baslik_blogu)
+    if satir_basi:
+        return satir_basi.group(1).upper()
+
+    adaylar = [a for a in _FON_KODU_ADAY_RE.findall(baslik_blogu) if len(a) == 3]
+    if adaylar:
+        return adaylar[0].upper()
+    return None
 
 
 def kap_fon_kompozisyon_getir(fon_kodu):
