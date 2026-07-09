@@ -26,6 +26,18 @@ def normalize_yahoo_sembol(sembol):
         return sembol
     return f"{sembol.split('.')[0]}.IS"
 
+# TEFAS'ın kendi API'si dakikada 6 istekle sınırlı (429 ERR-224 "Throttling limit").
+# Uygulama genelinde TÜM TEFAS isteklerinin arasına en az bu kadar saniye koyuyoruz.
+_TEFAS_MIN_ARALIK_SN = 11.0
+_tefas_son_istek_zamani = [0.0]
+
+def _tefas_hiz_sinirla():
+    simdi = time.monotonic()
+    beklenecek = _TEFAS_MIN_ARALIK_SN - (simdi - _tefas_son_istek_zamani[0])
+    if beklenecek > 0:
+        time.sleep(beklenecek)
+    _tefas_son_istek_zamani[0] = time.monotonic()
+
 def _tefas_nokta_fiyat(fon_kodu, hedef_tarih, pencere_gun=4, timeout=8):
     """Belirli bir tarihe yakın (±pencere_gun) TEK bir fiyat noktası çeker — tam
     yıllık backfill yapmadan getiri hesaplamak için hafif/hızlı bir sorgu.
@@ -48,6 +60,7 @@ def _tefas_nokta_fiyat(fon_kodu, hedef_tarih, pencere_gun=4, timeout=8):
         "fonKod": "", "fonGrup": "", "fonUnvanTip": "",
     }
     try:
+        _tefas_hiz_sinirla()
         r = requests.post(TEFAS_URL, json=body, headers=HEADERS, timeout=timeout)
         if r.status_code != 200 or not r.text.strip():
             return None
@@ -111,6 +124,7 @@ def tefas_aralik_cek(fon_kodu, baslangic, bitis):
         }
         for _ in range(3):
             try:
+                _tefas_hiz_sinirla()
                 r = requests.post(TEFAS_URL, json=body, headers=HEADERS, timeout=20)
                 if r.status_code == 429:
                     time.sleep(1)

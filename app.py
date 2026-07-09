@@ -2057,7 +2057,21 @@ def cron_guncelle():
         """, (simdi, sonuc.get("method","?"),
               f"{basarili} fiyat güncellendi (cron). {sonuc.get('errors','')}"))
 
-    return f"OK: {basarili} fiyat güncellendi. {sonuc.get('method')}", 200
+    # Fon İçerik Analizi sayfasındaki TEFAS getiri cache'ini de tazele.
+    # TEFAS dakikada 6 istekle sınırlı olduğu için burada (günlük, unattended cron'da,
+    # kullanıcıyı bir düğmenin önünde bekletmeden) fon başına ~55 saniye aralıklarla yapılır.
+    getiri_guncellenen = 0
+    try:
+        for fon_kod in fon_tum_kompozisyonlari_getir():
+            try:
+                fon_getiri_yenile(fon_kod, max_yas_saat=20)
+                getiri_guncellenen += 1
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    return f"OK: {basarili} fiyat güncellendi. {sonuc.get('method')}. Fon getiri: {getiri_guncellenen} fon kontrol edildi.", 200
 
 
 @app.route("/cron/backfill")
@@ -2121,9 +2135,9 @@ def fon_icerik():
 @app.route("/api/fon-icerik-guncelle")
 @login_required
 def api_fon_icerik_guncelle():
-    tum_fonlar = fon_tum_kompozisyonlari_getir()
-    for fon_kod in tum_fonlar:
-        fon_getiri_yenile(fon_kod)  # cache 6 saatten eskiyse tazeler, değilse ağa gitmez
+    # Not: TEFAS getiri verisi burada YENİLENMİYOR — TEFAS dakikada 6 istekle
+    # sınırlı, 4 fon × 5 istek anlık düğmeye sığmıyor (bkz. cron_guncelle).
+    # Bu buton sadece hisse fiyatlarını (Yahoo) günceller, çok daha hızlı.
     veri = fon_icerik_hesapla()
     return jsonify(veri)
 
