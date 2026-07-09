@@ -59,54 +59,71 @@ def kap_portfoy_dagilim_subject_oid_bul():
     return None, " | ".join(debug)
 
 
-def kap_fon_kodu_ile_rapor_bul(fon_kodu, gun_araligi=12):
-    """OID aramaya gerek kalmadan: 'Portföy Dağılım Raporu' konusundaki bildirimleri
-    (subjectList ile filtrelenmiş, böylece 2000 kayıt limitine çarpmadan geniş tarih
-    aralığı taranabiliyor) çekip 'fundCode' alanına göre istemci tarafında filtrele.
+def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3):
+    """OID/subject aramaya gerek kalmadan: tarihi küçük pencerelere bölüp (varsayılan
+    3 gün) her pencerede TÜM bildirimleri tarar (mkkMemberOidList ve subjectList boş).
+    2000 kayıt limitine yaklaşmadan geniş bir tarih aralığını güvenle tarayabilmek için
+    bu şekilde parçalıyoruz (subjectOid tahminine dayanmıyor, KAP'ın şemasını olduğu
+    gibi kullanıyor). En yeni pencereden başlar, eşleşme bulunca hemen durur.
     Döner: (disclosureIndex, publishDate, debug_str) veya (None, None, debug_str)
     """
     kod = fon_kodu.strip().upper()
-    subject_oid, subject_debug = kap_portfoy_dagilim_subject_oid_bul()
-    gun_araligi_kullanilan = 45 if subject_oid else gun_araligi
-
     bugun = date.today()
-    baslangic = bugun - timedelta(days=gun_araligi_kullanilan)
-    body = {
-        "fromDate": baslangic.isoformat(),
-        "toDate": bugun.isoformat(),
-        "mkkMemberOidList": [],
-        "subjectList": [subject_oid] if subject_oid else [],
-    }
-    try:
-        r = requests.post(
-            f"{KAP_BASE}/tr/api/disclosure/members/byCriteria",
-            json=body, headers=KAP_HEADERS, timeout=20
-        )
-        if r.status_code != 200:
-            return None, None, f"byCriteria -> {r.status_code}: {r.text[:200]}"
-        sonuclar = r.json()
-        if not isinstance(sonuclar, list):
-            return None, None, f"byCriteria beklenmeyen yanit tipi: {type(sonuclar)}"
+    debug_satirlari = []
+    toplam_tarama = 0
+    pencere_sayisi = max(1, toplam_gun // pencere_gun)
 
-        eslesen = [
-            d for d in sonuclar
-            if (d.get("fundCode") or "").strip().upper() == kod
-            and "portföy dağılım raporu" in (d.get("subject") or "").lower()
-        ]
-        if not eslesen:
+    for i in range(pencere_sayisi):
+        bitis = bugun - timedelta(days=i * pencere_gun)
+        baslangic = bitis - timedelta(days=pencere_gun)
+        body = {
+            "fromDate": baslangic.isoformat(),
+            "toDate": bitis.isoformat(),
+            "mkkMemberOidList": [],
+            "subjectList": [],
+        }
+        try:
+            r = requests.post(
+                f"{KAP_BASE}/tr/api/disclosure/members/byCriteria",
+                json=body, headers=KAP_HEADERS, timeout=20
+            )
+            if r.status_code != 200:
+                debug_satirlari.append(f"[{baslangic}-{bitis}] -> {r.status_code}")
+                continue
+            sonuclar = r.json()
+            if not isinstance(sonuclar, list):
+                debug_satirlari.append(f"[{baslangic}-{bitis}] beklenmeyen tip")
+                continue
+            toplam_tarama += len(sonuclar)
+
             eslesen = [
                 d for d in sonuclar
-                if (d.get("relatedStocks") or "").strip().upper() == kod
+                if (d.get("fundCode") or "").strip().upper() == kod
                 and "portföy dağılım raporu" in (d.get("subject") or "").lower()
             ]
-        if not eslesen:
-            debug = f"subject_oid={subject_oid} ({subject_debug or 'bulundu'}), {len(sonuclar)} bildirim tarandı ({gun_araligi_kullanilan} gün), '{kod}' eşleşmesi yok."
-            return None, None, debug
-        eslesen.sort(key=lambda d: d.get("publishDate", ""), reverse=True)
-        en_son = eslesen[0]
-        return en_son.get("disclosureIndex"), en_son.get("publishDate"), None
-    except Exception as e:
-        return None, None, f"byCriteria istisna: {e}"
+            if not eslesen:
+                eslesen = [
+                    d for d in sonuclar
+                    if (d.get("relatedStocks") or "").strip().upper() == kod
+                    and "portföy dağılım raporu" in (d.get("subject") or "").lower()
+                ]
+            if eslesen:
+                eslesen.sort(key=lambda d: d.get("publishDate", ""), reverse=True)
+                en_son = eslesen[0]
+                return en_son.get("disclosureIndex"), en_son.get("publishDate"), None
+
+            # Bu pencere 2000 limitine tam denk gelmisse muhtemelen bazi kayitlar
+            # kacirilmis olabilir - bunu debug'a not et
+            if len(sonuclar) >= 1990:
+                debug_satirlari.append(f"[{baslangic}-{bitis}] {len(sonuclar)} kayit (limite yakin!)")
+        except Exception as e:
+            debug_satirlari.append(f"[{baslangic}-{bitis}] istisna: {e}")
+        time.sleep(0.5)
+
+    debug = f"{pencere_sayisi} pencere ({toplam_gun} gün), toplam {toplam_tarama} bildirim tarandı, '{kod}' eşleşmesi yok."
+    if debug_satirlari:
+        debug += " " + " | ".join(debug_satirlari)
+    return None, None, debug
 
 
 def kap_fon_oid_bul(fon_kodu):
