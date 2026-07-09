@@ -2354,12 +2354,15 @@ def fon_icerik_pdf_yukle():
                     f"Bu PDF'in sütun düzeni farklı olabilir — bana PDF'i chat'ten gönderirsen elle işlerim.",
         }), 200
 
-    # Gerçek fon adını KAP'tan bulmayı dene (varsa "Ad (KOD)" formatında göster,
-    # bulunamazsa "KOD Portföyü (KOD)" olarak düşer).
-    try:
-        _, kap_unvan, _ = kap_client.kap_fon_oid_bul(fon_kodu)
-    except Exception:
-        kap_unvan = None
+    # Gerçek fon adını önce bilinen-doğru isimler sözlüğünden dene (KAP'ın canlı
+    # araması bazı fonlarda güvenilmez sonuç dönüyor — örn. PBR); yoksa KAP'a sor.
+    if fon_kodu in FON_ADI_BILINEN:
+        kap_unvan = FON_ADI_BILINEN[fon_kodu]
+    else:
+        try:
+            _, kap_unvan, _ = kap_client.kap_fon_oid_bul(fon_kodu)
+        except Exception:
+            kap_unvan = None
     fon_adi = fon_adi_formatla(kap_unvan, fon_kodu)
 
     with get_db() as conn:
