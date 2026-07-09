@@ -27,21 +27,55 @@ KAP_HEADERS = {
 }
 
 
+_SUBJECT_OID_CACHE = {}
+
+
+def kap_portfoy_dagilim_subject_oid_bul():
+    """'Portföy Dağılım Raporu' bildirim konusunun KAP subjectOid'sini bulur (cache'ler).
+    disclosureClass='DG' altında, üye tipine göre farklı listeler dönebiliyor; birkaç
+    üye tipini dener.
+    """
+    if "oid" in _SUBJECT_OID_CACHE:
+        return _SUBJECT_OID_CACHE["oid"], None
+    debug = []
+    for uye_tipi in ["IGS", "YF", "FON", "YAT", "PFON", "HT"]:
+        try:
+            r = requests.get(
+                f"{KAP_BASE}/tr/api/disclosure/subjects/DG/{uye_tipi}",
+                headers=KAP_HEADERS, timeout=10
+            )
+            debug.append(f"DG/{uye_tipi} -> {r.status_code}")
+            if r.status_code != 200:
+                continue
+            data = r.json()
+            if not isinstance(data, list):
+                continue
+            for item in data:
+                if "portföy dağılım raporu" in (item.get("subject") or "").lower():
+                    _SUBJECT_OID_CACHE["oid"] = item.get("subjectOid")
+                    return item.get("subjectOid"), None
+        except Exception as e:
+            debug.append(f"DG/{uye_tipi} istisna: {e}")
+    return None, " | ".join(debug)
+
+
 def kap_fon_kodu_ile_rapor_bul(fon_kodu, gun_araligi=12):
-    """OID aramaya gerek kalmadan: son N günün TÜM bildirimlerini çek (mkkMemberOidList
-    boş = tüm üyeler), 'fundCode' alanına ve 'Portföy Dağılım Raporu' konusuna göre
-    istemci tarafında filtrele. KAP'ın disclosure şemasında fon bildirimleri için
-    'fundCode' alanı zaten var (DKB bildirimlerinde de görülüyor, orada null).
+    """OID aramaya gerek kalmadan: 'Portföy Dağılım Raporu' konusundaki bildirimleri
+    (subjectList ile filtrelenmiş, böylece 2000 kayıt limitine çarpmadan geniş tarih
+    aralığı taranabiliyor) çekip 'fundCode' alanına göre istemci tarafında filtrele.
     Döner: (disclosureIndex, publishDate, debug_str) veya (None, None, debug_str)
     """
     kod = fon_kodu.strip().upper()
+    subject_oid, subject_debug = kap_portfoy_dagilim_subject_oid_bul()
+    gun_araligi_kullanilan = 45 if subject_oid else gun_araligi
+
     bugun = date.today()
-    baslangic = bugun - timedelta(days=gun_araligi)
+    baslangic = bugun - timedelta(days=gun_araligi_kullanilan)
     body = {
         "fromDate": baslangic.isoformat(),
         "toDate": bugun.isoformat(),
         "mkkMemberOidList": [],
-        "subjectList": [],
+        "subjectList": [subject_oid] if subject_oid else [],
     }
     try:
         r = requests.post(
@@ -60,18 +94,14 @@ def kap_fon_kodu_ile_rapor_bul(fon_kodu, gun_araligi=12):
             and "portföy dağılım raporu" in (d.get("subject") or "").lower()
         ]
         if not eslesen:
-            # fundCode alani bos gelmis olabilir; stockCode/relatedStocks gibi
-            # alternatif alanlarla da dene
             eslesen = [
                 d for d in sonuclar
-                if kod in [
-                    (s or "").strip().upper()
-                    for s in (d.get("relatedStocks") or []) if isinstance(d.get("relatedStocks"), list)
-                ]
+                if (d.get("relatedStocks") or "").strip().upper() == kod
                 and "portföy dağılım raporu" in (d.get("subject") or "").lower()
-            ] if any(d.get("relatedStocks") for d in sonuclar) else []
+            ]
         if not eslesen:
-            return None, None, f"{len(sonuclar)} bildirim tarandı, '{kod}' fundCode eşleşmesi yok."
+            debug = f"subject_oid={subject_oid} ({subject_debug or 'bulundu'}), {len(sonuclar)} bildirim tarandı ({gun_araligi_kullanilan} gün), '{kod}' eşleşmesi yok."
+            return None, None, debug
         eslesen.sort(key=lambda d: d.get("publishDate", ""), reverse=True)
         en_son = eslesen[0]
         return en_son.get("disclosureIndex"), en_son.get("publishDate"), None
