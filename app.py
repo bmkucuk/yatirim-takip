@@ -2145,6 +2145,50 @@ def api_fon_icerik_guncelle():
     return jsonify(veri)
 
 
+@app.route("/fon-icerik/tefas-ham-veri")
+def fon_icerik_tefas_ham_veri():
+    """Geçici tanılama uç noktası: TEFAS'ın fonGnlBlgSiraliGetir API'sinin bir fon
+    için döndürdüğü TAM ham JSON satırını gösterir. Amaç: risk değeri, valör,
+    son emir saati gibi FON_DETAY_BILGI'de elle tuttuğumuz alanların TEFAS API'sinde
+    zaten mevcut olup olmadığını görmek — eğer varsa bu bilgileri otomatik çekecek
+    şekilde koda geçebiliriz, artık her yeni fon için elle KAP'a bakmamıza gerek
+    kalmaz. CRON_KEY ile korunur."""
+    key = request.args.get("key", "")
+    if key != os.environ.get("CRON_KEY", ""):
+        return "yetkisiz", 403
+
+    import requests as _req
+    from price_fetcher import TEFAS_URL, HEADERS, son_is_gunu, _tefas_hiz_sinirla
+    fon_kodu = (request.args.get("fon") or "TLY").strip().upper()
+    bugun = son_is_gunu()
+    bas = bugun - timedelta(days=6)
+
+    body = {
+        "fonTipi": "YAT", "fonKodu": fon_kodu,
+        "aramaMetni": fon_kodu, "fonTurKod": None,
+        "fonGrubu": None, "sfonTurKod": None,
+        "fonTurAciklama": None, "kurucuKod": None,
+        "basTarih": bas.strftime("%Y%m%d"),
+        "bitTarih": bugun.strftime("%Y%m%d"),
+        "basSira": 1, "bitSira": 100000,
+        "dil": "TR", "sFonTurKod": "",
+        "fonKod": "", "fonGrup": "", "fonUnvanTip": "",
+    }
+    try:
+        _tefas_hiz_sinirla()
+        r = _req.post(TEFAS_URL, json=body, headers=HEADERS, timeout=15)
+        data = r.json() if r.status_code == 200 else None
+        ilk_satir = (data or {}).get("resultList", [{}])[0] if data and data.get("resultList") else None
+        return jsonify({
+            "fon_kodu": fon_kodu,
+            "http_status": r.status_code,
+            "tam_alan_listesi": list(ilk_satir.keys()) if ilk_satir else None,
+            "ham_satir": ilk_satir,
+        })
+    except Exception as e:
+        return jsonify({"hata": str(e)}), 200
+
+
 @app.route("/fon-icerik/getiri-debug")
 def fon_icerik_getiri_debug():
     """Geçici tanılama uç noktası: TEFAS getiri hesaplamasının hangi pencerede
