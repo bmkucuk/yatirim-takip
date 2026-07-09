@@ -28,11 +28,11 @@
       <table class="data-table" style="font-size:0.82rem">
         <thead>
           <tr>
-            <th>Hisse</th>
-            <th>Ağırlık</th>
-            <th>Fiyat</th>
-            <th>Değişim</th>
-            <th>Katkı</th>
+            <th class="sortable" data-type="str" onclick="sortFonTable(this)">Hisse</th>
+            <th class="sortable" data-type="num" onclick="sortFonTable(this)">Ağırlık</th>
+            <th class="sortable" data-type="num" onclick="sortFonTable(this)">Fiyat</th>
+            <th class="sortable" data-type="num" onclick="sortFonTable(this)">Değişim</th>
+            <th class="sortable" data-type="num" onclick="sortFonTable(this)">Katkı</th>
           </tr>
         </thead>
         <tbody class="fon-tbody">
@@ -56,7 +56,50 @@
 {% endfor %}
 </div>
 
+<style>
+.fon-karti th.sortable { cursor: pointer; user-select: none; }
+.fon-karti th.sortable:hover { color: var(--accent); }
+.fon-karti .sort-arrow { font-size: 0.7em; opacity: 0.8; }
+</style>
+
 <script>
+function sortFonTable(th) {
+  const table = th.closest('table');
+  const tbody = table.querySelector('tbody');
+  const headerRow = th.parentElement;
+  const ths = Array.from(headerRow.children);
+  const colIndex = ths.indexOf(th);
+  const type = th.dataset.type || 'num';
+  const dir = th.dataset.dir === 'asc' ? 'desc' : 'asc';
+
+  ths.forEach(h => {
+    h.dataset.dir = '';
+    const arrow = h.querySelector('.sort-arrow');
+    if (arrow) arrow.remove();
+  });
+  th.dataset.dir = dir;
+  const arrow = document.createElement('span');
+  arrow.className = 'sort-arrow';
+  arrow.textContent = dir === 'asc' ? ' ▲' : ' ▼';
+  th.appendChild(arrow);
+
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a, b) => {
+    const ta = a.children[colIndex].textContent.trim();
+    const tb = b.children[colIndex].textContent.trim();
+    if (type === 'str') {
+      return dir === 'asc' ? ta.localeCompare(tb, 'tr') : tb.localeCompare(ta, 'tr');
+    }
+    const parse = (t) => t === '—' ? null : parseFloat(t.replace('%', '').replace(/\+/g, '').replace(',', '.'));
+    const na = parse(ta), nb = parse(tb);
+    if (na === null && nb === null) return 0;
+    if (na === null) return 1;
+    if (nb === null) return -1;
+    return dir === 'asc' ? na - nb : nb - na;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
 function fonSatirHtml(s) {
   const pozNeg = (v) => (v || 0) >= 0 ? 'pos' : 'neg';
   const fiyat = s.fiyat !== null && s.fiyat !== undefined ? s.fiyat.toFixed(2) : '—';
@@ -87,6 +130,13 @@ async function fonIcerikGuncelle() {
       toplamEl.className = 'fon-toplam ' + (fon.toplam_katki >= 0 ? 'pos' : 'neg');
       const tbody = kart.querySelector('.fon-tbody');
       tbody.innerHTML = fon.satirlar.map(fonSatirHtml).join('');
+      const table = kart.querySelector('table');
+      const aktifTh = table.querySelector('th[data-dir="asc"], th[data-dir="desc"]');
+      if (aktifTh) {
+        const korunacakDir = aktifTh.dataset.dir;
+        aktifTh.dataset.dir = korunacakDir === 'asc' ? 'desc' : 'asc';
+        sortFonTable(aktifTh);
+      }
     }
     document.getElementById('son-guncelleme').textContent = ' — son güncelleme: ' + new Date().toLocaleTimeString('tr-TR');
   } catch (e) {
