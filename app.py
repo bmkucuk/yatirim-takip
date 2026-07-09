@@ -8,6 +8,8 @@ from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari
 import kap_client
 
 app = Flask(__name__)
+app.json.sort_keys = False  # tojson/jsonify sözlük sırasını korusun (Fon İçerik kart sıralaması buna dayanıyor)
+app.jinja_env.policies["json.dumps_kwargs"] = {"sort_keys": False}  # Jinja'nın |tojson filtresi ayrıca sort_keys=True zorluyor, onu da kapat
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 DB_PATH = os.environ.get("DB_PATH", "/data/yatirim.db")
@@ -131,6 +133,10 @@ def init_db():
             guncelleme_tarihi TEXT DEFAULT (datetime('now'))
         );
         """)
+    try:
+        conn.execute("ALTER TABLE fon_bilgi ADD COLUMN sira INTEGER")
+    except Exception:
+        pass
     # Migration: mevcut tablolara eksik kolonları ekle
     try:
         conn.execute("ALTER TABLE kiyaslama_kalem ADD COLUMN vergi_orani REAL DEFAULT 0")
@@ -156,9 +162,21 @@ def login_required(f):
 def bugun():
     return datetime.now(ZoneInfo("Europe/Istanbul")).date()
 
-# Vergi muaf fonlar (PHE altın fonu - stopaj yok)
-VERGISIZ_FONLAR = {"PHE"}
+# Vergi muaf fonlar (Hisse Senedi Yoğun Fon sınıfındaki fonlarda stopaj yok)
+# PHE: Pusula Portföy Hisse Senedi Fonu (Hisse Senedi Yoğun Fon)
+# TTE: İş Portföy BIST Teknoloji Ağırlık Sınırlamalı Endeksi Hisse Senedi Fonu (Hisse Senedi Yoğun Fon)
+VERGISIZ_FONLAR = {"PHE", "TTE"}
 VERGI_ORANI = 0.175  # %17.5
+
+# Fon detay bilgileri (Alış/Satış Valörü, Risk Değeri, Son Emir Saati) — statik,
+# TEFAS/kurucu sitelerinden araştırılıp buraya elle girilir; kullanıcıdan bir arayüz
+# üzerinden istenmez. "—" görünen alanlar henüz doğrulanmamıştır.
+FON_DETAY_BILGI = {
+    "TLY": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "7/7", "son_emir_saati": "13:00"},
+    "PHE": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "6/7", "son_emir_saati": None},
+    "PBR": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "5/7", "son_emir_saati": None},
+    "TTE": {"alis_valoru": None, "satis_valoru": None, "risk_degeri": None, "son_emir_saati": "13:30"},
+}
 # ── Fon İçerik Analizi ────────────────────────────────────────────────────────
 # Her fonun hisse bazlı ağırlıkları (%). KAP'ta yayınlanan resmi aylık Portföy
 # Dağılım Raporu'ndan (Haziran 2026) alınmıştır — ayda bir güncellenir, günlük
@@ -263,12 +281,10 @@ def fon_tum_kompozisyonlari_getir():
     return birlesik
 
 
-def fon_bilgi_map_getir():
+def fon_sira_map_getir():
     with get_db() as conn:
-        satirlar = conn.execute(
-            "SELECT fon_kod, alis_valoru, satis_valoru, risk_degeri FROM fon_bilgi"
-        ).fetchall()
-    return {s["fon_kod"]: dict(s) for s in satirlar}
+        satirlar = conn.execute("SELECT fon_kod, sira FROM fon_bilgi WHERE sira IS NOT NULL").fetchall()
+    return {s["fon_kod"]: s["sira"] for s in satirlar}
 
 
 def fon_icerik_hesapla():
@@ -279,7 +295,7 @@ def fon_icerik_hesapla():
         for kod, _ in fon["hisseler"]:
             tum_semboller.append(kod)
     fiyatlar = fetch_fon_icerik_fiyatlari(tum_semboller)
-    bilgi_map = fon_bilgi_map_getir()
+    sira_map = fon_sira_map_getir()
 
     sonuc = {}
     for fon_kod, fon in tum_fonlar.items():
@@ -300,15 +316,15 @@ def fon_icerik_hesapla():
                 "degisim": degisim, "katki": katki, "isim": isim,
             })
         satirlar.sort(key=lambda x: (x["katki"] is None, -(x["katki"] or 0)))
-        bilgi_kayit = bilgi_map.get(fon_kod, {})
+        detay = FON_DETAY_BILGI.get(fon_kod, {})
         diger_toplam = round(max(0.0, 100.0 - hisse_agirlik_toplam), 2)
         sonuc[fon_kod] = {
             "ad": fon["ad"], "satirlar": satirlar, "toplam_katki": round(toplam_katki, 3),
             "bilgi": {
-                "alis_valoru": bilgi_kayit.get("alis_valoru") or None,
-                "satis_valoru": bilgi_kayit.get("satis_valoru") or None,
-                "risk_degeri": bilgi_kayit.get("risk_degeri") or None,
-                "son_emir_saati": "13:30 (TEFAS genel kuralı)",
+                "alis_valoru": detay.get("alis_valoru"),
+                "satis_valoru": detay.get("satis_valoru"),
+                "risk_degeri": detay.get("risk_degeri"),
+                "son_emir_saati": detay.get("son_emir_saati"),
                 "stopaj_orani": (
                     "Muaf (Hisse Yoğun Fon)" if fon_kod in VERGISIZ_FONLAR
                     else f"%{VERGI_ORANI * 100:.1f}"
@@ -317,7 +333,11 @@ def fon_icerik_hesapla():
                 "diger_varlik_toplam": diger_toplam,
             },
         }
-    return sonuc
+
+    # Kullanıcının sürükleyip belirlediği sıraya göre diz; sırası kaydedilmemiş
+    # fonlar (yeni eklenenler) en sona, kendi aralarındaki doğal sıra korunarak eklenir.
+    siralanmis_kodlar = sorted(sonuc.keys(), key=lambda k: (sira_map.get(k, 10**6), k))
+    return {k: sonuc[k] for k in siralanmis_kodlar}
 
 
 def net_kar(sembol, tur, kar_zarar):
@@ -2078,31 +2098,28 @@ def fon_icerik_fon_ekle():
     })
 
 
-@app.route("/fon-icerik/bilgi-kaydet", methods=["POST"])
+@app.route("/fon-icerik/sira-kaydet", methods=["POST"])
 @login_required
-def fon_icerik_bilgi_kaydet():
-    """Alış Valörü, Satış Valörü, Risk Değeri gibi TEFAS'tan otomatik çekilemeyen
-    alanları kullanıcının bir kere elle girip kaydetmesini sağlar."""
+def fon_icerik_sira_kaydet():
+    """Kullanıcının sürükle-bırak veya ok tuşlarıyla belirlediği kart sırasını kaydeder.
+    Body: {"sira": ["TLY", "PHE", "PBR", ...]} — listedeki index sıra numarası olur."""
     veri = request.json or {}
-    fon_kodu = (veri.get("fon_kodu") or "").strip().upper()
-    if not fon_kodu:
-        return jsonify({"basarili": False, "hata": "Fon kodu boş olamaz."}), 400
-
-    alis_valoru = (veri.get("alis_valoru") or "").strip()[:40]
-    satis_valoru = (veri.get("satis_valoru") or "").strip()[:40]
-    risk_degeri = (veri.get("risk_degeri") or "").strip()[:40]
+    sira_listesi = veri.get("sira")
+    if not isinstance(sira_listesi, list) or not sira_listesi:
+        return jsonify({"basarili": False, "hata": "Geçersiz sıra listesi."}), 400
 
     with get_db() as conn:
-        conn.execute(
-            "INSERT INTO fon_bilgi (fon_kod, alis_valoru, satis_valoru, risk_degeri, guncelleme_tarihi) "
-            "VALUES (?,?,?,?, datetime('now')) "
-            "ON CONFLICT(fon_kod) DO UPDATE SET "
-            "alis_valoru=excluded.alis_valoru, satis_valoru=excluded.satis_valoru, "
-            "risk_degeri=excluded.risk_degeri, guncelleme_tarihi=excluded.guncelleme_tarihi",
-            (fon_kodu, alis_valoru, satis_valoru, risk_degeri),
-        )
+        for i, fon_kodu in enumerate(sira_listesi):
+            fon_kodu = (fon_kodu or "").strip().upper()
+            if not fon_kodu:
+                continue
+            conn.execute(
+                "INSERT INTO fon_bilgi (fon_kod, sira) VALUES (?, ?) "
+                "ON CONFLICT(fon_kod) DO UPDATE SET sira=excluded.sira",
+                (fon_kodu, i),
+            )
 
-    return jsonify({"basarili": True, "fon_kodu": fon_kodu})
+    return jsonify({"basarili": True})
 
 
 @app.route("/fon-icerik/fon-sil", methods=["POST"])

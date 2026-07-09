@@ -19,13 +19,14 @@
 
 <div style="font-size:0.8rem;color:var(--text2);margin-bottom:1rem">
   Hisse ağırlıkları Fintables'ın aylık KAP portföy dağılım raporuna dayanır (ayda bir değişir).
-  Fiyat ve günlük değişim her açılışta / "Güncelle" ile canlı çekilir.
+  Fiyat ve günlük değişim her açılışta / "Güncelle" ile canlı çekilir. Kartları sürükleyerek veya
+  odaklayıp ok tuşlarıyla sıralayabilirsin.
   <span id="son-guncelleme"></span>
 </div>
 
-<div class="fon-icerik-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem" id="fon-icerik-container">
+<div class="fon-icerik-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem" id="fon-icerik-container">
 {% for fon_kod, fon in fonlar.items() %}
-  <div class="card fon-karti-ozet" data-fon="{{ fon_kod }}">
+  <div class="card fon-karti-ozet" data-fon="{{ fon_kod }}" draggable="true" tabindex="0">
     <div class="fon-ozet-ust">
       <div class="fon-ozet-ad" title="{{ fon.ad }}">{{ fon.ad }}</div>
       <button class="fon-sil-btn" title="Fonu sil" onclick="fonSil('{{ fon_kod }}')">🗑</button>
@@ -35,6 +36,17 @@
         {{ "%+.2f"|format(fon.toplam_katki) }}%
       </div>
       <button class="btn-detay" onclick="fonDetayAc('{{ fon_kod }}')">Detay <span style="font-weight:400">＋</span></button>
+    </div>
+    <div class="fon-mini-bilgi">
+      <div class="fon-mini-satir"><span>Son Emir</span><b>{{ fon.bilgi.son_emir_saati or '—' }}</b></div>
+      <div class="fon-mini-satir"><span>Stopaj</span><b>{{ fon.bilgi.stopaj_orani or '—' }}</b></div>
+      <div class="fon-mini-satir"><span>Alış Val.</span><b>{{ fon.bilgi.alis_valoru or '—' }}</b></div>
+      <div class="fon-mini-satir"><span>Satış Val.</span><b>{{ fon.bilgi.satis_valoru or '—' }}</b></div>
+      <div class="fon-mini-satir"><span>Risk</span><b>{{ fon.bilgi.risk_degeri or '—' }}</b></div>
+      <div class="fon-mini-satir fon-mini-varlik">
+        <span>Varlık Dağılımı</span>
+        <b>Hisse %{{ "%.1f"|format(fon.bilgi.hisse_agirlik_toplam) }} · Diğer %{{ "%.1f"|format(fon.bilgi.diger_varlik_toplam) }}</b>
+      </div>
     </div>
   </div>
 {% endfor %}
@@ -52,36 +64,6 @@
     </div>
     <div class="fon-modal-filtre">
       <input type="text" id="fon-modal-arama" placeholder="🔎 Hisse kodu veya adı ara..." oninput="fonModalFiltrele()">
-    </div>
-    <div class="fon-bilgi-panel">
-      <div class="fon-bilgi-satir">
-        <span class="fon-bilgi-etiket">Son Emir Saati</span>
-        <span class="fon-bilgi-deger" id="fon-modal-son-emir">—</span>
-      </div>
-      <div class="fon-bilgi-satir">
-        <span class="fon-bilgi-etiket">Stopaj Oranı</span>
-        <span class="fon-bilgi-deger" id="fon-modal-stopaj">—</span>
-      </div>
-      <div class="fon-bilgi-satir">
-        <span class="fon-bilgi-etiket">Varlık Sınıfı Dağılımı</span>
-        <span class="fon-bilgi-deger" id="fon-modal-varlik-dagilimi">—</span>
-      </div>
-      <div class="fon-bilgi-satir fon-bilgi-editable">
-        <span class="fon-bilgi-etiket">Alış Valörü</span>
-        <input type="text" id="fon-modal-alis-valoru" class="fon-bilgi-input" placeholder="örn. T+1">
-      </div>
-      <div class="fon-bilgi-satir fon-bilgi-editable">
-        <span class="fon-bilgi-etiket">Satış Valörü</span>
-        <input type="text" id="fon-modal-satis-valoru" class="fon-bilgi-input" placeholder="örn. T+2">
-      </div>
-      <div class="fon-bilgi-satir fon-bilgi-editable">
-        <span class="fon-bilgi-etiket">Risk Değeri</span>
-        <input type="text" id="fon-modal-risk-degeri" class="fon-bilgi-input" placeholder="örn. 6/7">
-      </div>
-      <div class="fon-bilgi-kaydet-satir">
-        <button class="fon-bilgi-kaydet-btn" onclick="fonBilgiKaydet()">Bilgileri Kaydet</button>
-        <span id="fon-bilgi-kaydet-durum"></span>
-      </div>
     </div>
     <div class="table-wrap">
       <table class="data-table" id="fon-modal-table" style="font-size:0.82rem">
@@ -107,9 +89,17 @@
 .fon-karti-ozet {
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
+  gap: 0.6rem;
   padding: 1rem 1.1rem;
+  cursor: grab;
+  transition: box-shadow 0.15s, opacity 0.15s;
 }
+.fon-karti-ozet:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.fon-karti-ozet.surukleniyor { opacity: 0.4; }
+.fon-karti-ozet.surukle-uzerinde { box-shadow: 0 0 0 2px var(--accent) inset; }
 .fon-ozet-ust {
   display: flex;
   align-items: flex-start;
@@ -163,6 +153,25 @@
   transition: 0.15s;
 }
 .btn-detay:hover { opacity: 0.85; }
+
+.fon-mini-bilgi {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 10px;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.fon-mini-satir {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.74rem;
+}
+.fon-mini-satir span { color: var(--text2); white-space: nowrap; }
+.fon-mini-satir b { font-weight: 600; text-align: right; }
+.fon-mini-varlik { grid-column: 1 / -1; }
+.fon-mini-varlik b { max-width: 100%; }
 
 .fon-modal-overlay {
   display: none;
@@ -218,58 +227,6 @@
   box-sizing: border-box;
 }
 .fon-modal-box .table-wrap { padding: 0.8rem 1.2rem 1.2rem; overflow-y: auto; }
-
-.fon-bilgi-panel {
-  padding: 0.9rem 1.2rem;
-  margin: 0.6rem 1.2rem 0;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 16px;
-}
-.fon-bilgi-satir {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 0.8rem;
-}
-.fon-bilgi-etiket { color: var(--text2); flex-shrink: 0; }
-.fon-bilgi-deger { font-weight: 600; text-align: right; }
-.fon-bilgi-input {
-  width: 90px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: inherit;
-  padding: 4px 7px;
-  font-size: 0.8rem;
-  text-align: right;
-}
-.fon-bilgi-kaydet-satir {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 4px;
-}
-.fon-bilgi-kaydet-btn {
-  background: var(--accent);
-  color: #0b0e14;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.fon-bilgi-kaydet-btn:hover { opacity: 0.85; }
-#fon-bilgi-kaydet-durum { font-size: 0.75rem; color: var(--text2); }
-@media (max-width: 480px) {
-  .fon-bilgi-panel { grid-template-columns: 1fr; }
-}
 
 .fon-karti-ozet th.sortable,
 .fon-modal-box th.sortable { cursor: pointer; user-select: none; }
@@ -412,63 +369,7 @@ function fonDetayAc(fonKod) {
   });
   document.getElementById('fon-modal-tbody').innerHTML = fon.satirlar.map(fonSatirHtml).join('');
   document.getElementById('fon-modal-bos').style.display = 'none';
-  fonBilgiPaneliDoldur(fon);
-  document.getElementById('fon-bilgi-kaydet-durum').textContent = '';
   document.getElementById('fon-detay-modal').classList.add('acik');
-}
-
-function fonBilgiPaneliDoldur(fon) {
-  const bilgi = fon.bilgi || {};
-  document.getElementById('fon-modal-son-emir').textContent = bilgi.son_emir_saati || '—';
-  document.getElementById('fon-modal-stopaj').textContent = bilgi.stopaj_orani || '—';
-  const hisseYuzde = bilgi.hisse_agirlik_toplam;
-  const digerYuzde = bilgi.diger_varlik_toplam;
-  document.getElementById('fon-modal-varlik-dagilimi').textContent =
-    (hisseYuzde !== undefined && hisseYuzde !== null)
-      ? `Hisse %${hisseYuzde.toFixed(2)} · Diğer (nakit/tahvil/repo vb.) %${(digerYuzde ?? 0).toFixed(2)}`
-      : '—';
-  document.getElementById('fon-modal-alis-valoru').value = bilgi.alis_valoru || '';
-  document.getElementById('fon-modal-satis-valoru').value = bilgi.satis_valoru || '';
-  document.getElementById('fon-modal-risk-degeri').value = bilgi.risk_degeri || '';
-}
-
-async function fonBilgiKaydet() {
-  if (!aktifFonKod) return;
-  const durum = document.getElementById('fon-bilgi-kaydet-durum');
-  const alisValoru = document.getElementById('fon-modal-alis-valoru').value.trim();
-  const satisValoru = document.getElementById('fon-modal-satis-valoru').value.trim();
-  const riskDegeri = document.getElementById('fon-modal-risk-degeri').value.trim();
-  durum.style.color = 'var(--text2)';
-  durum.textContent = 'Kaydediliyor...';
-  try {
-    const r = await fetch("{{ url_for('fon_icerik_bilgi_kaydet') }}", {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fon_kodu: aktifFonKod,
-        alis_valoru: alisValoru,
-        satis_valoru: satisValoru,
-        risk_degeri: riskDegeri,
-      }),
-    });
-    const data = await r.json();
-    if (!data.basarili) {
-      durum.style.color = 'var(--neg)';
-      durum.textContent = '❌ ' + (data.hata || 'Kaydedilemedi');
-      return;
-    }
-    if (FON_VERI[aktifFonKod]) {
-      FON_VERI[aktifFonKod].bilgi = FON_VERI[aktifFonKod].bilgi || {};
-      FON_VERI[aktifFonKod].bilgi.alis_valoru = alisValoru;
-      FON_VERI[aktifFonKod].bilgi.satis_valoru = satisValoru;
-      FON_VERI[aktifFonKod].bilgi.risk_degeri = riskDegeri;
-    }
-    durum.style.color = 'var(--pos)';
-    durum.textContent = '✅ Kaydedildi';
-  } catch (e) {
-    durum.style.color = 'var(--neg)';
-    durum.textContent = '❌ Kaydedilemedi: ' + e;
-  }
 }
 
 function fonDetayKapat() {
@@ -532,7 +433,6 @@ async function fonIcerikGuncelle() {
         toplamEl.textContent = (fon.toplam_katki >= 0 ? '+' : '') + fon.toplam_katki.toFixed(2) + '%';
         toplamEl.className = fon.toplam_katki >= 0 ? 'pos' : 'neg';
         document.getElementById('fon-modal-tbody').innerHTML = fon.satirlar.map(fonSatirHtml).join('');
-        fonBilgiPaneliDoldur(fon);
         const table = document.getElementById('fon-modal-table');
         const aktifTh = table.querySelector('th[data-dir="asc"], th[data-dir="desc"]');
         if (aktifTh) {
@@ -552,6 +452,82 @@ async function fonIcerikGuncelle() {
     btn.textContent = eskiMetin;
   }
 }
+
+// ── Kart sıralama: sürükle-bırak (mouse) + ok tuşları (klavye) ─────────────
+const fonContainer = document.getElementById('fon-icerik-container');
+let suruklenenKart = null;
+
+function fonKartlariniAl() {
+  return Array.from(fonContainer.querySelectorAll('.fon-karti-ozet'));
+}
+
+async function fonSiraKaydet() {
+  const kodlar = fonKartlariniAl().map(k => k.dataset.fon);
+  try {
+    await fetch("{{ url_for('fon_icerik_sira_kaydet') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sira: kodlar }),
+    });
+  } catch (e) {
+    // sessizce yut — sıralama sadece kozmetik, hata kullanıcıyı bloklamasın
+  }
+}
+
+fonContainer.addEventListener('dragstart', (e) => {
+  const kart = e.target.closest('.fon-karti-ozet');
+  if (!kart) return;
+  suruklenenKart = kart;
+  kart.classList.add('surukleniyor');
+  e.dataTransfer.effectAllowed = 'move';
+});
+
+fonContainer.addEventListener('dragend', (e) => {
+  const kart = e.target.closest('.fon-karti-ozet');
+  if (kart) kart.classList.remove('surukleniyor');
+  fonKartlariniAl().forEach(k => k.classList.remove('surukle-uzerinde'));
+  suruklenenKart = null;
+});
+
+fonContainer.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  const hedefKart = e.target.closest('.fon-karti-ozet');
+  if (!hedefKart || hedefKart === suruklenenKart || !suruklenenKart) return;
+  fonKartlariniAl().forEach(k => k.classList.remove('surukle-uzerinde'));
+  hedefKart.classList.add('surukle-uzerinde');
+  const kartlar = fonKartlariniAl();
+  const suruklenenIndex = kartlar.indexOf(suruklenenKart);
+  const hedefIndex = kartlar.indexOf(hedefKart);
+  if (suruklenenIndex < hedefIndex) {
+    hedefKart.after(suruklenenKart);
+  } else {
+    hedefKart.before(suruklenenKart);
+  }
+});
+
+fonContainer.addEventListener('drop', (e) => {
+  e.preventDefault();
+  fonKartlariniAl().forEach(k => k.classList.remove('surukle-uzerinde'));
+  fonSiraKaydet();
+});
+
+fonContainer.addEventListener('keydown', (e) => {
+  const kart = e.target.closest('.fon-karti-ozet');
+  if (!kart) return;
+  const ileriTuslar = ['ArrowRight', 'ArrowDown'];
+  const geriTuslar = ['ArrowLeft', 'ArrowUp'];
+  if (![...ileriTuslar, ...geriTuslar].includes(e.key)) return;
+  e.preventDefault();
+  if (ileriTuslar.includes(e.key)) {
+    const sonraki = kart.nextElementSibling;
+    if (sonraki) sonraki.after(kart);
+  } else {
+    const onceki = kart.previousElementSibling;
+    if (onceki) onceki.before(kart);
+  }
+  kart.focus();
+  fonSiraKaydet();
+});
 </script>
 
 {% endblock %}
