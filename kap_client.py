@@ -373,7 +373,11 @@ def pdf_fon_kodu_tespit_et(pdf_bytes):
     """Portföy Dağılım Raporu PDF'inin ilk sayfasından fon kodunu otomatik tespit
     etmeye çalışır. KAP'taki bu raporların başlığı genelde '... FON UNVANI (KOD)'
     biçiminde biter; ilk sayfanın üst kısmında parantez içindeki 2-6 harfli büyük
-    harf kodu aranır. Bulunamazsa None döner."""
+    harf kodu aranır. TEFAS/KAP fon kodları her zaman tam 3 harftir (TLY, PHE, PBR,
+    TTE vb.) — bu yüzden 3 harfli adaylar önceliklidir; aksi halde başlık bloğunda
+    geçen '(TL)' (Türk Lirası birimi) gibi 2 harfli, fonla ilgisiz kısaltmalar yanlışlıkla
+    fon kodu sanılabiliyordu (gerçek bir vakada oldu: PBR yerine 'TL' tespit edilip
+    KAP'ta alakasız bir şirketle eşleşti). Bulunamazsa None döner."""
     import pdfplumber
     import io
     try:
@@ -385,9 +389,12 @@ def pdf_fon_kodu_tespit_et(pdf_bytes):
         return None
     baslik_blogu = ilk_sayfa_metni[:800]
     adaylar = _FON_KODU_ADAY_RE.findall(baslik_blogu)
-    if adaylar:
-        return adaylar[0].upper()
-    return None
+    if not adaylar:
+        return None
+    uc_harfli = [a for a in adaylar if len(a) == 3]
+    if uc_harfli:
+        return uc_harfli[0].upper()
+    return adaylar[0].upper()
 
 
 def kap_fon_kompozisyon_getir(fon_kodu):
