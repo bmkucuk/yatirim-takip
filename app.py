@@ -169,13 +169,18 @@ VERGISIZ_FONLAR = {"PHE", "TTE"}
 VERGI_ORANI = 0.175  # %17.5
 
 # Fon detay bilgileri (Alış/Satış Valörü, Risk Değeri, Son Emir Saati) — statik,
-# TEFAS/kurucu sitelerinden araştırılıp buraya elle girilir; kullanıcıdan bir arayüz
-# üzerinden istenmez. "—" görünen alanlar henüz doğrulanmamıştır.
+# KAP'ın resmi "Genel Bilgiler" sayfasındaki "Alım Satım Saatleri" ve "Risk Değeri"
+# tablolarından alınmıştır (kap.org.tr/tr/fon-bilgileri/genel/{fon-slug}). Kullanıcıdan
+# bir arayüz üzerinden istenmez; kod içinde elle güncellenir.
+# Kaynaklar: TLY https://kap.org.tr/en/fon-bilgileri/genel/tly-tera-portfoy-birinci-serbest-fon
+#            PHE https://kap.org.tr/tr/fon-bilgileri/genel/phe-pusula-portfoy-hisse-senedi-fonu-hisse-senedi-yogun-fon
+#            PBR https://kap.org.tr/tr/fon-bilgileri/genel/pbr-pusula-portfoy-birinci-degisken-fon
+#            TTE https://kap.org.tr/tr/fon-bilgileri/genel/tte-is-portfoy-bist-teknoloji-agirlik-sinirlamali-endeksi-hisse-senedi-tl-fonu-hisse-senedi-yogun-fon
 FON_DETAY_BILGI = {
     "TLY": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "7/7", "son_emir_saati": "13:00"},
-    "PHE": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "6/7", "son_emir_saati": None},
-    "PBR": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "5/7", "son_emir_saati": None},
-    "TTE": {"alis_valoru": None, "satis_valoru": None, "risk_degeri": None, "son_emir_saati": "13:30"},
+    "PHE": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "6/7", "son_emir_saati": "13:30"},
+    "PBR": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "4/7", "son_emir_saati": "13:30"},
+    "TTE": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "7/7", "son_emir_saati": "13:30"},
 }
 # ── Fon İçerik Analizi ────────────────────────────────────────────────────────
 # Her fonun hisse bazlı ağırlıkları (%). KAP'ta yayınlanan resmi aylık Portföy
@@ -232,13 +237,21 @@ FON_ICERIK = {
 
 _FON_ADI_CACHE = {}
 
+# KAP'ın canlı arama uç noktaları her fon için güvenilir sonuç dönmüyor (örn. PBR) —
+# bilinen doğru unvanları burada statik tutup önce bunlara bakıyoruz.
+FON_ADI_BILINEN = {
+    "PBR": "Pusula Portföy Birinci Değişken Fon",
+}
+
 def _fon_adi_tamamla(fon_kodu, mevcut_ad):
     """DB'deki fon adı eksik/sadece kod ise (eski kayıtlar — örn. PDF ile eklenmiş
-    ve o zamanlar isim çekilmemiş fonlar), KAP'tan gerçek unvanı çekip
-    'Ad (KOD)' formatına tamamlar. Sonucu önbellekte tutar; KAP'a ulaşılamazsa
-    sessizce eski adla devam eder."""
+    ve o zamanlar isim çekilmemiş fonlar), önce FON_ADI_BILINEN'e, yoksa KAP'tan
+    canlı sorguya bakıp 'Ad (KOD)' formatına tamamlar. Sonucu önbellekte tutar;
+    KAP'a ulaşılamazsa sessizce eski adla devam eder."""
     if mevcut_ad and mevcut_ad.strip().upper() not in (fon_kodu.upper(), ""):
         return fon_adi_formatla(mevcut_ad, fon_kodu)
+    if fon_kodu in FON_ADI_BILINEN:
+        return fon_adi_formatla(FON_ADI_BILINEN[fon_kodu], fon_kodu)
     if fon_kodu in _FON_ADI_CACHE:
         return _FON_ADI_CACHE[fon_kodu]
     unvan = None
@@ -326,8 +339,8 @@ def fon_icerik_hesapla():
                 "risk_degeri": detay.get("risk_degeri"),
                 "son_emir_saati": detay.get("son_emir_saati"),
                 "stopaj_orani": (
-                    "Muaf (Hisse Yoğun Fon)" if fon_kod in VERGISIZ_FONLAR
-                    else f"%{VERGI_ORANI * 100:.1f}"
+                    "%0" if fon_kod in VERGISIZ_FONLAR
+                    else f"%{VERGI_ORANI * 100:.1f}".replace(".", ",")
                 ),
                 "hisse_agirlik_toplam": round(hisse_agirlik_toplam, 2),
                 "diger_varlik_toplam": diger_toplam,
