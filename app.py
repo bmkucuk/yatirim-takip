@@ -162,7 +162,7 @@ VERGI_ORANI = 0.175  # %17.5
 # toplamıyla (GRUP TOPLAMI) tek tek doğrulanmıştır.
 FON_ICERIK = {
     "TLY": {
-        "ad": "TLY Portföyü",
+        "ad": "Tera Portföy Birinci Serbest Fon (TLY)",
         "hisseler": [
             ("DSTKF", 22.69), ("OZATD", 14.17), ("PEKGY", 7.66), ("TEHOL", 7.07),
             ("TERA", 6.57), ("TRHOL", 5.55), ("ANELE", 1.98), ("SELEC", 1.03),
@@ -172,7 +172,7 @@ FON_ICERIK = {
         ],
     },
     "PHE": {
-        "ad": "PHE Portföyü",
+        "ad": "Pusula Portföy Hisse Senedi Fonu (PHE)",
         "hisseler": [
             ("KTLEV", 9.12), ("ODINE", 9.01), ("GUNDG", 8.46), ("PASEU", 6.31),
             ("HEDEF", 4.86), ("THYAO", 4.51), ("AKBNK", 3.85), ("TRALT", 3.68),
@@ -205,6 +205,27 @@ FON_ICERIK = {
 }
 
 
+_FON_ADI_CACHE = {}
+
+def _fon_adi_tamamla(fon_kodu, mevcut_ad):
+    """DB'deki fon adı eksik/sadece kod ise (eski kayıtlar — örn. PDF ile eklenmiş
+    ve o zamanlar isim çekilmemiş fonlar), KAP'tan gerçek unvanı çekip
+    'Ad (KOD)' formatına tamamlar. Sonucu önbellekte tutar; KAP'a ulaşılamazsa
+    sessizce eski adla devam eder."""
+    if mevcut_ad and mevcut_ad.strip().upper() not in (fon_kodu.upper(), ""):
+        return fon_adi_formatla(mevcut_ad, fon_kodu)
+    if fon_kodu in _FON_ADI_CACHE:
+        return _FON_ADI_CACHE[fon_kodu]
+    unvan = None
+    try:
+        _, unvan, _ = kap_client.kap_fon_oid_bul(fon_kodu)
+    except Exception:
+        pass
+    sonuc = fon_adi_formatla(unvan, fon_kodu)
+    _FON_ADI_CACHE[fon_kodu] = sonuc
+    return sonuc
+
+
 def fon_silinenleri_getir():
     with get_db() as conn:
         satirlar = conn.execute("SELECT fon_kod FROM fon_silinen").fetchall()
@@ -226,7 +247,7 @@ def fon_tum_kompozisyonlari_getir():
     for s in satirlar:
         fk = s["fon_kod"]
         if fk not in db_fonlar:
-            db_fonlar[fk] = {"ad": s["fon_ad"] or fk, "hisseler": []}
+            db_fonlar[fk] = {"ad": _fon_adi_tamamla(fk, s["fon_ad"]), "hisseler": []}
         db_fonlar[fk]["hisseler"].append((s["hisse_kod"], s["agirlik"]))
     birlesik.update(db_fonlar)
     silinenler = fon_silinenleri_getir()
@@ -1981,6 +2002,16 @@ def api_fon_icerik_guncelle():
     return jsonify(veri)
 
 
+def fon_adi_formatla(ad, kod):
+    """Fon adının sonuna, zaten yoksa ' (KOD)' ekler — örn. 'İş Portföy ... (TTE)' formatı."""
+    ad = (ad or kod).strip()
+    if ad.upper() == kod.upper() or not ad:
+        return f"{kod} Portföyü ({kod})"
+    if ad.rstrip().upper().endswith(f"({kod.upper()})"):
+        return ad
+    return f"{ad} ({kod})"
+
+
 @app.route("/fon-icerik/fon-ekle", methods=["POST"])
 @login_required
 def fon_icerik_fon_ekle():
@@ -1992,6 +2023,7 @@ def fon_icerik_fon_ekle():
     if not sonuc.get("basarili"):
         return jsonify(sonuc), 200
 
+    fon_adi = fon_adi_formatla(sonuc.get("fon_adi"), fon_kodu)
     with get_db() as conn:
         conn.execute("DELETE FROM fon_kompozisyon WHERE fon_kod = ?", (fon_kodu,))
         conn.execute("DELETE FROM fon_silinen WHERE fon_kod = ?", (fon_kodu,))
@@ -1999,7 +2031,7 @@ def fon_icerik_fon_ekle():
             conn.execute(
                 "INSERT INTO fon_kompozisyon (fon_kod, fon_ad, hisse_kod, agirlik, donem) "
                 "VALUES (?,?,?,?,?)",
-                (fon_kodu, sonuc.get("fon_adi") or fon_kodu, kod, agirlik, sonuc.get("donem")),
+                (fon_kodu, fon_adi, kod, agirlik, sonuc.get("donem")),
             )
 
     guncel = fon_icerik_hesapla()
@@ -2071,6 +2103,14 @@ def fon_icerik_pdf_yukle():
                     f"Bu PDF'in sütun düzeni farklı olabilir — bana PDF'i chat'ten gönderirsen elle işlerim.",
         }), 200
 
+    # Gerçek fon adını KAP'tan bulmayı dene (varsa "Ad (KOD)" formatında göster,
+    # bulunamazsa "KOD Portföyü (KOD)" olarak düşer).
+    try:
+        _, kap_unvan, _ = kap_client.kap_fon_oid_bul(fon_kodu)
+    except Exception:
+        kap_unvan = None
+    fon_adi = fon_adi_formatla(kap_unvan, fon_kodu)
+
     with get_db() as conn:
         conn.execute("DELETE FROM fon_kompozisyon WHERE fon_kod = ?", (fon_kodu,))
         conn.execute("DELETE FROM fon_silinen WHERE fon_kod = ?", (fon_kodu,))
@@ -2078,7 +2118,7 @@ def fon_icerik_pdf_yukle():
             conn.execute(
                 "INSERT INTO fon_kompozisyon (fon_kod, fon_ad, hisse_kod, agirlik, donem) "
                 "VALUES (?,?,?,?,?)",
-                (fon_kodu, fon_kodu, kod, agirlik, None),
+                (fon_kodu, fon_adi, kod, agirlik, None),
             )
 
     guncel = fon_icerik_hesapla()
