@@ -1,0 +1,268 @@
+# -*- coding: utf-8 -*-
+"""
+KAP (Kamuyu Aydınlatma Platformu) entegrasyonu.
+Fon kodundan otomatik olarak en son "Portföy Dağılım Raporu"nu bulur, PDF'ini indirir
+ve hisse bazlı ağırlıkları (GRUP % — fonun toplam portföy değerine göre) çıkarır.
+
+Uç noktalar (kap.org.tr'nin kendi frontend'inin kullandığı, dokümante edilmemiş ama
+herkese açık iç API'si):
+  1. GET  /tr/api/member/filter/{kod}                      -> mkkMemberOid bul
+  2. POST /tr/api/disclosure/members/byCriteria             -> bildirim listesi
+  3. GET  /tr/api/notification/attachment-detail/{index}    -> PDF eki objId
+  4. GET  /tr/api/file/download/{objId}                     -> PDF bytes
+     (bazı bildirimlerde PDF, Java'nın serialized byte[] formatına sarılı gelir)
+"""
+import re
+import struct
+import time
+from datetime import date, timedelta
+
+import requests
+
+KAP_BASE = "https://www.kap.org.tr"
+KAP_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0 Safari/537.36",
+    "Referer": "https://www.kap.org.tr/tr/bildirim-sorgu",
+    "Accept": "application/json",
+}
+
+
+def kap_fon_oid_bul(fon_kodu):
+    """Fon koduna (örn. 'PBR') karşılık gelen KAP mkkMemberOid'sini bulur."""
+    try:
+        r = requests.get(
+            f"{KAP_BASE}/tr/api/member/filter/{fon_kodu.strip().upper()}",
+            headers=KAP_HEADERS, timeout=10
+        )
+        if r.status_code != 200:
+            return None, None
+        data = r.json()
+        if isinstance(data, list):
+            if not data:
+                return None, None
+            data = data[0]
+        oid = data.get("mkkMemberOid")
+        unvan = data.get("title") or data.get("kapMemberTitle")
+        return oid, unvan
+    except Exception:
+        return None, None
+
+
+def kap_son_portfoy_raporu_bul(mkk_member_oid, gun_araligi=75):
+    """Verilen fon OID'si için son 'Portföy Dağılım Raporu' bildirimini bulur.
+    Döner: (disclosureIndex, publishDate) veya (None, None)
+    """
+    bugun = date.today()
+    baslangic = bugun - timedelta(days=gun_araligi)
+    body = {
+        "fromDate": baslangic.isoformat(),
+        "toDate": bugun.isoformat(),
+        "mkkMemberOidList": [mkk_member_oid],
+        "subjectList": [],
+    }
+    try:
+        r = requests.post(
+            f"{KAP_BASE}/tr/api/disclosure/members/byCriteria",
+            json=body, headers=KAP_HEADERS, timeout=15
+        )
+        if r.status_code != 200:
+            return None, None
+        sonuclar = r.json()
+        raporlar = [
+            d for d in sonuclar
+            if "portföy dağılım raporu" in (d.get("subject") or "").lower()
+        ]
+        if not raporlar:
+            return None, None
+        raporlar.sort(key=lambda d: d.get("publishDate", ""), reverse=True)
+        en_son = raporlar[0]
+        return en_son.get("disclosureIndex"), en_son.get("publishDate")
+    except Exception:
+        return None, None
+
+
+def kap_pdf_obj_id_bul(disclosure_index):
+    """Bildirim index'inden PDF ekinin objId'sini bulur."""
+    try:
+        headers = dict(KAP_HEADERS)
+        headers["Referer"] = f"{KAP_BASE}/tr/Bildirim/{disclosure_index}"
+        r = requests.get(
+            f"{KAP_BASE}/tr/api/notification/attachment-detail/{disclosure_index}",
+            headers=headers, timeout=10
+        )
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        if isinstance(data, list) and data:
+            ekler = data[0].get("attachments", [])
+            for ek in ekler:
+                if (ek.get("fileExtension") or "").lower() == "pdf":
+                    return ek.get("objId")
+            if ekler:
+                return ekler[0].get("objId")
+    except Exception:
+        pass
+    return None
+
+
+def _java_byte_array_ayikla(raw):
+    """KAP'ın file/download uç noktası bazı bildirimlerde PDF'i Java'nın serialized
+    byte[] formatına sarıyor (AC ED 00 05 ... TC_ENDBLOCKDATA 78 70 <4 byte uzunluk> <PDF>).
+    Bu sarmalayıcıyı tespit edip PDF'i çıkarır; sarmalayıcı yoksa veriyi olduğu gibi döner.
+    """
+    if len(raw) > 30 and raw[:4] == b"\xac\xed\x00\x05":
+        try:
+            idx = raw.index(b"\x78\x70", 10)
+            arr_len = struct.unpack(">I", raw[idx + 2:idx + 6])[0]
+            return raw[idx + 6:idx + 6 + arr_len]
+        except Exception:
+            pass
+    return raw
+
+
+def kap_pdf_indir(obj_id, disclosure_index=None):
+    """Verilen objId için PDF byte'larını indirir (Java sarmalayıcıyı otomatik çözer)."""
+    headers = dict(KAP_HEADERS)
+    if disclosure_index:
+        headers["Referer"] = f"{KAP_BASE}/tr/Bildirim/{disclosure_index}"
+    r = requests.get(
+        f"{KAP_BASE}/tr/api/file/download/{obj_id}",
+        headers=headers, timeout=25
+    )
+    r.raise_for_status()
+    return _java_byte_array_ayikla(r.content)
+
+
+_SAYI_RE = re.compile(r"^-?[\d.]+,\d{2}$")
+
+
+def _tr_sayi(s):
+    try:
+        return float(s.replace(".", "").replace(",", "."))
+    except Exception:
+        return None
+
+
+_SAYI_TOKEN_RE = re.compile(r"^-?\d[\d.]*,\d{2}$")
+_KOD_RE = re.compile(r"^[A-Z][A-Z0-9]{1,5}$")
+
+
+def pdf_hisse_dagilimi_ayikla(pdf_bytes):
+    """Portföy Dağılım Raporu PDF'inden hisse bazlı ağırlıkları (GRUP %) çıkarır.
+    pdfplumber'ın metin-bazlı tablo tespitini kullanır (bu raporlarda çizgi/kenarlık
+    olmadığı için 'lines' stratejisi çalışmıyor). Her hisse satırının ilk hücresi
+    hisse kodu, son hücrelerinden biri de 'TOPLAM(FPD) GRUP% TOPLAM(FTD)' üçlüsünü
+    (bazen tek hücrede boşlukla ayrık, bazen ayrı hücrelerde) içerir — ortadaki değer
+    GRUP%'tır (fonun toplam portföy değerine göre ağırlık).
+    Döner: (hisseler: [(kod, agirlik), ...] aggregated, kap_grup_toplami: float|None)
+    """
+    import pdfplumber
+    import io
+
+    agirliklar = {}
+    kap_toplam = None
+    bolum_bulundu = False
+    bolum_bitti = False
+
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        for page in pdf.pages:
+            tam_metin = page.extract_text() or ""
+            tam_metin_bosluksuz = re.sub(r"\s+", "", tam_metin)
+            if not bolum_bulundu and "HİSSESENETLERİ" not in tam_metin_bosluksuz:
+                continue
+            if bolum_bitti:
+                break
+
+            tablolar = page.extract_tables(
+                table_settings={"vertical_strategy": "text", "horizontal_strategy": "text"}
+            )
+            if not tablolar:
+                continue
+
+            for satir in tablolar[0]:
+                birlesik = " ".join(c for c in satir if c)
+                birlesik_bosluksuz = re.sub(r"\s+", "", birlesik)
+                if "HİSSESENETLERİ" in birlesik_bosluksuz:
+                    bolum_bulundu = True
+                    continue
+                if not bolum_bulundu:
+                    continue
+                if "GRUPTOPLAMI" in birlesik_bosluksuz:
+                    sayilar = [t for t in re.findall(r"-?\d[\d.]*,\d{2}", birlesik)]
+                    if len(sayilar) >= 2:
+                        try:
+                            kap_toplam = _tr_sayi(sayilar[-2])
+                        except Exception:
+                            pass
+                    bolum_bitti = True
+                    break
+                if "TÜREV" in birlesik_bosluksuz or "BORÇLANMASENETLERİ" in birlesik_bosluksuz:
+                    bolum_bitti = True
+                    break
+
+                ilk = (satir[0] or "").strip()
+                if not _KOD_RE.match(ilk):
+                    continue
+                # Bu satırdaki tüm hücrelerden ondalıklı sayı token'larını çıkar
+                tum_hucreler = [c for c in satir if c]
+                sayi_tokenlari = []
+                for hucre in tum_hucreler:
+                    for parca in hucre.split():
+                        if _SAYI_TOKEN_RE.match(parca):
+                            sayi_tokenlari.append(parca)
+                if len(sayi_tokenlari) < 3:
+                    continue
+                # Son 3 ondalıklı sayı: TOPLAM(FPD GÖRE), GRUP(%), TOPLAM(FTD GÖRE)
+                grup_pct = _tr_sayi(sayi_tokenlari[-2])
+                if grup_pct is None:
+                    continue
+                agirliklar[ilk] = agirliklar.get(ilk, 0.0) + grup_pct
+
+    hisseler = sorted(agirliklar.items(), key=lambda x: -x[1])
+    return hisseler, kap_toplam
+
+
+def kap_fon_kompozisyon_getir(fon_kodu):
+    """Tam pipeline: fon kodu -> KAP'tan en son Portföy Dağılım Raporu -> ayrıştırılmış
+    hisse listesi. Döner: dict {basarili, hata, fon_adi, donem, hisseler, kap_toplam, hesaplanan_toplam}
+    """
+    oid, fon_adi = kap_fon_oid_bul(fon_kodu)
+    if not oid:
+        return {"basarili": False, "hata": f"'{fon_kodu}' için KAP'ta fon bulunamadı."}
+
+    disclosure_index, publish_date = kap_son_portfoy_raporu_bul(oid)
+    if not disclosure_index:
+        return {"basarili": False, "hata": f"{fon_kodu} için son 75 günde Portföy Dağılım Raporu bulunamadı."}
+
+    time.sleep(0.3)
+    obj_id = kap_pdf_obj_id_bul(disclosure_index)
+    if not obj_id:
+        return {"basarili": False, "hata": "Bildirimde PDF eki bulunamadı."}
+
+    time.sleep(0.3)
+    try:
+        pdf_bytes = kap_pdf_indir(obj_id, disclosure_index)
+    except Exception as e:
+        return {"basarili": False, "hata": f"PDF indirilemedi: {e}"}
+
+    try:
+        hisseler, kap_toplam = pdf_hisse_dagilimi_ayikla(pdf_bytes)
+    except Exception as e:
+        return {"basarili": False, "hata": f"PDF ayrıştırılamadı: {e}"}
+
+    if not hisseler:
+        return {"basarili": False, "hata": "PDF'te hisse senedi bölümü bulunamadı (fon tamamen tahvil/repo ağırlıklı olabilir)."}
+
+    hesaplanan_toplam = round(sum(a for _, a in hisseler), 2)
+    dogrulandi = kap_toplam is not None and abs(hesaplanan_toplam - kap_toplam) < 0.5
+
+    return {
+        "basarili": True,
+        "fon_kodu": fon_kodu.upper(),
+        "fon_adi": fon_adi,
+        "donem": publish_date,
+        "hisseler": hisseler,
+        "kap_toplam": kap_toplam,
+        "hesaplanan_toplam": hesaplanan_toplam,
+        "dogrulandi": dogrulandi,
+    }

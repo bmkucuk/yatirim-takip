@@ -4,10 +4,21 @@
 
 <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
   <h2>🔍 Fon İçerik Analizi</h2>
-  <button id="guncelle-btn" class="btn-primary" style="padding:8px 20px;font-size:0.9rem" onclick="fonIcerikGuncelle()">
-    🔄 Güncelle
-  </button>
+  <div style="display:flex;gap:8px;align-items:center">
+    <input id="yeni-fon-kodu" type="text" placeholder="Fon kodu (örn. PBR)"
+      style="background:var(--card2);border:1px solid var(--border);color:var(--text);
+             padding:8px 12px;border-radius:7px;font-size:0.9rem;width:160px;text-transform:uppercase">
+    <button id="fon-ekle-btn" class="btn-primary" style="padding:8px 16px;font-size:0.9rem" onclick="fonEkle()">
+      ➕ KAP'tan Ekle/Güncelle
+    </button>
+    <button id="guncelle-btn" class="btn-primary" style="padding:8px 20px;font-size:0.9rem" onclick="fonIcerikGuncelle()">
+      🔄 Fiyat Güncelle
+    </button>
+  </div>
 </div>
+
+<div id="fon-ekle-durum" style="font-size:0.85rem;margin-bottom:0.6rem;display:none"></div>
+
 
 <div style="font-size:0.8rem;color:var(--text2);margin-bottom:1rem">
   Hisse ağırlıkları Fintables'ın aylık KAP portföy dağılım raporuna dayanır (ayda bir değişir).
@@ -84,6 +95,42 @@
 </style>
 
 <script>
+async function fonEkle() {
+  const input = document.getElementById('yeni-fon-kodu');
+  const durum = document.getElementById('fon-ekle-durum');
+  const btn = document.getElementById('fon-ekle-btn');
+  const kod = input.value.trim().toUpperCase();
+  if (!kod) return;
+  durum.style.display = 'block';
+  durum.style.color = 'var(--text2)';
+  durum.textContent = `⏳ ${kod} için KAP'ta son Portföy Dağılım Raporu aranıyor...`;
+  btn.disabled = true;
+  try {
+    const r = await fetch("{{ url_for('fon_icerik_fon_ekle') }}", {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({fon_kodu: kod})
+    });
+    const data = await r.json();
+    if (!data.basarili) {
+      durum.style.color = 'var(--neg)';
+      durum.textContent = `❌ ${data.hata || 'Bilinmeyen hata'}`;
+    } else {
+      const dogrulama = data.dogrulandi
+        ? `✅ doğrulandı (hesaplanan %${data.hesaplanan_toplam} ≈ KAP %${data.kap_toplam})`
+        : `⚠️ KAP toplamıyla tam eşleşmedi (hesaplanan %${data.hesaplanan_toplam}, KAP %${data.kap_toplam ?? '—'}) — kontrol et`;
+      durum.style.color = data.dogrulandi ? 'var(--pos)' : 'var(--neg)';
+      durum.textContent = `${data.fon_kodu} eklendi (${data.donem || ''}) — ${dogrulama}. Sayfa yenileniyor...`;
+      setTimeout(() => location.reload(), 1800);
+    }
+  } catch (e) {
+    durum.style.color = 'var(--neg)';
+    durum.textContent = '❌ İstek başarısız: ' + e;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function sortFonTable(th) {
   const table = th.closest('table');
   const tbody = table.querySelector('tbody');

@@ -5,6 +5,7 @@ import sqlite3, os, hashlib, secrets
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari
+import kap_client
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
@@ -108,6 +109,16 @@ def init_db():
             vergi_orani REAL DEFAULT 0,
             FOREIGN KEY(portfoy_id) REFERENCES kiyaslama_portfoy(id)
         );
+        CREATE TABLE IF NOT EXISTS fon_kompozisyon (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fon_kod TEXT NOT NULL,
+            fon_ad TEXT,
+            hisse_kod TEXT NOT NULL,
+            agirlik REAL NOT NULL,
+            donem TEXT,
+            guncelleme_tarihi TEXT DEFAULT (datetime('now')),
+            UNIQUE(fon_kod, hisse_kod)
+        );
         """)
     # Migration: mevcut tablolara eksik kolonları ekle
     try:
@@ -190,16 +201,37 @@ FON_ICERIK = {
 }
 
 
+def fon_tum_kompozisyonlari_getir():
+    """FON_ICERIK (hardcoded, doğrulanmış) + DB'ye KAP'tan otomatik eklenmiş fonları
+    birleştirir. Aynı fon kodu DB'de varsa (yeniden çekilmiş/güncellenmiş), DB'deki
+    veri hardcoded olanın üzerine yazar.
+    """
+    birlesik = {k: dict(v) for k, v in FON_ICERIK.items()}
+    with get_db() as conn:
+        satirlar = conn.execute(
+            "SELECT fon_kod, fon_ad, hisse_kod, agirlik FROM fon_kompozisyon ORDER BY fon_kod, agirlik DESC"
+        ).fetchall()
+    db_fonlar = {}
+    for s in satirlar:
+        fk = s["fon_kod"]
+        if fk not in db_fonlar:
+            db_fonlar[fk] = {"ad": s["fon_ad"] or fk, "hisseler": []}
+        db_fonlar[fk]["hisseler"].append((s["hisse_kod"], s["agirlik"]))
+    birlesik.update(db_fonlar)
+    return birlesik
+
+
 def fon_icerik_hesapla():
     """Her fon için tüm hisselerin güncel fiyat/değişimini çekip katkı hesaplar."""
+    tum_fonlar = fon_tum_kompozisyonlari_getir()
     tum_semboller = []
-    for fon in FON_ICERIK.values():
+    for fon in tum_fonlar.values():
         for kod, _ in fon["hisseler"]:
             tum_semboller.append(kod)
     fiyatlar = fetch_fon_icerik_fiyatlari(tum_semboller)
 
     sonuc = {}
-    for fon_kod, fon in FON_ICERIK.items():
+    for fon_kod, fon in tum_fonlar.items():
         satirlar = []
         toplam_katki = 0.0
         for kod, agirlik in fon["hisseler"]:
@@ -1933,6 +1965,38 @@ def fon_icerik():
 def api_fon_icerik_guncelle():
     veri = fon_icerik_hesapla()
     return jsonify(veri)
+
+
+@app.route("/fon-icerik/fon-ekle", methods=["POST"])
+@login_required
+def fon_icerik_fon_ekle():
+    fon_kodu = (request.json or {}).get("fon_kodu", "").strip().upper()
+    if not fon_kodu:
+        return jsonify({"basarili": False, "hata": "Fon kodu boş olamaz."}), 400
+
+    sonuc = kap_client.kap_fon_kompozisyon_getir(fon_kodu)
+    if not sonuc.get("basarili"):
+        return jsonify(sonuc), 200
+
+    with get_db() as conn:
+        conn.execute("DELETE FROM fon_kompozisyon WHERE fon_kod = ?", (fon_kodu,))
+        for kod, agirlik in sonuc["hisseler"]:
+            conn.execute(
+                "INSERT INTO fon_kompozisyon (fon_kod, fon_ad, hisse_kod, agirlik, donem) "
+                "VALUES (?,?,?,?,?)",
+                (fon_kodu, sonuc.get("fon_adi") or fon_kodu, kod, agirlik, sonuc.get("donem")),
+            )
+
+    guncel = fon_icerik_hesapla()
+    return jsonify({
+        "basarili": True,
+        "fon_kodu": fon_kodu,
+        "donem": sonuc.get("donem"),
+        "kap_toplam": sonuc.get("kap_toplam"),
+        "hesaplanan_toplam": sonuc.get("hesaplanan_toplam"),
+        "dogrulandi": sonuc.get("dogrulandi"),
+        "fonlar": guncel,
+    })
 
 
 @app.route("/kiyaslama")
