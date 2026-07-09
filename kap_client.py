@@ -27,6 +27,58 @@ KAP_HEADERS = {
 }
 
 
+def kap_fon_kodu_ile_rapor_bul(fon_kodu, gun_araligi=12):
+    """OID aramaya gerek kalmadan: son N günün TÜM bildirimlerini çek (mkkMemberOidList
+    boş = tüm üyeler), 'fundCode' alanına ve 'Portföy Dağılım Raporu' konusuna göre
+    istemci tarafında filtrele. KAP'ın disclosure şemasında fon bildirimleri için
+    'fundCode' alanı zaten var (DKB bildirimlerinde de görülüyor, orada null).
+    Döner: (disclosureIndex, publishDate, debug_str) veya (None, None, debug_str)
+    """
+    kod = fon_kodu.strip().upper()
+    bugun = date.today()
+    baslangic = bugun - timedelta(days=gun_araligi)
+    body = {
+        "fromDate": baslangic.isoformat(),
+        "toDate": bugun.isoformat(),
+        "mkkMemberOidList": [],
+        "subjectList": [],
+    }
+    try:
+        r = requests.post(
+            f"{KAP_BASE}/tr/api/disclosure/members/byCriteria",
+            json=body, headers=KAP_HEADERS, timeout=20
+        )
+        if r.status_code != 200:
+            return None, None, f"byCriteria -> {r.status_code}: {r.text[:200]}"
+        sonuclar = r.json()
+        if not isinstance(sonuclar, list):
+            return None, None, f"byCriteria beklenmeyen yanit tipi: {type(sonuclar)}"
+
+        eslesen = [
+            d for d in sonuclar
+            if (d.get("fundCode") or "").strip().upper() == kod
+            and "portföy dağılım raporu" in (d.get("subject") or "").lower()
+        ]
+        if not eslesen:
+            # fundCode alani bos gelmis olabilir; stockCode/relatedStocks gibi
+            # alternatif alanlarla da dene
+            eslesen = [
+                d for d in sonuclar
+                if kod in [
+                    (s or "").strip().upper()
+                    for s in (d.get("relatedStocks") or []) if isinstance(d.get("relatedStocks"), list)
+                ]
+                and "portföy dağılım raporu" in (d.get("subject") or "").lower()
+            ] if any(d.get("relatedStocks") for d in sonuclar) else []
+        if not eslesen:
+            return None, None, f"{len(sonuclar)} bildirim tarandı, '{kod}' fundCode eşleşmesi yok."
+        eslesen.sort(key=lambda d: d.get("publishDate", ""), reverse=True)
+        en_son = eslesen[0]
+        return en_son.get("disclosureIndex"), en_son.get("publishDate"), None
+    except Exception as e:
+        return None, None, f"byCriteria istisna: {e}"
+
+
 def kap_fon_oid_bul(fon_kodu):
     """Fon koduna (örn. 'PBR') karşılık gelen KAP mkkMemberOid'sini bulur.
     Fonlar KAP'ta şirketlerden farklı bir üyelik tipinde olabileceği için birkaç
@@ -239,23 +291,28 @@ def pdf_hisse_dagilimi_ayikla(pdf_bytes):
 
 def kap_fon_kompozisyon_getir(fon_kodu):
     """Tam pipeline: fon kodu -> KAP'tan en son Portföy Dağılım Raporu -> ayrıştırılmış
-    hisse listesi. Döner: dict {basarili, hata, fon_adi, donem, hisseler, kap_toplam, hesaplanan_toplam}
+    hisse listesi. Önce 'fundCode' ile doğrudan filtreleme dener (OID gerektirmez);
+    olmazsa OID bulup fon-bazlı arama yapar.
+    Döner: dict {basarili, hata, fon_adi, donem, hisseler, kap_toplam, hesaplanan_toplam}
     """
-    oid, fon_adi, debug = kap_fon_oid_bul(fon_kodu)
-    if not oid:
-        hata = f"'{fon_kodu}' için KAP'ta fon bulunamadı."
-        if debug:
-            hata += f" [DEBUG: {debug}]"
-        return {"basarili": False, "hata": hata}
+    disclosure_index, publish_date, debug1 = kap_fon_kodu_ile_rapor_bul(fon_kodu)
+    fon_adi = None
 
-    disclosure_index, publish_date = kap_son_portfoy_raporu_bul(oid)
     if not disclosure_index:
-        return {"basarili": False, "hata": f"{fon_kodu} için son 75 günde Portföy Dağılım Raporu bulunamadı."}
+        oid, fon_adi, debug2 = kap_fon_oid_bul(fon_kodu)
+        if oid:
+            disclosure_index, publish_date = kap_son_portfoy_raporu_bul(oid)
+        if not disclosure_index:
+            hata = f"'{fon_kodu}' için son günlerde Portföy Dağılım Raporu bulunamadı."
+            detaylar = " || ".join(d for d in [debug1, debug2 if oid is None else None] if d)
+            if detaylar:
+                hata += f" [DEBUG: {detaylar}]"
+            return {"basarili": False, "hata": hata}
 
     time.sleep(0.3)
     obj_id = kap_pdf_obj_id_bul(disclosure_index)
     if not obj_id:
-        return {"basarili": False, "hata": "Bildirimde PDF eki bulunamadı."}
+        return {"basarili": False, "hata": f"Bildirimde (id={disclosure_index}) PDF eki bulunamadı."}
 
     time.sleep(0.3)
     try:
