@@ -429,41 +429,112 @@ def _yahoo_chart_fiyat(sembol):
     return None, None
 
 
+def fetch_milliyet_altin():
+    """uzmanpara.milliyet.com.tr/altin-fiyatlari sayfasından Gram Altın, Ons Altın (USD)
+    ve gümüş verilerini çeker. Döner: {"GRAM_ALTIN","ONS_ALTIN","GUMUS_GRAM_TL","GUMUS_ONS_USD":
+    {"alis","satis","degisim"}}
+    """
+    import re
+    from bs4 import BeautifulSoup
+
+    sonuc = {}
+    try:
+        r = requests.get(
+            "https://uzmanpara.milliyet.com.tr/altin-fiyatlari/",
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"},
+            timeout=10
+        )
+        if r.status_code != 200:
+            return sonuc
+        soup = BeautifulSoup(r.text, "html.parser")
+        sayi_re = re.compile(r"^-?[\d\.]+,\d+$")
+        etiket_map = {
+            "Gram Altın": "GRAM_ALTIN",
+            "Ons Altın": "ONS_ALTIN",
+            "Gümüş Gram (TL)": "GUMUS_GRAM_TL",
+            "Gümüş Ons (Dolar)": "GUMUS_ONS_USD",
+        }
+        for tr in soup.find_all("tr"):
+            tds = tr.find_all("td")
+            if len(tds) < 4:
+                continue
+            etiket = tds[0].get_text(strip=True)
+            anahtar = etiket_map.get(etiket)
+            if not anahtar or anahtar in sonuc:
+                continue
+            sayilar, yuzde = [], None
+            for td in tds[1:]:
+                v = td.get_text(strip=True)
+                v_temiz = v.replace("$", "").replace("TL", "").replace("₺", "").strip()
+                if sayi_re.match(v_temiz):
+                    sayilar.append(_tl_sayi(v_temiz))
+                elif "%" in v:
+                    m = re.search(r"-?[\d\.]+,\d+|-?\d+", v.replace("%", ""))
+                    if m:
+                        yuzde = _tl_sayi(m.group()) if "," in m.group() else float(m.group())
+            if len(sayilar) >= 2:
+                sonuc[anahtar] = {"alis": sayilar[0], "satis": sayilar[1], "degisim": yuzde}
+    except Exception:
+        pass
+    return sonuc
+
+
 def fetch_piyasa_verileri():
-    """'Piyasalar' sekmesi için altın/gümüş verilerini Yahoo Finance'ten çeker.
+    """'Piyasalar' sekmesi için altın/gümüş verilerini çeker.
+    Öncelik: uzmanpara.milliyet.com.tr (gerçek TR piyasa fiyatı, Gram Altın için en doğru kaynak),
+    eksik kalanlar için Yahoo Finance (v8 chart, IAU ve ALTIN.S1 sertifikası için tek kaynak).
     Döner: {anahtar: {"fiyat","degisim","ad", ...}} —
     XAUSD, IAU, XAUTRYG, GRAMALTIN, XAGUSD, ALTINS1, MAKAS.
     """
+    milliyet = fetch_milliyet_altin()
+
     semboller = {
         "XAUUSD": ("XAUUSD=X", "Altın (Ons/USD)"),
         "IAU": ("IAU", "iShares Gold Trust (IAU)"),
         "XAGUSD": ("XAGUSD=X", "Gümüş (Ons/USD)"),
-        "USDTRY": ("USDTRY=X", "USD/TRY"),
-        "XAUTRY": ("XAUTRY=X", "Altın (Ons/TRY)"),
         "ALTINS1": ("ALTIN.IS", "Darphane Altın Sertifikası (ALTIN.S1)"),
     }
     ham = {}
     for anahtar, (ys, ad) in semboller.items():
+        # Yahoo'yu sadece Milliyet'te olmayan veriler (IAU, ALTINS1) veya Milliyet başarısız olduğunda fallback için çağır
+        gerekli = (
+            anahtar in ("IAU", "ALTINS1")
+            or (anahtar == "XAUUSD" and "ONS_ALTIN" not in milliyet)
+            or (anahtar == "XAGUSD" and "GUMUS_ONS_USD" not in milliyet)
+        )
+        if not gerekli:
+            continue
         fiyat, degisim = _yahoo_chart_fiyat(ys)
         if fiyat is not None:
             ham[anahtar] = {"fiyat": fiyat, "degisim": degisim, "ad": ad}
 
     piyasalar = {}
-    if "XAUUSD" in ham:
+
+    # XAUSD: Milliyet Ons Altın (satış, USD) öncelikli
+    if "ONS_ALTIN" in milliyet:
+        piyasalar["XAUSD"] = {"fiyat": milliyet["ONS_ALTIN"]["satis"], "degisim": milliyet["ONS_ALTIN"]["degisim"], "ad": "Altın (Ons/USD)"}
+    elif "XAUUSD" in ham:
         piyasalar["XAUSD"] = ham["XAUUSD"]
+
     if "IAU" in ham:
         piyasalar["IAU"] = ham["IAU"]
-    if "XAGUSD" in ham:
+
+    # XAGUSD: Milliyet Gümüş Ons (Dolar, satış) öncelikli
+    if "GUMUS_ONS_USD" in milliyet:
+        piyasalar["XAGUSD"] = {"fiyat": milliyet["GUMUS_ONS_USD"]["satis"], "degisim": milliyet["GUMUS_ONS_USD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
+    elif "XAGUSD" in ham:
         piyasalar["XAGUSD"] = ham["XAGUSD"]
 
-    # Gram altın (TRY): önce doğrudan XAUTRY=X (ons/TRY) üzerinden, yoksa XAUUSD*USDTRY çapraz kuru
+    # Gram altın (TRY): Milliyet'in gerçek piyasa fiyatı (satış) öncelikli
     gram_fiyat = gram_degisim = None
-    if "XAUTRY" in ham:
-        gram_fiyat = round(ham["XAUTRY"]["fiyat"] / 31.1034768, 2)
-        gram_degisim = ham["XAUTRY"]["degisim"]
-    elif "XAUUSD" in ham and "USDTRY" in ham:
-        gram_fiyat = round(ham["XAUUSD"]["fiyat"] * ham["USDTRY"]["fiyat"] / 31.1034768, 2)
-        gram_degisim = ham["XAUUSD"].get("degisim")
+    if "GRAM_ALTIN" in milliyet:
+        gram_fiyat = milliyet["GRAM_ALTIN"]["satis"]
+        gram_degisim = milliyet["GRAM_ALTIN"]["degisim"]
+    elif "XAUUSD" in ham:
+        usd_try, _ = _yahoo_chart_fiyat("USDTRY=X")
+        if usd_try:
+            gram_fiyat = round(ham["XAUUSD"]["fiyat"] * usd_try / 31.1034768, 2)
+            gram_degisim = ham["XAUUSD"].get("degisim")
 
     if gram_fiyat is not None:
         piyasalar["XAUTRYG"] = {"fiyat": gram_fiyat, "degisim": gram_degisim, "ad": "XAUTRYG"}
