@@ -9,33 +9,24 @@
 
 <div class="section-title">Piyasa Özeti <span style="text-transform:none;font-weight:400;color:var(--text2);font-size:0.78rem">— sürükleyerek sıralayabilirsiniz</span></div>
 
-{% if not kartlar and not veriler.MAKAS %}
+{% if not kartlar %}
 <div class="card"><p style="color:var(--text2)">Veriler şu anda alınamadı, lütfen sayfayı yenileyin.</p></div>
 {% else %}
 <div class="summary-grid" id="piyasa-kart-container">
   {% for kart in kartlar %}
   <div class="summary-card piyasa-karti" data-kart="{{ kart.kod }}" draggable="true" tabindex="0">
     <div class="card-label">{{ kart.ikon }} {{ kart.baslik }}</div>
-    <div class="card-value">
+    <div class="card-value {{ kart.renk or '' }}">
       {{ kart.deger_str }}
       {% if kart.degisim is not none %}
       <span class="pct {{ 'pos' if kart.degisim >= 0 else 'neg' }}">{{ '▲' if kart.degisim >= 0 else '▼' }} {{ "%+.2f"|format(kart.degisim) }}%</span>
       {% endif %}
     </div>
+    {% if kart.alt_metin %}
+    <div style="color:var(--text2);font-size:0.75rem;margin-top:0.35rem">{{ kart.alt_metin }}</div>
+    {% endif %}
   </div>
   {% endfor %}
-
-  {% if veriler.MAKAS %}
-  <div class="summary-card">
-    <div class="card-label">🧮 Sertifika Makası (ALTIN.S1 × 100 vs Gram Altın)</div>
-    <div class="card-value {{ 'pos' if veriler.MAKAS.deger >= 0 else 'neg' }}">
-      {{ '▲' if veriler.MAKAS.deger >= 0 else '▼' }} {{ "%+.2f"|format(veriler.MAKAS.deger) }}%
-    </div>
-    <div style="color:var(--text2);font-size:0.75rem;margin-top:0.35rem">
-      ₺{{ "%.2f"|format(veriler.MAKAS.gram_altin) }} → ₺{{ "%.2f"|format(veriler.MAKAS.sertifika_gram) }}
-    </div>
-  </div>
-  {% endif %}
 </div>
 {% endif %}
 

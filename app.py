@@ -1040,7 +1040,7 @@ PIYASA_KART_META = {
     "EUR":       {"ikon": "💶", "birim": "₺", "ondalik": 4},
     "PETROL":    {"ikon": "🛢️", "birim": "$", "ondalik": 2},
 }
-PIYASA_VARSAYILAN_SIRA = ["XAUSD", "IAU", "GRAMALTIN", "XAGUSD", "ALTINS1", "BIST100", "USD", "EUR", "PETROL"]
+PIYASA_VARSAYILAN_SIRA = ["XAUSD", "IAU", "GRAMALTIN", "XAGUSD", "ALTINS1", "BIST100", "USD", "EUR", "PETROL", "MAKAS"]
 
 
 def piyasa_kartlarini_olustur(veriler, user_id):
@@ -1054,6 +1054,22 @@ def piyasa_kartlarini_olustur(veriler, user_id):
 
     kartlar = []
     for kod in sira:
+        if kod == "MAKAS":
+            makas = veriler.get("MAKAS")
+            if not makas:
+                continue
+            renk = "pos" if makas["deger"] >= 0 else "neg"
+            ok = "▲" if makas["deger"] >= 0 else "▼"
+            kartlar.append({
+                "kod": "MAKAS",
+                "ikon": "🧮",
+                "baslik": "Sertifika Makası (ALTIN.S1 × 100 vs Gram Altın)",
+                "deger_str": f"{ok} {makas['deger']:+.2f}%",
+                "degisim": None,
+                "renk": renk,
+                "alt_metin": f"₺{makas['gram_altin']:.2f} → ₺{makas['sertifika_gram']:.2f}".replace(".", ","),
+            })
+            continue
         veri = veriler.get(kod)
         if not veri:
             continue
@@ -1069,6 +1085,8 @@ def piyasa_kartlarini_olustur(veriler, user_id):
             "baslik": veri.get("ad", kod),
             "deger_str": deger_str,
             "degisim": veri.get("degisim"),
+            "renk": None,
+            "alt_metin": None,
         })
     return kartlar
 
