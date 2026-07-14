@@ -481,7 +481,7 @@ def fetch_milliyet_altin():
 
         # Üst ticker çubuğu: "BIST100 14.827 0,00%", "DOLAR 46,4473 -0,01%" gibi <a> etiketleri
         ticker_map = {"BIST100": "BIST100", "DOLAR": "USDTRY", "EURO": "EURTRY", "PETROL": "BRENT"}
-        ticker_re = re.compile(r"^\S+\s+([\d\.]+,\d+)\s+(-?[\d\.]+,\d+)%")
+        ticker_re = re.compile(r"^\S+\s+([\d\.]+(?:,\d+)?)\s+(-?[\d\.]+(?:,\d+)?)%")
         for a in soup.find_all("a"):
             metin = a.get_text(" ", strip=True)
             if not metin:
