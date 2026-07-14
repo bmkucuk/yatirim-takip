@@ -9,7 +9,7 @@
 
 <div class="section-title">Piyasa Özeti <span style="text-transform:none;font-weight:400;color:var(--text2);font-size:0.78rem">— sürükleyerek sıralayabilirsiniz</span></div>
 
-{% if not kartlar %}
+{% if not kartlar and not veriler.MAKAS %}
 <div class="card"><p style="color:var(--text2)">Veriler şu anda alınamadı, lütfen sayfayı yenileyin.</p></div>
 {% else %}
 <div class="summary-grid" id="piyasa-kart-container">
@@ -24,30 +24,23 @@
     </div>
   </div>
   {% endfor %}
+
+  {% if veriler.MAKAS %}
+  <div class="summary-card">
+    <div class="card-label">🧮 Sertifika Makası (ALTIN.S1 × 100 vs Gram Altın)</div>
+    <div class="card-value {{ 'pos' if veriler.MAKAS.deger >= 0 else 'neg' }}">
+      {{ "%+.2f"|format(veriler.MAKAS.deger) }}%
+    </div>
+    <div style="color:var(--text2);font-size:0.75rem;margin-top:0.35rem">
+      ₺{{ "%.2f"|format(veriler.MAKAS.gram_altin) }} → ₺{{ "%.2f"|format(veriler.MAKAS.sertifika_gram) }}
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endif %}
 
 {% if veriler.MAKAS %}
-<div class="section-title">Sertifika Makası</div>
-<div class="table-wrap">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Gram Altın (TL)</th>
-        <th>ALTIN.S1 × 100 (TL)</th>
-        <th>Makas (%)</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>₺{{ "%.2f"|format(veriler.MAKAS.gram_altin) }}</td>
-        <td>₺{{ "%.2f"|format(veriler.MAKAS.sertifika_gram) }}</td>
-        <td class="{{ 'pos' if veriler.MAKAS.deger >= 0 else 'neg' }}" style="font-weight:700">{{ "%+.2f"|format(veriler.MAKAS.deger) }}%</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-<p style="color:var(--text2);font-size:0.82rem;margin-top:-0.5rem">Pozitif değer: sertifika gram altından daha pahalı (prim). Negatif değer: sertifika daha ucuz (iskonto).</p>
+<p style="color:var(--text2);font-size:0.82rem;margin-top:0.75rem">Pozitif değer: sertifika gram altından daha pahalı (prim). Negatif değer: sertifika daha ucuz (iskonto).</p>
 {% endif %}
 
 <style>
