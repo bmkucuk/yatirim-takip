@@ -401,6 +401,66 @@ def fetch_fon_icerik_fiyatlari(semboller):
     return sonuc
 
 
+def fetch_piyasa_verileri():
+    """'Piyasalar' sekmesi için altın/gümüş verilerini Yahoo Finance'ten tek istekte çeker.
+    Döner: {anahtar: {"fiyat","degisim","ad"}} — XAUSD, IAU, XAUTRYG, GRAMALTIN, XAGUSD.
+    """
+    yahoo_semboller = {
+        "XAUUSD": "XAUUSD=X",
+        "IAU": "IAU",
+        "XAGUSD": "XAGUSD=X",
+        "USDTRY": "USDTRY=X",
+        "XAUTRY": "XAUTRY=X",
+    }
+    ham = {}
+    try:
+        r = requests.get(
+            f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={','.join(yahoo_semboller.values())}",
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+            timeout=15
+        )
+        if r.status_code == 200:
+            data = r.json()
+            for item in data.get("quoteResponse", {}).get("result", []):
+                ys = item.get("symbol", "")
+                fiyat = item.get("regularMarketPrice")
+                degisim = item.get("regularMarketChangePercent")
+                isim = item.get("longName") or item.get("shortName")
+                if fiyat is not None:
+                    ham[ys] = {
+                        "fiyat": round(float(fiyat), 4),
+                        "degisim": round(float(degisim), 2) if degisim is not None else None,
+                        "isim": isim,
+                    }
+    except Exception:
+        pass
+
+    sonuc = {a: ham[ys] for a, ys in yahoo_semboller.items() if ys in ham}
+    piyasalar = {}
+
+    if "XAUUSD" in sonuc:
+        piyasalar["XAUSD"] = {**sonuc["XAUUSD"], "ad": "Altın (Ons/USD)"}
+    if "IAU" in sonuc:
+        piyasalar["IAU"] = {**sonuc["IAU"], "ad": sonuc["IAU"].get("isim") or "iShares Gold Trust (IAU)"}
+    if "XAGUSD" in sonuc:
+        piyasalar["XAGUSD"] = {**sonuc["XAGUSD"], "ad": "Gümüş (Ons/USD)"}
+
+    # Gram altın (TRY): önce doğrudan XAUTRY=X (ons/TRY) üzerinden, yoksa XAUUSD*USDTRY çapraz kuru
+    gram_fiyat = gram_degisim = None
+    if "XAUTRY" in sonuc:
+        gram_fiyat = round(sonuc["XAUTRY"]["fiyat"] / 31.1034768, 2)
+        gram_degisim = sonuc["XAUTRY"].get("degisim")
+    elif "XAUUSD" in sonuc and "USDTRY" in sonuc:
+        gram_fiyat = round(sonuc["XAUUSD"]["fiyat"] * sonuc["USDTRY"]["fiyat"] / 31.1034768, 2)
+        gram_degisim = sonuc["XAUUSD"].get("degisim")
+
+    if gram_fiyat is not None:
+        piyasalar["XAUTRYG"] = {"fiyat": gram_fiyat, "degisim": gram_degisim, "ad": "XAUTRYG"}
+        piyasalar["GRAMALTIN"] = {"fiyat": gram_fiyat, "degisim": gram_degisim, "ad": "Gram Altın"}
+
+    return piyasalar
+
+
 def fetch_all_prices(fon_sembolleri, hisse_sembolleri, tur_map=None):
     today = bugun_str()
     prices, methods, errors = [], [], []

@@ -4,7 +4,7 @@ from functools import wraps
 import sqlite3, os, hashlib, secrets, re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari, fon_getiri_hesapla
+from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari, fon_getiri_hesapla, fetch_piyasa_verileri
 import kap_client
 
 app = Flask(__name__)
@@ -1022,6 +1022,13 @@ def fiyat_guncelle():
     return redirect(url_for("fiyatlar"))
 
 # ── Ayarlar ──────────────────────────────────────────────────────────────────
+
+@app.route("/piyasalar")
+@login_required
+def piyasalar():
+    veriler = fetch_piyasa_verileri()
+    return render_template("piyasalar.html", veriler=veriler)
+
 
 @app.route("/ayarlar", methods=["GET","POST"])
 @login_required

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Piyasalar — Yatırım Takip{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h2>🪙 Piyasalar</h2>
+  <span class="header-meta">Sayfa her açıldığında Yahoo Finance'ten anlık çekilir</span>
+</div>
+
+<div class="section-title">Altın &amp; Gümüş</div>
+
+{% if not veriler %}
+<div class="card"><p style="color:var(--text2)">Veriler şu anda alınamadı, lütfen sayfayı yenileyin.</p></div>
+{% else %}
+<div class="summary-grid">
+
+  {% if veriler.XAUSD %}
+  <div class="summary-card">
+    <div class="card-label">🟡 XAUSD — {{ veriler.XAUSD.ad }}</div>
+    <div class="card-value">
+      ${{ "%.2f"|format(veriler.XAUSD.fiyat) }}
+      {% if veriler.XAUSD.degisim is not none %}
+      <span class="pct {{ 'pos' if veriler.XAUSD.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(veriler.XAUSD.degisim) }}%</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if veriler.IAU %}
+  <div class="summary-card">
+    <div class="card-label">🪙 IAU — {{ veriler.IAU.ad }}</div>
+    <div class="card-value">
+      ${{ "%.2f"|format(veriler.IAU.fiyat) }}
+      {% if veriler.IAU.degisim is not none %}
+      <span class="pct {{ 'pos' if veriler.IAU.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(veriler.IAU.degisim) }}%</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if veriler.XAUTRYG %}
+  <div class="summary-card">
+    <div class="card-label">🇹🇷 XAUTRYG</div>
+    <div class="card-value">
+      ₺{{ "%.2f"|format(veriler.XAUTRYG.fiyat) }}
+      {% if veriler.XAUTRYG.degisim is not none %}
+      <span class="pct {{ 'pos' if veriler.XAUTRYG.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(veriler.XAUTRYG.degisim) }}%</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if veriler.GRAMALTIN %}
+  <div class="summary-card">
+    <div class="card-label">✨ Gram Altın</div>
+    <div class="card-value">
+      ₺{{ "%.2f"|format(veriler.GRAMALTIN.fiyat) }}
+      {% if veriler.GRAMALTIN.degisim is not none %}
+      <span class="pct {{ 'pos' if veriler.GRAMALTIN.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(veriler.GRAMALTIN.degisim) }}%</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if veriler.XAGUSD %}
+  <div class="summary-card">
+    <div class="card-label">⚪ XAGUSD — {{ veriler.XAGUSD.ad }}</div>
+    <div class="card-value">
+      ${{ "%.2f"|format(veriler.XAGUSD.fiyat) }}
+      {% if veriler.XAGUSD.degisim is not none %}
+      <span class="pct {{ 'pos' if veriler.XAGUSD.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(veriler.XAGUSD.degisim) }}%</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+
+{% endblock %}

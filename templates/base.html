@@ -62,6 +62,7 @@
     <a href="{{ url_for('fiyatlar') }}" class="{% if request.endpoint=='fiyatlar' %}active{% endif %}">Fiyatlar</a>
     <a href="{{ url_for('kiyaslama') }}" class="{% if request.endpoint=='kiyaslama' %}active{% endif %}">Kıyaslama</a>
     <a href="{{ url_for('fon_icerik') }}" class="{% if request.endpoint=='fon_icerik' %}active{% endif %}">Fon İçerik</a>
+    <a href="{{ url_for('piyasalar') }}" class="{% if request.endpoint=='piyasalar' %}active{% endif %}">Piyasalar</a>
     <a href="{{ url_for('ayarlar') }}" class="{% if request.endpoint=='ayarlar' %}active{% endif %}">Ayarlar</a>
     <span class="nav-user">👤 {{ session.username }}</span>
     <button class="theme-toggle" id="themeToggle" title="Tema değiştir">🌙</button>
