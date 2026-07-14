@@ -50,7 +50,10 @@
 }
 .piyasa-karti.surukleniyor { opacity: 0.4; }
 .piyasa-karti.surukle-uzerinde { box-shadow: 0 0 0 2px var(--accent) inset; }
-#piyasa-kart-container { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+#piyasa-kart-container { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 1000px) { #piyasa-kart-container { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 640px) { #piyasa-kart-container { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 420px) { #piyasa-kart-container { grid-template-columns: 1fr; } }
 #piyasa-kart-container .card-value {
   display: flex;
   flex-direction: column;
