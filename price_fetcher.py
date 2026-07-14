@@ -488,7 +488,7 @@ def fetch_piyasa_verileri():
     BIST hisse sayfası kullanılır (Yahoo'daki "ALTIN.IS" gerçek sertifika değil, eski/alakasız
     bir fon sembolüne denk geliyor).
     Döner: {anahtar: {"fiyat","degisim","ad", ...}} —
-    XAUSD, IAU, XAUTRYG, GRAMALTIN, XAGUSD, ALTINS1, MAKAS.
+    XAUSD, IAU, GRAMALTIN, XAGUSD, ALTINS1, MAKAS.
     """
     milliyet = fetch_milliyet_altin()
 
@@ -536,12 +536,11 @@ def fetch_piyasa_verileri():
             gram_degisim = ham["XAUUSD"].get("degisim")
 
     if gram_fiyat is not None:
-        piyasalar["XAUTRYG"] = {"fiyat": gram_fiyat, "degisim": gram_degisim, "ad": "XAUTRYG"}
         piyasalar["GRAMALTIN"] = {"fiyat": gram_fiyat, "degisim": gram_degisim, "ad": "Gram Altın"}
 
     # ALTIN.S1 sertifikası: Milliyet'in BIST hisse sayfasından (Yahoo'daki ALTIN.IS güvenilmez).
     # 1 lot = 0.01gr altın, dolayısıyla lot fiyatı x100 = gram karşılığı.
-    altin_s1 = fetch_milliyet_fiyatlar(["ALTIN"]).get("ALTIN")
+    altin_s1 = fetch_milliyet_fiyatlar(["ALTINS1"]).get("ALTINS1")
     if altin_s1 and altin_s1.get("fiyat"):
         sertifika_gram = round(altin_s1["fiyat"] * 100, 2)
         piyasalar["ALTINS1"] = {

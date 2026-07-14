@@ -1039,7 +1039,7 @@ def piyasalar_debug():
     except Exception as e:
         bilgi["milliyet_altin_parsed_hata"] = str(e)
     try:
-        bilgi["altin_s1_milliyet_hisse"] = fetch_milliyet_fiyatlar(["ALTIN"])
+        bilgi["altin_s1_milliyet_hisse"] = fetch_milliyet_fiyatlar(["ALTINS1"])
     except Exception as e:
         bilgi["altin_s1_hata"] = str(e)
     try:

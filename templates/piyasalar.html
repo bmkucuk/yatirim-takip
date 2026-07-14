@@ -38,18 +38,6 @@
   </div>
   {% endif %}
 
-  {% if veriler.XAUTRYG %}
-  <div class="summary-card">
-    <div class="card-label">🇹🇷 XAUTRYG</div>
-    <div class="card-value">
-      ₺{{ "%.2f"|format(veriler.XAUTRYG.fiyat) }}
-      {% if veriler.XAUTRYG.degisim is not none %}
-      <span class="pct {{ 'pos' if veriler.XAUTRYG.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(veriler.XAUTRYG.degisim) }}%</span>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
   {% if veriler.GRAMALTIN %}
   <div class="summary-card">
     <div class="card-label">✨ Gram Altın</div>
