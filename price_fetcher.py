@@ -521,6 +521,41 @@ def fetch_altin_s1_milliyet():
     return None
 
 
+def fetch_altin_s1_doviz():
+    """ALTIN.S1 sertifikasını doviz.com'dan çeker. Milliyet'in 'Tüm Hisseler' sayfası bu
+    sertifikayı hiç listelemiyor olabilir (Emtia Pazarı enstrümanı), bu yüzden güvenilir
+    bir yedek/öncelikli kaynak olarak doviz.com kullanılıyor. Sayfanın meta açıklamasından
+    ('ALTINS1 hissesinin fiyatı 70,65 liradır. Önceki kapanış fiyatına göre %-0,20 düşmüştür.')
+    fiyat ve günlük değişim çekilir. Döner: {"fiyat","degisim"} ya da None.
+    """
+    import re
+
+    try:
+        r = requests.get(
+            "https://borsa.doviz.com/hisseler/altins1-darphane-altin-sertifikasi",
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"},
+            timeout=10
+        )
+        if r.status_code != 200:
+            return None
+        r.encoding = r.apparent_encoding or "utf-8"
+        m = re.search(r"ALTINS1 hissesinin fiyat[ıi] ([\d\.,]+) liradır\.\s*Önceki kapanış fiyat[ıi]na göre %([\-\d,]+)", r.text)
+        if not m:
+            return None
+        fiyat = _tl_sayi(m.group(1))
+        degisim = _tl_sayi(m.group(2))
+        if fiyat is None:
+            return None
+        return {"fiyat": fiyat, "degisim": degisim}
+    except Exception:
+        return None
+
+
+def fetch_altin_s1():
+    """ALTIN.S1 sertifikası: önce Milliyet BIST hisse sayfası, bulunamazsa doviz.com."""
+    return fetch_altin_s1_milliyet() or fetch_altin_s1_doviz()
+
+
 def fetch_piyasa_verileri():
     """'Piyasalar' sekmesi için altın/gümüş verilerini çeker.
     Öncelik: uzmanpara.milliyet.com.tr (gerçek TR piyasa fiyatı, Gram Altın için en doğru kaynak).
@@ -580,7 +615,7 @@ def fetch_piyasa_verileri():
 
     # ALTIN.S1 sertifikası: Milliyet'in BIST hisse sayfasından (Yahoo'daki ALTIN.IS güvenilmez).
     # 1 lot = 0.01gr altın, dolayısıyla lot fiyatı x100 = gram karşılığı.
-    altin_s1 = fetch_altin_s1_milliyet()
+    altin_s1 = fetch_altin_s1()
     if altin_s1 and altin_s1.get("fiyat"):
         sertifika_gram = round(altin_s1["fiyat"] * 100, 2)
         piyasalar["ALTINS1"] = {
