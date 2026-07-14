@@ -1030,6 +1030,44 @@ def piyasalar():
     return render_template("piyasalar.html", veriler=veriler)
 
 
+@app.route("/piyasalar/debug")
+@login_required
+def piyasalar_debug():
+    import requests as req
+    from bs4 import BeautifulSoup
+    bilgi = {}
+    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+
+    try:
+        r = req.get("https://uzmanpara.milliyet.com.tr/altin-fiyatlari/", headers={"User-Agent": ua}, timeout=10)
+        bilgi["milliyet_status"] = r.status_code
+        bilgi["milliyet_uzunluk"] = len(r.text)
+        soup = BeautifulSoup(r.text, "html.parser")
+        satirlar = soup.find_all("tr")
+        bilgi["milliyet_tr_sayisi"] = len(satirlar)
+        ornekler = []
+        for tr in satirlar[:40]:
+            tds = tr.find_all("td")
+            if tds:
+                ornekler.append(" | ".join(td.get_text(strip=True) for td in tds[:5]))
+        bilgi["milliyet_ornek_satirlar"] = ornekler
+    except Exception as e:
+        bilgi["milliyet_hata"] = str(e)
+
+    for sembol in ["ALTIN.IS", "XAUUSD=X", "IAU"]:
+        try:
+            r2 = req.get(
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{sembol}?interval=1d&range=5d",
+                headers={"User-Agent": ua}, timeout=10
+            )
+            bilgi[f"yahoo_{sembol}_status"] = r2.status_code
+            bilgi[f"yahoo_{sembol}_body"] = r2.text[:600]
+        except Exception as e:
+            bilgi[f"yahoo_{sembol}_hata"] = str(e)
+
+    return jsonify(bilgi)
+
+
 @app.route("/ayarlar", methods=["GET","POST"])
 @login_required
 def ayarlar():
