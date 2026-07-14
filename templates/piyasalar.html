@@ -19,7 +19,7 @@
     <div class="card-value">
       {{ kart.deger_str }}
       {% if kart.degisim is not none %}
-      <span class="pct {{ 'pos' if kart.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(kart.degisim) }}%</span>
+      <span class="pct {{ 'pos' if kart.degisim >= 0 else 'neg' }}">{{ '▲' if kart.degisim >= 0 else '▼' }} {{ "%+.2f"|format(kart.degisim) }}%</span>
       {% endif %}
     </div>
   </div>
@@ -29,7 +29,7 @@
   <div class="summary-card">
     <div class="card-label">🧮 Sertifika Makası (ALTIN.S1 × 100 vs Gram Altın)</div>
     <div class="card-value {{ 'pos' if veriler.MAKAS.deger >= 0 else 'neg' }}">
-      {{ "%+.2f"|format(veriler.MAKAS.deger) }}%
+      {{ '▲' if veriler.MAKAS.deger >= 0 else '▼' }} {{ "%+.2f"|format(veriler.MAKAS.deger) }}%
     </div>
     <div style="color:var(--text2);font-size:0.75rem;margin-top:0.35rem">
       ₺{{ "%.2f"|format(veriler.MAKAS.gram_altin) }} → ₺{{ "%.2f"|format(veriler.MAKAS.sertifika_gram) }}
