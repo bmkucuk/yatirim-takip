@@ -4,77 +4,28 @@
 
 <div class="page-header">
   <h2>🪙 Piyasalar</h2>
-  <span class="header-meta">Gram Altın/Gümüş: uzmanpara.milliyet.com.tr · Diğerleri: Yahoo Finance</span>
+  <span class="header-meta">uzmanpara.milliyet.com.tr · IAU: Yahoo Finance</span>
 </div>
 
-<div class="section-title">Altın &amp; Gümüş</div>
+<div class="section-title">Piyasa Özeti <span style="text-transform:none;font-weight:400;color:var(--text2);font-size:0.78rem">— sürükleyerek sıralayabilirsiniz</span></div>
 
-{% if not veriler %}
+{% if not kartlar %}
 <div class="card"><p style="color:var(--text2)">Veriler şu anda alınamadı, lütfen sayfayı yenileyin.</p></div>
 {% else %}
-<div class="summary-grid">
-
-  {% if veriler.XAUSD %}
-  <div class="summary-card">
-    <div class="card-label">🟡 XAUSD — {{ veriler.XAUSD.ad }}</div>
+<div class="summary-grid" id="piyasa-kart-container">
+  {% for kart in kartlar %}
+  <div class="summary-card piyasa-karti" data-kart="{{ kart.kod }}" draggable="true" tabindex="0">
+    <div class="card-label">{{ kart.ikon }} {{ kart.baslik }}</div>
     <div class="card-value">
-      ${{ "%.2f"|format(veriler.XAUSD.fiyat) }}
-      {% if veriler.XAUSD.degisim is not none %}
-      <span class="pct {{ 'pos' if veriler.XAUSD.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(veriler.XAUSD.degisim) }}%</span>
+      {{ kart.deger_str }}
+      {% if kart.degisim is not none %}
+      <span class="pct {{ 'pos' if kart.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(kart.degisim) }}%</span>
       {% endif %}
     </div>
   </div>
-  {% endif %}
-
-  {% if veriler.IAU %}
-  <div class="summary-card">
-    <div class="card-label">🪙 IAU — {{ veriler.IAU.ad }}</div>
-    <div class="card-value">
-      ${{ "%.2f"|format(veriler.IAU.fiyat) }}
-      {% if veriler.IAU.degisim is not none %}
-      <span class="pct {{ 'pos' if veriler.IAU.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(veriler.IAU.degisim) }}%</span>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-  {% if veriler.GRAMALTIN %}
-  <div class="summary-card">
-    <div class="card-label">✨ Gram Altın</div>
-    <div class="card-value">
-      ₺{{ "%.2f"|format(veriler.GRAMALTIN.fiyat) }}
-      {% if veriler.GRAMALTIN.degisim is not none %}
-      <span class="pct {{ 'pos' if veriler.GRAMALTIN.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(veriler.GRAMALTIN.degisim) }}%</span>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-  {% if veriler.XAGUSD %}
-  <div class="summary-card">
-    <div class="card-label">⚪ XAGUSD — {{ veriler.XAGUSD.ad }}</div>
-    <div class="card-value">
-      ${{ "%.2f"|format(veriler.XAGUSD.fiyat) }}
-      {% if veriler.XAGUSD.degisim is not none %}
-      <span class="pct {{ 'pos' if veriler.XAGUSD.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(veriler.XAGUSD.degisim) }}%</span>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-  {% if veriler.ALTINS1 %}
-  <div class="summary-card">
-    <div class="card-label">📜 ALTIN.S1 — Sertifika (lot)</div>
-    <div class="card-value">
-      ₺{{ "%.2f"|format(veriler.ALTINS1.fiyat) }}
-      {% if veriler.ALTINS1.degisim is not none %}
-      <span class="pct {{ 'pos' if veriler.ALTINS1.degisim >= 0 else 'neg' }}">{{ "%+.2f"|format(veriler.ALTINS1.degisim) }}%</span>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
+  {% endfor %}
 </div>
+{% endif %}
 
 {% if veriler.MAKAS %}
 <div class="section-title">Sertifika Makası</div>
@@ -99,6 +50,97 @@
 <p style="color:var(--text2);font-size:0.82rem;margin-top:-0.5rem">Pozitif değer: sertifika gram altından daha pahalı (prim). Negatif değer: sertifika daha ucuz (iskonto).</p>
 {% endif %}
 
-{% endif %}
+<style>
+.piyasa-karti {
+  cursor: grab;
+  transition: box-shadow 0.15s, opacity 0.15s;
+}
+.piyasa-karti:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.piyasa-karti.surukleniyor { opacity: 0.4; }
+.piyasa-karti.surukle-uzerinde { box-shadow: 0 0 0 2px var(--accent) inset; }
+</style>
+
+<script>
+// ── Kart sıralama: sürükle-bırak (mouse) + ok tuşları (klavye) ─────────────
+const piyasaContainer = document.getElementById('piyasa-kart-container');
+let piyasaSuruklenenKart = null;
+
+function piyasaKartlariniAl() {
+  return piyasaContainer ? Array.from(piyasaContainer.querySelectorAll('.piyasa-karti')) : [];
+}
+
+async function piyasaSiraKaydet() {
+  const kodlar = piyasaKartlariniAl().map(k => k.dataset.kart);
+  try {
+    await fetch("{{ url_for('piyasalar_sira_kaydet') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sira: kodlar }),
+    });
+  } catch (e) {
+    // sessizce yut — sıralama sadece kozmetik
+  }
+}
+
+if (piyasaContainer) {
+  piyasaContainer.addEventListener('dragstart', (e) => {
+    const kart = e.target.closest('.piyasa-karti');
+    if (!kart) return;
+    piyasaSuruklenenKart = kart;
+    kart.classList.add('surukleniyor');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  piyasaContainer.addEventListener('dragend', (e) => {
+    const kart = e.target.closest('.piyasa-karti');
+    if (kart) kart.classList.remove('surukleniyor');
+    piyasaKartlariniAl().forEach(k => k.classList.remove('surukle-uzerinde'));
+    piyasaSuruklenenKart = null;
+  });
+
+  piyasaContainer.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const hedefKart = e.target.closest('.piyasa-karti');
+    if (!hedefKart || hedefKart === piyasaSuruklenenKart || !piyasaSuruklenenKart) return;
+    piyasaKartlariniAl().forEach(k => k.classList.remove('surukle-uzerinde'));
+    hedefKart.classList.add('surukle-uzerinde');
+    const kartlar = piyasaKartlariniAl();
+    const suruklenenIndex = kartlar.indexOf(piyasaSuruklenenKart);
+    const hedefIndex = kartlar.indexOf(hedefKart);
+    if (suruklenenIndex < hedefIndex) {
+      hedefKart.after(piyasaSuruklenenKart);
+    } else {
+      hedefKart.before(piyasaSuruklenenKart);
+    }
+  });
+
+  piyasaContainer.addEventListener('drop', (e) => {
+    e.preventDefault();
+    piyasaKartlariniAl().forEach(k => k.classList.remove('surukle-uzerinde'));
+    piyasaSiraKaydet();
+  });
+
+  piyasaContainer.addEventListener('keydown', (e) => {
+    const kart = e.target.closest('.piyasa-karti');
+    if (!kart) return;
+    const ileriTuslar = ['ArrowRight', 'ArrowDown'];
+    const geriTuslar = ['ArrowLeft', 'ArrowUp'];
+    if (![...ileriTuslar, ...geriTuslar].includes(e.key)) return;
+    e.preventDefault();
+    if (ileriTuslar.includes(e.key)) {
+      const sonraki = kart.nextElementSibling;
+      if (sonraki) sonraki.after(kart);
+    } else {
+      const onceki = kart.previousElementSibling;
+      if (onceki) onceki.before(kart);
+    }
+    kart.focus();
+    piyasaSiraKaydet();
+  });
+}
+</script>
 
 {% endblock %}

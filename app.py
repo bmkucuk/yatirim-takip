@@ -141,6 +141,12 @@ def init_db():
             getiri_1yil REAL,
             guncelleme_tarihi TEXT DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS piyasa_kart_sira (
+            user_id INTEGER NOT NULL,
+            kart_kod TEXT NOT NULL,
+            sira INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, kart_kod)
+        );
         """)
     try:
         conn.execute("ALTER TABLE fon_bilgi ADD COLUMN sira INTEGER")
@@ -1023,11 +1029,80 @@ def fiyat_guncelle():
 
 # ── Ayarlar ──────────────────────────────────────────────────────────────────
 
+PIYASA_KART_META = {
+    "XAUSD":     {"ikon": "🟡", "birim": "$", "ondalik": 2},
+    "IAU":       {"ikon": "🪙", "birim": "$", "ondalik": 2},
+    "GRAMALTIN": {"ikon": "✨", "birim": "₺", "ondalik": 2},
+    "XAGUSD":    {"ikon": "⚪", "birim": "$", "ondalik": 2},
+    "ALTINS1":   {"ikon": "📜", "birim": "₺", "ondalik": 2},
+    "BIST100":   {"ikon": "📈", "birim": "",  "ondalik": 2},
+    "USD":       {"ikon": "💵", "birim": "₺", "ondalik": 4},
+    "EUR":       {"ikon": "💶", "birim": "₺", "ondalik": 4},
+    "PETROL":    {"ikon": "🛢️", "birim": "$", "ondalik": 2},
+}
+PIYASA_VARSAYILAN_SIRA = ["XAUSD", "IAU", "GRAMALTIN", "XAGUSD", "ALTINS1", "BIST100", "USD", "EUR", "PETROL"]
+
+
+def piyasa_kartlarini_olustur(veriler, user_id):
+    """Fiyat verilerini kullanıcının kaydettiği sıraya göre kart listesine çevirir."""
+    with get_db() as conn:
+        satirlar = conn.execute(
+            "SELECT kart_kod FROM piyasa_kart_sira WHERE user_id=? ORDER BY sira", (user_id,)
+        ).fetchall()
+    kayitli_sira = [r["kart_kod"] for r in satirlar]
+    sira = kayitli_sira + [k for k in PIYASA_VARSAYILAN_SIRA if k not in kayitli_sira]
+
+    kartlar = []
+    for kod in sira:
+        veri = veriler.get(kod)
+        if not veri:
+            continue
+        meta = PIYASA_KART_META.get(kod, {"ikon": "📊", "birim": "", "ondalik": 2})
+        if meta["birim"] == "$":
+            deger_str = f"${veri['fiyat']:.{meta['ondalik']}f}"
+        else:
+            ham = f"{veri['fiyat']:,.{meta['ondalik']}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            deger_str = f"{meta['birim']}{ham}"
+        kartlar.append({
+            "kod": kod,
+            "ikon": meta["ikon"],
+            "baslik": veri.get("ad", kod),
+            "deger_str": deger_str,
+            "degisim": veri.get("degisim"),
+        })
+    return kartlar
+
+
 @app.route("/piyasalar")
 @login_required
 def piyasalar():
     veriler = fetch_piyasa_verileri()
-    return render_template("piyasalar.html", veriler=veriler)
+    kartlar = piyasa_kartlarini_olustur(veriler, session["user_id"])
+    return render_template("piyasalar.html", veriler=veriler, kartlar=kartlar)
+
+
+@app.route("/piyasalar/sira-kaydet", methods=["POST"])
+@login_required
+def piyasalar_sira_kaydet():
+    """Kullanıcının sürükle-bırak veya ok tuşlarıyla belirlediği kart sırasını kaydeder.
+    Body: {"sira": ["XAUSD", "IAU", ...]} — listedeki index sıra numarası olur."""
+    veri = request.json or {}
+    sira_listesi = veri.get("sira")
+    if not isinstance(sira_listesi, list) or not sira_listesi:
+        return jsonify({"basarili": False, "hata": "Geçersiz sıra listesi."}), 400
+
+    user_id = session["user_id"]
+    with get_db() as conn:
+        for i, kart_kod in enumerate(sira_listesi):
+            kart_kod = (kart_kod or "").strip().upper()
+            if not kart_kod:
+                continue
+            conn.execute(
+                "INSERT INTO piyasa_kart_sira (user_id, kart_kod, sira) VALUES (?, ?, ?) "
+                "ON CONFLICT(user_id, kart_kod) DO UPDATE SET sira=excluded.sira",
+                (user_id, kart_kod, i),
+            )
+    return jsonify({"basarili": True})
 
 
 @app.route("/piyasalar/debug")

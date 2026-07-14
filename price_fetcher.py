@@ -430,9 +430,11 @@ def _yahoo_chart_fiyat(sembol):
 
 
 def fetch_milliyet_altin():
-    """uzmanpara.milliyet.com.tr/altin-fiyatlari sayfasından Gram Altın, Ons Altın (USD)
-    ve gümüş verilerini çeker. Döner: {"GRAM_ALTIN","ONS_ALTIN","GUMUS_GRAM_TL","GUMUS_ONS_USD":
-    {"alis","satis","degisim"}}
+    """uzmanpara.milliyet.com.tr/altin-fiyatlari sayfasından Gram Altın, Ons Altın (USD),
+    gümüş verilerini VE sayfanın üst kısmındaki BIST100/Dolar/Euro/Petrol ticker çubuğunu
+    çeker (tek istekte, ekstra HTTP çağrısı yapmadan).
+    Döner: {"GRAM_ALTIN","ONS_ALTIN","GUMUS_GRAM_TL","GUMUS_ONS_USD": {"alis","satis","degisim"},
+            "BIST100","USDTRY","EURTRY","BRENT": {"deger","degisim"}}
     """
     import re
     from bs4 import BeautifulSoup
@@ -476,6 +478,21 @@ def fetch_milliyet_altin():
                         yuzde = _tl_sayi(m.group()) if "," in m.group() else float(m.group())
             if len(sayilar) >= 2:
                 sonuc[anahtar] = {"alis": sayilar[0], "satis": sayilar[1], "degisim": yuzde}
+
+        # Üst ticker çubuğu: "BIST100 14.827 0,00%", "DOLAR 46,4473 -0,01%" gibi <a> etiketleri
+        ticker_map = {"BIST100": "BIST100", "DOLAR": "USDTRY", "EURO": "EURTRY", "PETROL": "BRENT"}
+        ticker_re = re.compile(r"^\S+\s+([\d\.]+,\d+)\s+(-?[\d\.]+,\d+)%")
+        for a in soup.find_all("a"):
+            metin = a.get_text(" ", strip=True)
+            if not metin:
+                continue
+            ilk_kelime = metin.split(" ", 1)[0].upper()
+            anahtar = ticker_map.get(ilk_kelime)
+            if not anahtar or anahtar in sonuc:
+                continue
+            m = ticker_re.match(metin)
+            if m:
+                sonuc[anahtar] = {"deger": _tl_sayi(m.group(1)), "degisim": _tl_sayi(m.group(2))}
     except Exception:
         pass
     return sonuc
@@ -631,6 +648,16 @@ def fetch_piyasa_verileri():
                 "sertifika_gram": sertifika_gram,
                 "gram_altin": gram_fiyat,
             }
+
+    # Genel piyasa özet kartları: BIST100, Dolar, Euro, Brent Petrol (Milliyet üst ticker çubuğu)
+    if "BIST100" in milliyet:
+        piyasalar["BIST100"] = {"fiyat": milliyet["BIST100"]["deger"], "degisim": milliyet["BIST100"]["degisim"], "ad": "BIST 100"}
+    if "USDTRY" in milliyet:
+        piyasalar["USD"] = {"fiyat": milliyet["USDTRY"]["deger"], "degisim": milliyet["USDTRY"]["degisim"], "ad": "Dolar/TL"}
+    if "EURTRY" in milliyet:
+        piyasalar["EUR"] = {"fiyat": milliyet["EURTRY"]["deger"], "degisim": milliyet["EURTRY"]["degisim"], "ad": "Euro/TL"}
+    if "BRENT" in milliyet:
+        piyasalar["PETROL"] = {"fiyat": milliyet["BRENT"]["deger"], "degisim": milliyet["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
 
     return piyasalar
 
