@@ -50,9 +50,17 @@
 }
 .piyasa-karti.surukleniyor { opacity: 0.4; }
 .piyasa-karti.surukle-uzerinde { box-shadow: 0 0 0 2px var(--accent) inset; }
+#piyasa-kart-container { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+#piyasa-kart-container .card-value {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
 #piyasa-kart-container .card-value .pct {
+  display: block;
   font-size: 1.4rem;
-  margin-left: 0.5rem;
+  margin-left: 0;
+  white-space: nowrap;
 }
 </style>
 
