@@ -401,62 +401,85 @@ def fetch_fon_icerik_fiyatlari(semboller):
     return sonuc
 
 
-def fetch_piyasa_verileri():
-    """'Piyasalar' sekmesi için altın/gümüş verilerini Yahoo Finance'ten tek istekte çeker.
-    Döner: {anahtar: {"fiyat","degisim","ad"}} — XAUSD, IAU, XAUTRYG, GRAMALTIN, XAGUSD.
-    """
-    yahoo_semboller = {
-        "XAUUSD": "XAUUSD=X",
-        "IAU": "IAU",
-        "XAGUSD": "XAGUSD=X",
-        "USDTRY": "USDTRY=X",
-        "XAUTRY": "XAUTRY=X",
-    }
-    ham = {}
+def _yahoo_chart_fiyat(sembol):
+    """v8 chart endpoint'inden (get_usd_try ile aynı, üretimde çalıştığı doğrulanmış yöntem)
+    son fiyatı ve bir önceki kapanışa göre günlük değişim yüzdesini döndürür.
+    Döner: (fiyat, degisim_yuzde) ya da (None, None)."""
     try:
         r = requests.get(
-            f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={','.join(yahoo_semboller.values())}",
-            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
-            timeout=15
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{sembol}?interval=1d&range=5d",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=10
         )
         if r.status_code == 200:
-            data = r.json()
-            for item in data.get("quoteResponse", {}).get("result", []):
-                ys = item.get("symbol", "")
-                fiyat = item.get("regularMarketPrice")
-                degisim = item.get("regularMarketChangePercent")
-                isim = item.get("longName") or item.get("shortName")
-                if fiyat is not None:
-                    ham[ys] = {
-                        "fiyat": round(float(fiyat), 4),
-                        "degisim": round(float(degisim), 2) if degisim is not None else None,
-                        "isim": isim,
-                    }
+            result = r.json()["chart"]["result"][0]
+            meta = result.get("meta", {})
+            closes = [c for c in result.get("indicators", {}).get("quote", [{}])[0].get("close", []) if c is not None]
+            son = meta.get("regularMarketPrice")
+            if son is None:
+                son = closes[-1] if closes else None
+            if son is None:
+                return None, None
+            son = float(son)
+            onceki = closes[-2] if len(closes) >= 2 else (meta.get("previousClose") or meta.get("chartPreviousClose"))
+            degisim = round((son / onceki - 1) * 100, 2) if onceki else None
+            return round(son, 4), degisim
     except Exception:
         pass
+    return None, None
 
-    sonuc = {a: ham[ys] for a, ys in yahoo_semboller.items() if ys in ham}
+
+def fetch_piyasa_verileri():
+    """'Piyasalar' sekmesi için altın/gümüş verilerini Yahoo Finance'ten çeker.
+    Döner: {anahtar: {"fiyat","degisim","ad", ...}} —
+    XAUSD, IAU, XAUTRYG, GRAMALTIN, XAGUSD, ALTINS1, MAKAS.
+    """
+    semboller = {
+        "XAUUSD": ("XAUUSD=X", "Altın (Ons/USD)"),
+        "IAU": ("IAU", "iShares Gold Trust (IAU)"),
+        "XAGUSD": ("XAGUSD=X", "Gümüş (Ons/USD)"),
+        "USDTRY": ("USDTRY=X", "USD/TRY"),
+        "XAUTRY": ("XAUTRY=X", "Altın (Ons/TRY)"),
+        "ALTINS1": ("ALTIN.IS", "Darphane Altın Sertifikası (ALTIN.S1)"),
+    }
+    ham = {}
+    for anahtar, (ys, ad) in semboller.items():
+        fiyat, degisim = _yahoo_chart_fiyat(ys)
+        if fiyat is not None:
+            ham[anahtar] = {"fiyat": fiyat, "degisim": degisim, "ad": ad}
+
     piyasalar = {}
-
-    if "XAUUSD" in sonuc:
-        piyasalar["XAUSD"] = {**sonuc["XAUUSD"], "ad": "Altın (Ons/USD)"}
-    if "IAU" in sonuc:
-        piyasalar["IAU"] = {**sonuc["IAU"], "ad": sonuc["IAU"].get("isim") or "iShares Gold Trust (IAU)"}
-    if "XAGUSD" in sonuc:
-        piyasalar["XAGUSD"] = {**sonuc["XAGUSD"], "ad": "Gümüş (Ons/USD)"}
+    if "XAUUSD" in ham:
+        piyasalar["XAUSD"] = ham["XAUUSD"]
+    if "IAU" in ham:
+        piyasalar["IAU"] = ham["IAU"]
+    if "XAGUSD" in ham:
+        piyasalar["XAGUSD"] = ham["XAGUSD"]
 
     # Gram altın (TRY): önce doğrudan XAUTRY=X (ons/TRY) üzerinden, yoksa XAUUSD*USDTRY çapraz kuru
     gram_fiyat = gram_degisim = None
-    if "XAUTRY" in sonuc:
-        gram_fiyat = round(sonuc["XAUTRY"]["fiyat"] / 31.1034768, 2)
-        gram_degisim = sonuc["XAUTRY"].get("degisim")
-    elif "XAUUSD" in sonuc and "USDTRY" in sonuc:
-        gram_fiyat = round(sonuc["XAUUSD"]["fiyat"] * sonuc["USDTRY"]["fiyat"] / 31.1034768, 2)
-        gram_degisim = sonuc["XAUUSD"].get("degisim")
+    if "XAUTRY" in ham:
+        gram_fiyat = round(ham["XAUTRY"]["fiyat"] / 31.1034768, 2)
+        gram_degisim = ham["XAUTRY"]["degisim"]
+    elif "XAUUSD" in ham and "USDTRY" in ham:
+        gram_fiyat = round(ham["XAUUSD"]["fiyat"] * ham["USDTRY"]["fiyat"] / 31.1034768, 2)
+        gram_degisim = ham["XAUUSD"].get("degisim")
 
     if gram_fiyat is not None:
         piyasalar["XAUTRYG"] = {"fiyat": gram_fiyat, "degisim": gram_degisim, "ad": "XAUTRYG"}
         piyasalar["GRAMALTIN"] = {"fiyat": gram_fiyat, "degisim": gram_degisim, "ad": "Gram Altın"}
+
+    # ALTIN.S1 sertifikası: 1 lot = 0.01gr altın, dolayısıyla lot fiyatı x100 = gram karşılığı
+    if "ALTINS1" in ham:
+        sertifika_gram = round(ham["ALTINS1"]["fiyat"] * 100, 2)
+        piyasalar["ALTINS1"] = {**ham["ALTINS1"], "fiyat_gram": sertifika_gram}
+        if gram_fiyat:
+            makas = round((sertifika_gram / gram_fiyat - 1) * 100, 2)
+            piyasalar["MAKAS"] = {
+                "deger": makas,
+                "sertifika_gram": sertifika_gram,
+                "gram_altin": gram_fiyat,
+            }
 
     return piyasalar
 
