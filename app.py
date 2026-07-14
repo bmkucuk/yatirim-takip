@@ -4,7 +4,7 @@ from functools import wraps
 import sqlite3, os, hashlib, secrets, re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari, fon_getiri_hesapla, fetch_piyasa_verileri
+from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari, fon_getiri_hesapla, fetch_piyasa_verileri, fetch_milliyet_altin, fetch_milliyet_fiyatlar
 import kap_client
 
 app = Flask(__name__)
@@ -1033,38 +1033,19 @@ def piyasalar():
 @app.route("/piyasalar/debug")
 @login_required
 def piyasalar_debug():
-    import requests as req
-    from bs4 import BeautifulSoup
     bilgi = {}
-    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
-
     try:
-        r = req.get("https://uzmanpara.milliyet.com.tr/altin-fiyatlari/", headers={"User-Agent": ua}, timeout=10)
-        bilgi["milliyet_status"] = r.status_code
-        bilgi["milliyet_uzunluk"] = len(r.text)
-        soup = BeautifulSoup(r.text, "html.parser")
-        satirlar = soup.find_all("tr")
-        bilgi["milliyet_tr_sayisi"] = len(satirlar)
-        ornekler = []
-        for tr in satirlar[:40]:
-            tds = tr.find_all("td")
-            if tds:
-                ornekler.append(" | ".join(td.get_text(strip=True) for td in tds[:5]))
-        bilgi["milliyet_ornek_satirlar"] = ornekler
+        bilgi["milliyet_altin_parsed"] = fetch_milliyet_altin()
     except Exception as e:
-        bilgi["milliyet_hata"] = str(e)
-
-    for sembol in ["ALTIN.IS", "XAUUSD=X", "IAU"]:
-        try:
-            r2 = req.get(
-                f"https://query1.finance.yahoo.com/v8/finance/chart/{sembol}?interval=1d&range=5d",
-                headers={"User-Agent": ua}, timeout=10
-            )
-            bilgi[f"yahoo_{sembol}_status"] = r2.status_code
-            bilgi[f"yahoo_{sembol}_body"] = r2.text[:600]
-        except Exception as e:
-            bilgi[f"yahoo_{sembol}_hata"] = str(e)
-
+        bilgi["milliyet_altin_parsed_hata"] = str(e)
+    try:
+        bilgi["altin_s1_milliyet_hisse"] = fetch_milliyet_fiyatlar(["ALTIN"])
+    except Exception as e:
+        bilgi["altin_s1_hata"] = str(e)
+    try:
+        bilgi["piyasalar_sonuc"] = fetch_piyasa_verileri()
+    except Exception as e:
+        bilgi["piyasalar_sonuc_hata"] = str(e)
     return jsonify(bilgi)
 
 

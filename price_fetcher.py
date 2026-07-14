@@ -446,6 +446,7 @@ def fetch_milliyet_altin():
         )
         if r.status_code != 200:
             return sonuc
+        r.encoding = r.apparent_encoding or "utf-8"  # sayfa header'ı yanlış encoding bildiriyor, aksi halde Türkçe karakterler bozuluyor
         soup = BeautifulSoup(r.text, "html.parser")
         sayi_re = re.compile(r"^-?[\d\.]+,\d+$")
         etiket_map = {
@@ -456,14 +457,15 @@ def fetch_milliyet_altin():
         }
         for tr in soup.find_all("tr"):
             tds = tr.find_all("td")
-            if len(tds) < 4:
+            if len(tds) < 5:
                 continue
-            etiket = tds[0].get_text(strip=True)
+            # tds[0] simge/ikon hücresi (boş), gerçek etiket tds[1]'de; değerler tds[2:]'de
+            etiket = tds[1].get_text(strip=True)
             anahtar = etiket_map.get(etiket)
             if not anahtar or anahtar in sonuc:
                 continue
             sayilar, yuzde = [], None
-            for td in tds[1:]:
+            for td in tds[2:]:
                 v = td.get_text(strip=True)
                 v_temiz = v.replace("$", "").replace("TL", "").replace("₺", "").strip()
                 if sayi_re.match(v_temiz):
@@ -481,32 +483,29 @@ def fetch_milliyet_altin():
 
 def fetch_piyasa_verileri():
     """'Piyasalar' sekmesi için altın/gümüş verilerini çeker.
-    Öncelik: uzmanpara.milliyet.com.tr (gerçek TR piyasa fiyatı, Gram Altın için en doğru kaynak),
-    eksik kalanlar için Yahoo Finance (v8 chart, IAU ve ALTIN.S1 sertifikası için tek kaynak).
+    Öncelik: uzmanpara.milliyet.com.tr (gerçek TR piyasa fiyatı, Gram Altın için en doğru kaynak).
+    IAU için Yahoo Finance (v8 chart) tek kaynak. ALTIN.S1 sertifikası için Milliyet'in
+    BIST hisse sayfası kullanılır (Yahoo'daki "ALTIN.IS" gerçek sertifika değil, eski/alakasız
+    bir fon sembolüne denk geliyor).
     Döner: {anahtar: {"fiyat","degisim","ad", ...}} —
     XAUSD, IAU, XAUTRYG, GRAMALTIN, XAGUSD, ALTINS1, MAKAS.
     """
     milliyet = fetch_milliyet_altin()
 
-    semboller = {
-        "XAUUSD": ("XAUUSD=X", "Altın (Ons/USD)"),
-        "IAU": ("IAU", "iShares Gold Trust (IAU)"),
-        "XAGUSD": ("XAGUSD=X", "Gümüş (Ons/USD)"),
-        "ALTINS1": ("ALTIN.IS", "Darphane Altın Sertifikası (ALTIN.S1)"),
-    }
+    # Yahoo fallback sembolleri: XAUUSD=X / XAGUSD=X Yahoo'da artık yok (404/delisted),
+    # bu yüzden fallback olarak vadeli işlem kontratları (GC=F/SI=F) kullanılıyor.
     ham = {}
-    for anahtar, (ys, ad) in semboller.items():
-        # Yahoo'yu sadece Milliyet'te olmayan veriler (IAU, ALTINS1) veya Milliyet başarısız olduğunda fallback için çağır
-        gerekli = (
-            anahtar in ("IAU", "ALTINS1")
-            or (anahtar == "XAUUSD" and "ONS_ALTIN" not in milliyet)
-            or (anahtar == "XAGUSD" and "GUMUS_ONS_USD" not in milliyet)
-        )
-        if not gerekli:
-            continue
-        fiyat, degisim = _yahoo_chart_fiyat(ys)
+    fiyat, degisim = _yahoo_chart_fiyat("IAU")
+    if fiyat is not None:
+        ham["IAU"] = {"fiyat": fiyat, "degisim": degisim, "ad": "iShares Gold Trust (IAU)"}
+    if "ONS_ALTIN" not in milliyet:
+        fiyat, degisim = _yahoo_chart_fiyat("GC=F")
         if fiyat is not None:
-            ham[anahtar] = {"fiyat": fiyat, "degisim": degisim, "ad": ad}
+            ham["XAUUSD"] = {"fiyat": fiyat, "degisim": degisim, "ad": "Altın (Ons/USD, Vadeli)"}
+    if "GUMUS_ONS_USD" not in milliyet:
+        fiyat, degisim = _yahoo_chart_fiyat("SI=F")
+        if fiyat is not None:
+            ham["XAGUSD"] = {"fiyat": fiyat, "degisim": degisim, "ad": "Gümüş (Ons/USD, Vadeli)"}
 
     piyasalar = {}
 
@@ -540,10 +539,17 @@ def fetch_piyasa_verileri():
         piyasalar["XAUTRYG"] = {"fiyat": gram_fiyat, "degisim": gram_degisim, "ad": "XAUTRYG"}
         piyasalar["GRAMALTIN"] = {"fiyat": gram_fiyat, "degisim": gram_degisim, "ad": "Gram Altın"}
 
-    # ALTIN.S1 sertifikası: 1 lot = 0.01gr altın, dolayısıyla lot fiyatı x100 = gram karşılığı
-    if "ALTINS1" in ham:
-        sertifika_gram = round(ham["ALTINS1"]["fiyat"] * 100, 2)
-        piyasalar["ALTINS1"] = {**ham["ALTINS1"], "fiyat_gram": sertifika_gram}
+    # ALTIN.S1 sertifikası: Milliyet'in BIST hisse sayfasından (Yahoo'daki ALTIN.IS güvenilmez).
+    # 1 lot = 0.01gr altın, dolayısıyla lot fiyatı x100 = gram karşılığı.
+    altin_s1 = fetch_milliyet_fiyatlar(["ALTIN"]).get("ALTIN")
+    if altin_s1 and altin_s1.get("fiyat"):
+        sertifika_gram = round(altin_s1["fiyat"] * 100, 2)
+        piyasalar["ALTINS1"] = {
+            "fiyat": altin_s1["fiyat"],
+            "degisim": altin_s1.get("degisim"),
+            "ad": "Darphane Altın Sertifikası (ALTIN.S1)",
+            "fiyat_gram": sertifika_gram,
+        }
         if gram_fiyat:
             makas = round((sertifika_gram / gram_fiyat - 1) * 100, 2)
             piyasalar["MAKAS"] = {
