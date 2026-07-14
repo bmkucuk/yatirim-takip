@@ -4,7 +4,7 @@ from functools import wraps
 import sqlite3, os, hashlib, secrets, re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari, fon_getiri_hesapla, fetch_piyasa_verileri, fetch_milliyet_altin, fetch_milliyet_fiyatlar
+from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari, fon_getiri_hesapla, fetch_piyasa_verileri, fetch_milliyet_altin, fetch_milliyet_fiyatlar, fetch_altin_s1_milliyet
 import kap_client
 
 app = Flask(__name__)
@@ -1039,7 +1039,7 @@ def piyasalar_debug():
     except Exception as e:
         bilgi["milliyet_altin_parsed_hata"] = str(e)
     try:
-        bilgi["altin_s1_milliyet_hisse"] = fetch_milliyet_fiyatlar(["ALTINS1"])
+        bilgi["altin_s1_milliyet_hisse"] = fetch_altin_s1_milliyet()
     except Exception as e:
         bilgi["altin_s1_hata"] = str(e)
     try:

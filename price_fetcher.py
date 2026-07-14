@@ -481,6 +481,46 @@ def fetch_milliyet_altin():
     return sonuc
 
 
+def fetch_altin_s1_milliyet():
+    """ALTIN.S1 sertifikasını Milliyet'in BIST 'Tüm Hisseler' (harf bazlı) sayfasından çeker.
+    Sayfa TİCKER koduna değil ŞİRKET ADINA göre alfabetik sıralı ('Darphane Altın Sertifikası'
+    → 'D' harfi), bu yüzden ticker'ın kendi ilk harfi olan 'A' değil önce 'D' denenir.
+    Döner: {"fiyat","degisim"} ya da None.
+    """
+    import re
+    from bs4 import BeautifulSoup
+
+    sayi_re = re.compile(r"^-?[\d\.]+,\d+$")
+    for harf in ("D", "A"):
+        try:
+            url = f"https://uzmanpara.milliyet.com.tr/canli-borsa/bist-TUM-hisseleri/?Harf={harf}"
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            if r.status_code != 200:
+                continue
+            soup = BeautifulSoup(r.text, "html.parser")
+            for tr in soup.find_all("tr"):
+                tds = tr.find_all("td")
+                if len(tds) < 4:
+                    continue
+                a = tds[0].find("a")
+                if not a or a.get_text(strip=True).upper() != "ALTINS1":
+                    continue
+                degerler = [td.get_text(strip=True) for td in tds[1:]]
+                fiyat = degisim = None
+                for v in degerler:
+                    if sayi_re.match(v):
+                        if fiyat is None:
+                            fiyat = _tl_sayi(v)
+                        elif degisim is None:
+                            degisim = _tl_sayi(v)
+                            break
+                if fiyat is not None:
+                    return {"fiyat": fiyat, "degisim": degisim}
+        except Exception:
+            continue
+    return None
+
+
 def fetch_piyasa_verileri():
     """'Piyasalar' sekmesi için altın/gümüş verilerini çeker.
     Öncelik: uzmanpara.milliyet.com.tr (gerçek TR piyasa fiyatı, Gram Altın için en doğru kaynak).
@@ -540,7 +580,7 @@ def fetch_piyasa_verileri():
 
     # ALTIN.S1 sertifikası: Milliyet'in BIST hisse sayfasından (Yahoo'daki ALTIN.IS güvenilmez).
     # 1 lot = 0.01gr altın, dolayısıyla lot fiyatı x100 = gram karşılığı.
-    altin_s1 = fetch_milliyet_fiyatlar(["ALTINS1"]).get("ALTINS1")
+    altin_s1 = fetch_altin_s1_milliyet()
     if altin_s1 and altin_s1.get("fiyat"):
         sertifika_gram = round(altin_s1["fiyat"] * 100, 2)
         piyasalar["ALTINS1"] = {
