@@ -684,6 +684,18 @@ def _fiyat_gecmisi_yeterli_mi(sembol, baslangic, bitis):
         ).fetchone()
     return (row["c"] if row else 0) >= 3
 
+def net_yatirim_araligi(user_id, tur_filtre, tarih_bas, tarih_bit):
+    """Belirtilen tarih araliginda (dahil), belirtilen tur icin net yatirilan parayi
+    (alis tutari - satis tutari) hesaplar. Aylik getiriden bu tutar cikarilarak, yeni
+    para girisi/pozisyon acilisi 'getiri' gibi gorunmesi engellenir."""
+    with get_db() as conn:
+        row = conn.execute("""
+            SELECT SUM(CASE WHEN alissat='Alış' THEN tutar ELSE -tutar END) as net
+            FROM islemler
+            WHERE user_id=? AND tur=? AND tarih>=? AND tarih<=?
+        """, (user_id, tur_filtre, tarih_bas, tarih_bit)).fetchone()
+    return row["net"] or 0.0
+
 def get_aylik_getiri(user_id):
     """Son 12 ay icin Yatirim Fonlari ve Amerikan Borsasi ayri ayri aylik kazanc serileri.
     Her ay icin hem TL hem USD karsiligi hesaplanir (o ayin sonundaki USD/TRY kuru ile)."""
@@ -720,11 +732,16 @@ def get_aylik_getiri(user_id):
 
         basi_tarih = str(ay_basi - timedelta(days=1))
         sonu_tarih = str(ay_sonu)
+        donem_bas_tarih = str(ay_basi)
         kur = get_usdtry_gecmis(sonu_tarih) or get_usd_try() or None
 
         fon_basi = hesapla_portfoy_tarih(user_id, basi_tarih, "FON")
         fon_sonu = hesapla_portfoy_tarih(user_id, sonu_tarih, "FON")
-        fon_kazanc_try = fon_sonu - fon_basi
+        fon_net_yatirim = net_yatirim_araligi(user_id, "FON", donem_bas_tarih, sonu_tarih)
+        # Sadece fiyat hareketinden kaynaklanan getiri: deger farkindan o donemki
+        # net alis/satis (para giris/cikisini) cikar, yoksa yeni para girisi/pozisyon
+        # acilisi da "getiri" gibi gorunur.
+        fon_kazanc_try = (fon_sonu - fon_basi) - fon_net_yatirim
         fon_sonuclar.append({
             "ay": ay_basi.strftime("%b %Y"),
             "kazanc_try": fon_kazanc_try,
@@ -733,7 +750,8 @@ def get_aylik_getiri(user_id):
 
         abd_basi_usd = hesapla_portfoy_tarih(user_id, basi_tarih, "ABD")
         abd_sonu_usd = hesapla_portfoy_tarih(user_id, sonu_tarih, "ABD")
-        abd_kazanc_usd = abd_sonu_usd - abd_basi_usd
+        abd_net_yatirim = net_yatirim_araligi(user_id, "ABD", donem_bas_tarih, sonu_tarih)
+        abd_kazanc_usd = (abd_sonu_usd - abd_basi_usd) - abd_net_yatirim
         abd_sonuclar.append({
             "ay": ay_basi.strftime("%b %Y"),
             "kazanc_usd": abd_kazanc_usd,
