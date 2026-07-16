@@ -584,37 +584,39 @@ def fetch_piyasa_verileri():
     """
     milliyet = fetch_milliyet_altin()
 
-    # Yahoo fallback sembolleri: XAUUSD=X / XAGUSD=X Yahoo'da artık yok (404/delisted),
-    # bu yüzden fallback olarak vadeli işlem kontratları (GC=F/SI=F) kullanılıyor.
+    # Ons Altın, Gümüş Ons ve Brent Petrol: Yahoo Finance ÖNCELİKLİ kaynak.
+    # Milliyet'in altin-fiyatlari sayfası bu üç veri için çok geç güncelleniyor,
+    # bu yüzden Milliyet artık sadece Yahoo başarısız olursa fallback olarak kullanılıyor.
     ham = {}
     fiyat, degisim = _yahoo_chart_fiyat("IAU")
     if fiyat is not None:
         ham["IAU"] = {"fiyat": fiyat, "degisim": degisim, "ad": "iShares Gold Trust (IAU)"}
-    if "ONS_ALTIN" not in milliyet:
-        fiyat, degisim = _yahoo_chart_fiyat("GC=F")
-        if fiyat is not None:
-            ham["XAUUSD"] = {"fiyat": fiyat, "degisim": degisim, "ad": "Altın (Ons/USD, Vadeli)"}
-    if "GUMUS_ONS_USD" not in milliyet:
-        fiyat, degisim = _yahoo_chart_fiyat("SI=F")
-        if fiyat is not None:
-            ham["XAGUSD"] = {"fiyat": fiyat, "degisim": degisim, "ad": "Gümüş (Ons/USD, Vadeli)"}
+    fiyat, degisim = _yahoo_chart_fiyat("GC=F")
+    if fiyat is not None:
+        ham["XAUUSD"] = {"fiyat": fiyat, "degisim": degisim, "ad": "Altın (Ons/USD, Vadeli)"}
+    fiyat, degisim = _yahoo_chart_fiyat("SI=F")
+    if fiyat is not None:
+        ham["XAGUSD"] = {"fiyat": fiyat, "degisim": degisim, "ad": "Gümüş (Ons/USD, Vadeli)"}
+    fiyat, degisim = _yahoo_chart_fiyat("BZ=F")
+    if fiyat is not None:
+        ham["BRENT"] = {"fiyat": fiyat, "degisim": degisim, "ad": "Brent Petrol (Varil/USD)"}
 
     piyasalar = {}
 
-    # XAUSD: Milliyet Ons Altın (satış, USD) öncelikli
-    if "ONS_ALTIN" in milliyet:
+    # XAUSD: Yahoo (GC=F) öncelikli, Milliyet Ons Altın fallback
+    if "XAUUSD" in ham:
+        piyasalar["XAUSD"] = {"fiyat": ham["XAUUSD"]["fiyat"], "degisim": ham["XAUUSD"]["degisim"], "ad": "Altın (Ons/USD)"}
+    elif "ONS_ALTIN" in milliyet:
         piyasalar["XAUSD"] = {"fiyat": milliyet["ONS_ALTIN"]["satis"], "degisim": milliyet["ONS_ALTIN"]["degisim"], "ad": "Altın (Ons/USD)"}
-    elif "XAUUSD" in ham:
-        piyasalar["XAUSD"] = ham["XAUUSD"]
 
     if "IAU" in ham:
         piyasalar["IAU"] = ham["IAU"]
 
-    # XAGUSD: Milliyet Gümüş Ons (Dolar, satış) öncelikli
-    if "GUMUS_ONS_USD" in milliyet:
+    # XAGUSD: Yahoo (SI=F) öncelikli, Milliyet Gümüş Ons fallback
+    if "XAGUSD" in ham:
+        piyasalar["XAGUSD"] = {"fiyat": ham["XAGUSD"]["fiyat"], "degisim": ham["XAGUSD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
+    elif "GUMUS_ONS_USD" in milliyet:
         piyasalar["XAGUSD"] = {"fiyat": milliyet["GUMUS_ONS_USD"]["satis"], "degisim": milliyet["GUMUS_ONS_USD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
-    elif "XAGUSD" in ham:
-        piyasalar["XAGUSD"] = ham["XAGUSD"]
 
     # Gram altın (TRY): Milliyet'in gerçek piyasa fiyatı (satış) öncelikli
     gram_fiyat = gram_degisim = None
@@ -656,7 +658,10 @@ def fetch_piyasa_verileri():
         piyasalar["USD"] = {"fiyat": milliyet["USDTRY"]["deger"], "degisim": milliyet["USDTRY"]["degisim"], "ad": "Dolar/TL"}
     if "EURTRY" in milliyet:
         piyasalar["EUR"] = {"fiyat": milliyet["EURTRY"]["deger"], "degisim": milliyet["EURTRY"]["degisim"], "ad": "Euro/TL"}
-    if "BRENT" in milliyet:
+    # Brent Petrol: Yahoo (BZ=F) öncelikli, Milliyet fallback
+    if "BRENT" in ham:
+        piyasalar["PETROL"] = {"fiyat": ham["BRENT"]["fiyat"], "degisim": ham["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
+    elif "BRENT" in milliyet:
         piyasalar["PETROL"] = {"fiyat": milliyet["BRENT"]["deger"], "degisim": milliyet["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
 
     return piyasalar
