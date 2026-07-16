@@ -90,9 +90,11 @@
     {% if filtre %}<input type="hidden" name="sembol" value="{{ filtre }}">{% endif %}
     {% if alissat_filtre %}<input type="hidden" name="alissat" value="{{ alissat_filtre }}">{% endif %}
     <span style="font-size:0.78rem;color:var(--text2);font-weight:600">📅 Tarih Aralığı:</span>
-    <input type="date" name="tarih_bas" value="{{ tarih_bas }}" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text)">
+    <input type="date" id="tarihBasInput" name="tarih_bas" value="{{ tarih_bas }}"
+      onchange="tarihBasDegisti(this.value)"
+      style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text)">
     <span style="color:var(--text2);font-size:0.8rem">—</span>
-    <input type="date" name="tarih_bit" value="{{ tarih_bit }}" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text)">
+    <input type="date" id="tarihBitInput" name="tarih_bit" value="{{ tarih_bit }}" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text)">
     <button type="submit" class="filter-btn filter-btn-sm" style="cursor:pointer">Filtrele</button>
     {% if tarih_bas or tarih_bit %}
     <a href="?{% if hesap_filtre %}hesap={{ hesap_filtre }}&{% endif %}{% if tur_filtre %}tur={{ tur_filtre }}&{% endif %}{% if filtre %}sembol={{ filtre }}&{% endif %}{% if alissat_filtre %}alissat={{ alissat_filtre }}{% endif %}"
@@ -100,6 +102,18 @@
     {% endif %}
   </form>
 </div>
+<script>
+function tarihBasDegisti(deger) {
+  if (!deger) return;
+  const bitInput = document.getElementById('tarihBitInput');
+  const bas = new Date(deger + 'T00:00:00');
+  const ertesiGun = new Date(bas.getTime() + 24*60*60*1000);
+  const yyyy = ertesiGun.getFullYear();
+  const mm = String(ertesiGun.getMonth() + 1).padStart(2, '0');
+  const dd = String(ertesiGun.getDate()).padStart(2, '0');
+  bitInput.value = `${yyyy}-${mm}-${dd}`;
+}
+</script>
 
 <!-- Filtre — Tek Satır, 4 Grup -->
 <div style="margin-bottom:0.75rem;overflow-x:auto">
