@@ -646,6 +646,44 @@ def get_usdtry_gecmis(tarih_str):
     """Verilen tarih (veya oncesi) icin USD/TRY kurunu dondurur."""
     return get_fiyat("USDTRY", tarih_str)
 
+def hisse_gecmis_doldur(sembol, tur):
+    """Bir ABD/BIST hissesi icin uzun donemli (5 yil) gunluk fiyat gecmisini Yahoo
+    Finance'ten cekip fiyat_gecmisi tablosuna yazar. fetch_hisse_fiyatlari sadece son
+    30 gunu cektigi icin, eski alis tarihleri ile cron'un duzenli calismaya basladigi
+    tarih arasinda bosluk kalabiliyor; bu bosluk aylik getiride hatali sekilde
+    'degisim yok (0)' olarak gorunmesine neden oluyor."""
+    try:
+        import requests as req
+        yahoo_sembol = f"{sembol}.IS" if tur == "BIST" and not sembol.endswith(".IS") else sembol
+        r = req.get(
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_sembol}?interval=1d&range=5y",
+            headers={"User-Agent": "Mozilla/5.0"}, timeout=15
+        )
+        if r.status_code == 200:
+            result = r.json()["chart"]["result"][0]
+            ts = result.get("timestamp") or []
+            closes = result["indicators"]["quote"][0]["close"]
+            with get_db() as conn:
+                for t, c in zip(ts, closes):
+                    if c:
+                        tarih = datetime.utcfromtimestamp(t).strftime("%Y-%m-%d")
+                        conn.execute(
+                            "INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                            (sembol, tarih, round(float(c), 4))
+                        )
+    except Exception:
+        pass
+
+def _fiyat_gecmisi_yeterli_mi(sembol, baslangic, bitis):
+    """Belirtilen aralikta o sembol icin en az birkac farkli tarihte fiyat kaydi var mi
+    kontrol eder. Yoksa (bosluk varsa) gecmis doldurma tetiklenir."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT COUNT(DISTINCT tarih) as c FROM fiyat_gecmisi WHERE sembol=? AND tarih BETWEEN ? AND ?",
+            (sembol, baslangic, bitis)
+        ).fetchone()
+    return (row["c"] if row else 0) >= 3
+
 def get_aylik_getiri(user_id):
     """Son 12 ay icin Yatirim Fonlari ve Amerikan Borsasi ayri ayri aylik kazanc serileri.
     Her ay icin hem TL hem USD karsiligi hesaplanir (o ayin sonundaki USD/TRY kuru ile)."""
@@ -656,9 +694,23 @@ def get_aylik_getiri(user_id):
     if not var_mi:
         usdtry_gecmis_doldur()
 
+    bugun_d = bugun()
+    pencere_basi_ay = (bugun_d.replace(day=1) - timedelta(days=11*28)).replace(day=1)
+    kontrol_basi = str(pencere_basi_ay - timedelta(days=10))
+    kontrol_bitis = str(pencere_basi_ay + timedelta(days=45))
+
+    with get_db() as conn:
+        abd_bist_semboller = conn.execute(
+            "SELECT DISTINCT sembol, tur FROM islemler WHERE user_id=? AND tur IN ('ABD','BIST')",
+            (user_id,)
+        ).fetchall()
+    for row in abd_bist_semboller:
+        sembol, tur = row["sembol"], row["tur"]
+        if not _fiyat_gecmisi_yeterli_mi(sembol, kontrol_basi, kontrol_bitis):
+            hisse_gecmis_doldur(sembol, tur)
+
     fon_sonuclar = []
     abd_sonuclar = []
-    bugun_d = bugun()
     for i in range(11, -1, -1):
         ay_basi = (bugun_d.replace(day=1) - timedelta(days=i*28)).replace(day=1)
         ay_sonu = (ay_basi.replace(month=ay_basi.month % 12 + 1, day=1) - timedelta(days=1)) if ay_basi.month < 12 \
