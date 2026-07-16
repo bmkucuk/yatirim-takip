@@ -292,8 +292,11 @@ function fonChartOlustur() {
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
-      scales: { y: { ticks: { callback: v => v.toLocaleString('tr-TR') + ' ' + sembol } } }
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.parsed.y.toLocaleString('tr-TR', {maximumFractionDigits:0}) + ' ' + sembol } }
+      },
+      scales: { y: { ticks: { callback: v => v.toLocaleString('tr-TR', {maximumFractionDigits:0}) + ' ' + sembol } } }
     }
   });
 }
@@ -321,8 +324,11 @@ function abdChartOlustur() {
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
-      scales: { y: { ticks: { callback: v => v.toLocaleString('tr-TR') + ' ' + sembol } } }
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.parsed.y.toLocaleString('tr-TR', {maximumFractionDigits:0}) + ' ' + sembol } }
+      },
+      scales: { y: { ticks: { callback: v => v.toLocaleString('tr-TR', {maximumFractionDigits:0}) + ' ' + sembol } } }
     }
   });
 }
