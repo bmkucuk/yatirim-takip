@@ -857,6 +857,8 @@ def islemler():
     tur_filtre = request.args.get("tur", "")
     hesap_filtre = request.args.get("hesap", "")
     alissat_filtre = request.args.get("alissat", "")
+    tarih_bas = request.args.get("tarih_bas", "")
+    tarih_bit = request.args.get("tarih_bit", "")
     with get_db() as conn:
         hesaplar = [r["ad"] for r in conn.execute("SELECT ad FROM hesaplar WHERE user_id=?", (user_id,)).fetchall()]
         aracilar = [r["ad"] for r in conn.execute("SELECT ad FROM aracilar WHERE user_id=?", (user_id,)).fetchall()]
@@ -875,6 +877,12 @@ def islemler():
         if alissat_filtre:
             conditions.append("alissat=?")
             params.append(alissat_filtre)
+        if tarih_bas:
+            conditions.append("tarih>=?")
+            params.append(tarih_bas)
+        if tarih_bit:
+            conditions.append("tarih<=?")
+            params.append(tarih_bit)
 
         where = " AND ".join(conditions)
         rows = conn.execute(
@@ -894,6 +902,7 @@ def islemler():
         islemler=rows, hesaplar=hesaplar, aracilar=aracilar,
         filtre=filtre, tur_filtre=tur_filtre, hesap_filtre=hesap_filtre,
         alissat_filtre=alissat_filtre,
+        tarih_bas=tarih_bas, tarih_bit=tarih_bit,
         fon_semboller=fon_semboller,
         bist_semboller=bist_semboller,
         abd_semboller=abd_semboller)

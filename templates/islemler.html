@@ -82,16 +82,35 @@
   </form>
 </div>
 
+<!-- Tarih Aralığı Filtresi -->
+<div style="margin-bottom:0.75rem">
+  <form method="get" action="{{ url_for('islemler') }}" style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+    {% if hesap_filtre %}<input type="hidden" name="hesap" value="{{ hesap_filtre }}">{% endif %}
+    {% if tur_filtre %}<input type="hidden" name="tur" value="{{ tur_filtre }}">{% endif %}
+    {% if filtre %}<input type="hidden" name="sembol" value="{{ filtre }}">{% endif %}
+    {% if alissat_filtre %}<input type="hidden" name="alissat" value="{{ alissat_filtre }}">{% endif %}
+    <span style="font-size:0.78rem;color:var(--text2);font-weight:600">📅 Tarih Aralığı:</span>
+    <input type="date" name="tarih_bas" value="{{ tarih_bas }}" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text)">
+    <span style="color:var(--text2);font-size:0.8rem">—</span>
+    <input type="date" name="tarih_bit" value="{{ tarih_bit }}" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text)">
+    <button type="submit" class="filter-btn filter-btn-sm" style="cursor:pointer">Filtrele</button>
+    {% if tarih_bas or tarih_bit %}
+    <a href="?{% if hesap_filtre %}hesap={{ hesap_filtre }}&{% endif %}{% if tur_filtre %}tur={{ tur_filtre }}&{% endif %}{% if filtre %}sembol={{ filtre }}&{% endif %}{% if alissat_filtre %}alissat={{ alissat_filtre }}{% endif %}"
+       class="filter-btn filter-btn-sm">Tarihi Temizle</a>
+    {% endif %}
+  </form>
+</div>
+
 <!-- Filtre — Tek Satır, 4 Grup -->
 <div style="margin-bottom:0.75rem;overflow-x:auto">
   <div class="filter-bar" style="flex-wrap:nowrap;white-space:nowrap;gap:0.5rem;align-items:center;display:inline-flex">
 
     <!-- Grup 1: Hesap -->
     <span style="font-size:0.78rem;color:var(--text2);font-weight:600">👤 Hesap:</span>
-    <a href="{{ url_for('islemler') }}{% if tur_filtre %}?tur={{ tur_filtre }}{% endif %}{% if filtre %}?sembol={{ filtre }}{% endif %}{% if alissat_filtre %}{% if tur_filtre or filtre %}&{% else %}?{% endif %}alissat={{ alissat_filtre }}{% endif %}"
+    <a href="{{ url_for('islemler') }}?{% if tur_filtre %}tur={{ tur_filtre }}&{% endif %}{% if filtre %}sembol={{ filtre }}&{% endif %}{% if alissat_filtre %}alissat={{ alissat_filtre }}&{% endif %}{% if tarih_bas %}tarih_bas={{ tarih_bas }}&{% endif %}{% if tarih_bit %}tarih_bit={{ tarih_bit }}{% endif %}"
        class="filter-btn filter-btn-sm {% if not hesap_filtre %}active{% endif %}">Tümü</a>
     {% for h in hesaplar %}
-    <a href="?hesap={{ h }}{% if tur_filtre %}&tur={{ tur_filtre }}{% endif %}{% if filtre %}&sembol={{ filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
+    <a href="?hesap={{ h }}{% if tur_filtre %}&tur={{ tur_filtre }}{% endif %}{% if filtre %}&sembol={{ filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
        class="filter-btn filter-btn-sm {% if hesap_filtre==h %}active{% endif %}">{{ h }}</a>
     {% endfor %}
 
@@ -99,29 +118,29 @@
 
     <!-- Grup 2: İşlem (Alış/Satış) -->
     <span style="font-size:0.78rem;color:var(--text2);font-weight:600">↕️ İşlem:</span>
-    <a href="?{% if hesap_filtre %}hesap={{ hesap_filtre }}{% endif %}{% if tur_filtre %}&tur={{ tur_filtre }}{% endif %}{% if filtre %}&sembol={{ filtre }}{% endif %}"
+    <a href="?{% if hesap_filtre %}hesap={{ hesap_filtre }}{% endif %}{% if tur_filtre %}&tur={{ tur_filtre }}{% endif %}{% if filtre %}&sembol={{ filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
        class="filter-btn filter-btn-sm {% if not alissat_filtre %}active{% endif %}">Tümü</a>
-    <a href="?alissat=Alış{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if tur_filtre %}&tur={{ tur_filtre }}{% endif %}{% if filtre %}&sembol={{ filtre }}{% endif %}"
+    <a href="?alissat=Alış{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if tur_filtre %}&tur={{ tur_filtre }}{% endif %}{% if filtre %}&sembol={{ filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
        class="filter-btn filter-btn-sm {% if alissat_filtre=='Alış' %}active{% endif %}">Alış</a>
-    <a href="?alissat=Satış{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if tur_filtre %}&tur={{ tur_filtre }}{% endif %}{% if filtre %}&sembol={{ filtre }}{% endif %}"
+    <a href="?alissat=Satış{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if tur_filtre %}&tur={{ tur_filtre }}{% endif %}{% if filtre %}&sembol={{ filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
        class="filter-btn filter-btn-sm {% if alissat_filtre=='Satış' %}active{% endif %}">Satış</a>
 
     <span style="width:2px;height:1.4rem;background:var(--accent);opacity:0.5;margin:0 0.4rem;border-radius:1px"></span>
 
     <!-- Grup 3: Kategori -->
     <span style="font-size:0.78rem;color:var(--text2);font-weight:600">📂 Kategori:</span>
-    <a href="?{% if hesap_filtre %}hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
+    <a href="?{% if hesap_filtre %}hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
        class="filter-btn filter-btn-sm {% if not filtre and not tur_filtre %}active{% endif %}">Tümü</a>
     {% if fon_semboller %}
-    <a href="?tur=FON{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
+    <a href="?tur=FON{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
        class="filter-btn filter-btn-sm {% if tur_filtre=='FON' or filtre in fon_semboller %}active{% endif %}">📊 Fon</a>
     {% endif %}
     {% if abd_semboller %}
-    <a href="?tur=ABD{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
+    <a href="?tur=ABD{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
        class="filter-btn filter-btn-sm {% if tur_filtre=='ABD' or filtre in abd_semboller %}active{% endif %}">🇺🇸 ABD</a>
     {% endif %}
     {% if bist_semboller %}
-    <a href="?tur=BIST{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
+    <a href="?tur=BIST{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
        class="filter-btn filter-btn-sm {% if tur_filtre=='BIST' or filtre in bist_semboller %}active{% endif %}">📈 BİST</a>
     {% endif %}
 
@@ -130,7 +149,7 @@
     <span style="width:2px;height:1.4rem;background:var(--accent);opacity:0.5;margin:0 0.4rem;border-radius:1px"></span>
     <span style="font-size:0.78rem;color:var(--text2);font-weight:600">🏷️ Sembol:</span>
     {% for s in fon_semboller %}
-    <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
+    <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
        class="filter-btn filter-btn-sm {% if filtre==s %}active{% endif %}">{{ s }}</a>
     {% endfor %}
     {% endif %}
@@ -139,7 +158,7 @@
     <span style="width:2px;height:1.4rem;background:var(--accent);opacity:0.5;margin:0 0.4rem;border-radius:1px"></span>
     <span style="font-size:0.78rem;color:var(--text2);font-weight:600">🏷️ Sembol:</span>
     {% for s in abd_semboller %}
-    <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
+    <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
        class="filter-btn filter-btn-sm {% if filtre==s %}active{% endif %}">{{ s }}</a>
     {% endfor %}
     {% endif %}
@@ -148,7 +167,7 @@
     <span style="width:2px;height:1.4rem;background:var(--accent);opacity:0.5;margin:0 0.4rem;border-radius:1px"></span>
     <span style="font-size:0.78rem;color:var(--text2);font-weight:600">🏷️ Sembol:</span>
     {% for s in bist_semboller %}
-    <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}"
+    <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
        class="filter-btn filter-btn-sm {% if filtre==s %}active{% endif %}">{{ s }}</a>
     {% endfor %}
     {% endif %}
