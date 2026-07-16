@@ -483,13 +483,13 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
     with get_db() as conn:
         if hesap_filtre == "Hepsi":
             rows = conn.execute("""
-                SELECT sembol, tur, alissat, adet, tutar
+                SELECT sembol, tur, alissat, adet, tutar, tarih
                 FROM islemler WHERE user_id=?
                 ORDER BY sembol, tarih ASC
             """, (user_id,)).fetchall()
         else:
             rows = conn.execute("""
-                SELECT sembol, tur, alissat, adet, tutar
+                SELECT sembol, tur, alissat, adet, tutar, tarih
                 FROM islemler WHERE user_id=? AND hesap=?
                 ORDER BY sembol, tarih ASC
             """, (user_id, hesap_filtre)).fetchall()
@@ -502,6 +502,8 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
             sembol_islemler[s] = {"tur": r["tur"], "islemler": []}
         sembol_islemler[s]["islemler"].append(r)
 
+    bugun_str = str(bugun())
+
     pozisyonlar = {}
     for sembol, data in sembol_islemler.items():
         kalan_adet = 0.0
@@ -509,15 +511,20 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
         alis_tutar = 0.0
         satis_adet = 0.0
         satis_tutar = 0.0
+        bugun_net_adet = 0.0
         for r in data["islemler"]:
             if r["alissat"] == "Alış":
                 kalan_adet += r["adet"]
                 alis_adet += r["adet"]
                 alis_tutar += r["tutar"]
+                if r["tarih"] == bugun_str:
+                    bugun_net_adet += r["adet"]
             else:
                 kalan_adet -= r["adet"]
                 satis_adet += r["adet"]
                 satis_tutar += r["tutar"]
+                if r["tarih"] == bugun_str:
+                    bugun_net_adet -= r["adet"]
             # Pozisyon sıfırlandıysa (veya negatife düştüyse) resetle
             if kalan_adet <= 0.0001:
                 kalan_adet = 0.0
@@ -525,15 +532,16 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
                 alis_tutar = 0.0
                 satis_adet = 0.0
                 satis_tutar = 0.0
+                bugun_net_adet = 0.0
         pozisyonlar[sembol] = {
             "alis_adet": alis_adet,
             "alis_tutar": alis_tutar,
             "satis_adet": satis_adet,
             "satis_tutar": satis_tutar,
-            "tur": data["tur"]
+            "tur": data["tur"],
+            "bugun_net_adet": bugun_net_adet,
         }
 
-    bugun_str = str(bugun())
     dun_str = str(bugun() - timedelta(days=1))
     hafta_str = str(bugun() - timedelta(days=7))
     ay_str = str(bugun() - timedelta(days=30))
@@ -556,24 +564,25 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
         kar_zarar = mevcut_deger - maliyet
 
         dun_fiyat = get_fiyat(sembol, dun_str)
-        # Yatırım fonlarında T+1 valör: alış tarihi = o günün kapanış fiyatı (maliyet).
-        # Dolayısıyla ertesi gün (bugün) için günlük getiri henüz başlamamıştır → 0.
-        # Kontrol: en son alış tarihi dün ise bugünkü günlük getiri = 0.
+        # Yatırım fonlarında T+1 valör: bugün alınan adet için henüz günlük getiri başlamamıştır.
+        # Ama bugünden ÖNCE elde olan adet için günlük getiri normal şekilde hesaplanmalı.
         if tur == "FON":
-            with get_db() as _c:
-                son_alis = _c.execute(
-                    "SELECT MAX(tarih) FROM islemler WHERE user_id=? AND sembol=? AND alissat='Alış'",
-                    (user_id, sembol)
-                ).fetchone()[0]
-            gunluk_sifir = (son_alis == bugun_str)
+            bugun_net_adet = p.get("bugun_net_adet", 0.0)
+            # Eski (bugünden önceki) adet: negatif olmasın diye sınırla
+            eski_adet = kalan_adet - bugun_net_adet
+            if eski_adet < 0:
+                eski_adet = 0.0
+            if eski_adet > kalan_adet:
+                eski_adet = kalan_adet
         else:
-            gunluk_sifir = False
-        if gunluk_sifir:
+            eski_adet = kalan_adet
+
+        if dun_fiyat and eski_adet > 0:
+            gunluk_tl = (son_fiyat - dun_fiyat) * eski_adet
+            gunluk_yuzde = ((son_fiyat / dun_fiyat) - 1) * 100
+        else:
             gunluk_tl = 0
             gunluk_yuzde = 0
-        else:
-            gunluk_tl = (son_fiyat - dun_fiyat) * kalan_adet if dun_fiyat else 0
-            gunluk_yuzde = ((son_fiyat / dun_fiyat) - 1) * 100 if dun_fiyat else 0
 
         def donemsel(ref_str):
             ref_fiyat = get_fiyat(sembol, ref_str)
