@@ -111,6 +111,7 @@
 
 {% macro portfoy_tablosu(pozisyonlar, para, baslik, renk) %}
 {% if pozisyonlar %}
+{% set toplam_deger = pozisyonlar|sum(attribute='mevcut_deger') %}
 <div class="section-header" style="border-left:3px solid {{ renk }};padding-left:0.75rem;margin:1.5rem 0 0.75rem">
   <span style="font-weight:700;font-size:1rem">{{ baslik }}</span>
   <span style="color:var(--text2);font-size:0.85rem;margin-left:1rem">
@@ -132,6 +133,7 @@
       <th>YBB</th>
       <th>Mevcut Değer</th>
       <th>Kar/Zarar</th>
+      <th>Dağılım</th>
     </tr>
   </thead>
   <tbody>
@@ -172,6 +174,7 @@
       {% endif %}
       {% endif %}
     </td>
+    <td>{{ "{:.1f}".format((p.mevcut_deger / toplam_deger * 100) if toplam_deger else 0).replace(".",",") }}%</td>
   </tr>
   {% endfor %}
   </tbody>
