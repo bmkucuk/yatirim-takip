@@ -235,34 +235,109 @@
 </div>
 {% endif %}
 
-<!-- Aylık Getiri Grafiği -->
-{% if aylik %}
-<div class="section-title" style="margin-top:2rem">Aylık Getiri (TL)</div>
-<div class="chart-wrap">
-  <canvas id="aylikChart"></canvas>
+<!-- Aylık Getiri Grafikleri -->
+{% if fon_aylik %}
+<div class="section-title" style="margin-top:2rem;display:flex;align-items:center;justify-content:space-between">
+  <span>Aylık Getiri — Yatırım Fonları</span>
+  <span>
+    <button type="button" id="fonBtnTRY" onclick="fonParaBirimiSec('try')"
+      style="padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:var(--accent);color:#fff;cursor:pointer;font-size:0.8rem">TL</button>
+    <button type="button" id="fonBtnUSD" onclick="fonParaBirimiSec('usd')"
+      style="padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:0.8rem">$</button>
+  </span>
 </div>
-<script>
-const aylikData = {{ aylik | tojson }};
-new Chart(document.getElementById('aylikChart').getContext('2d'), {
-  type: 'bar',
-  data: {
-    labels: aylikData.map(d => d.ay),
-    datasets: [{
-      label: 'Aylık Kazanç (₺)',
-      data: aylikData.map(d => d.kazanc),
-      backgroundColor: aylikData.map(d => d.kazanc >= 0 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)'),
-      borderColor: aylikData.map(d => d.kazanc >= 0 ? '#16a34a' : '#dc2626'),
-      borderWidth: 1, borderRadius: 4,
-    }]
-  },
-  options: {
-    responsive: true,
-    plugins: { legend: { display: false } },
-    scales: { y: { ticks: { callback: v => v.toLocaleString('tr-TR') + ' ₺' } } }
-  }
-});
-</script>
+<div class="chart-wrap">
+  <canvas id="fonAylikChart"></canvas>
+</div>
 {% endif %}
+
+{% if abd_aylik %}
+<div class="section-title" style="margin-top:2rem;display:flex;align-items:center;justify-content:space-between">
+  <span>Aylık Getiri — Amerikan Borsası</span>
+  <span>
+    <button type="button" id="abdBtnUSD" onclick="abdParaBirimiSec('usd')"
+      style="padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:var(--accent);color:#fff;cursor:pointer;font-size:0.8rem">$</button>
+    <button type="button" id="abdBtnTRY" onclick="abdParaBirimiSec('try')"
+      style="padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:0.8rem">TL</button>
+  </span>
+</div>
+<div class="chart-wrap">
+  <canvas id="abdAylikChart"></canvas>
+</div>
+{% endif %}
+
+<script>
+const fonAylikData = {{ fon_aylik | tojson }};
+const abdAylikData = {{ abd_aylik | tojson }};
+
+function renkler(data) {
+  return {
+    bg: data.map(v => v >= 0 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)'),
+    border: data.map(v => v >= 0 ? '#16a34a' : '#dc2626'),
+  };
+}
+
+let fonChart = null, fonPB = 'try';
+function fonChartOlustur() {
+  if (!fonAylikData || !fonAylikData.length) return;
+  const data = fonAylikData.map(d => fonPB === 'try' ? d.kazanc_try : d.kazanc_usd);
+  const sembol = fonPB === 'try' ? '₺' : '$';
+  const r = renkler(data);
+  if (fonChart) fonChart.destroy();
+  fonChart = new Chart(document.getElementById('fonAylikChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: fonAylikData.map(d => d.ay),
+      datasets: [{ label: 'Aylık Kazanç', data: data, backgroundColor: r.bg, borderColor: r.border, borderWidth: 1, borderRadius: 4 }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { ticks: { callback: v => v.toLocaleString('tr-TR') + ' ' + sembol } } }
+    }
+  });
+}
+function fonParaBirimiSec(pb) {
+  fonPB = pb;
+  document.getElementById('fonBtnTRY').style.background = pb === 'try' ? 'var(--accent)' : 'transparent';
+  document.getElementById('fonBtnTRY').style.color = pb === 'try' ? '#fff' : 'var(--text2)';
+  document.getElementById('fonBtnUSD').style.background = pb === 'usd' ? 'var(--accent)' : 'transparent';
+  document.getElementById('fonBtnUSD').style.color = pb === 'usd' ? '#fff' : 'var(--text2)';
+  fonChartOlustur();
+}
+
+let abdChart = null, abdPB = 'usd';
+function abdChartOlustur() {
+  if (!abdAylikData || !abdAylikData.length) return;
+  const data = abdAylikData.map(d => abdPB === 'try' ? d.kazanc_try : d.kazanc_usd);
+  const sembol = abdPB === 'try' ? '₺' : '$';
+  const r = renkler(data);
+  if (abdChart) abdChart.destroy();
+  abdChart = new Chart(document.getElementById('abdAylikChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: abdAylikData.map(d => d.ay),
+      datasets: [{ label: 'Aylık Kazanç', data: data, backgroundColor: r.bg, borderColor: r.border, borderWidth: 1, borderRadius: 4 }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { ticks: { callback: v => v.toLocaleString('tr-TR') + ' ' + sembol } } }
+    }
+  });
+}
+function abdParaBirimiSec(pb) {
+  abdPB = pb;
+  document.getElementById('abdBtnUSD').style.background = pb === 'usd' ? 'var(--accent)' : 'transparent';
+  document.getElementById('abdBtnUSD').style.color = pb === 'usd' ? '#fff' : 'var(--text2)';
+  document.getElementById('abdBtnTRY').style.background = pb === 'try' ? 'var(--accent)' : 'transparent';
+  document.getElementById('abdBtnTRY').style.color = pb === 'try' ? '#fff' : 'var(--text2)';
+  abdChartOlustur();
+}
+
+fonChartOlustur();
+abdChartOlustur();
+</script>
 
 <script>
 async function fiyatlariGuncelle() {

@@ -618,9 +618,46 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
         })
     return sonuclar
 
+def usdtry_gecmis_doldur():
+    """USDTRY gecmis kurunu bir kerelik Yahoo Finance'ten cekip fiyat_gecmisi tablosuna
+    sembol='USDTRY' olarak yazar (aylik getiri grafiginde para birimi cevirisi icin)."""
+    try:
+        import requests as req
+        r = req.get(
+            "https://query1.finance.yahoo.com/v8/finance/chart/USDTRY=X?interval=1d&range=2y",
+            headers={"User-Agent": "Mozilla/5.0"}, timeout=10
+        )
+        if r.status_code == 200:
+            result = r.json()["chart"]["result"][0]
+            ts = result.get("timestamp") or []
+            closes = result["indicators"]["quote"][0]["close"]
+            with get_db() as conn:
+                for t, c in zip(ts, closes):
+                    if c:
+                        tarih = datetime.utcfromtimestamp(t).strftime("%Y-%m-%d")
+                        conn.execute(
+                            "INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                            ("USDTRY", tarih, round(float(c), 4))
+                        )
+    except Exception:
+        pass
+
+def get_usdtry_gecmis(tarih_str):
+    """Verilen tarih (veya oncesi) icin USD/TRY kurunu dondurur."""
+    return get_fiyat("USDTRY", tarih_str)
+
 def get_aylik_getiri(user_id):
-    """Son 12 ay için aylık kazanç tablosu."""
-    sonuclar = []
+    """Son 12 ay icin Yatirim Fonlari ve Amerikan Borsasi ayri ayri aylik kazanc serileri.
+    Her ay icin hem TL hem USD karsiligi hesaplanir (o ayin sonundaki USD/TRY kuru ile)."""
+    with get_db() as conn:
+        var_mi = conn.execute(
+            "SELECT 1 FROM fiyat_gecmisi WHERE sembol='USDTRY' LIMIT 1"
+        ).fetchone()
+    if not var_mi:
+        usdtry_gecmis_doldur()
+
+    fon_sonuclar = []
+    abd_sonuclar = []
     bugun_d = bugun()
     for i in range(11, -1, -1):
         ay_basi = (bugun_d.replace(day=1) - timedelta(days=i*28)).replace(day=1)
@@ -629,26 +666,50 @@ def get_aylik_getiri(user_id):
         if ay_sonu > bugun_d:
             ay_sonu = bugun_d
 
-        portfoy_basi = hesapla_portfoy_tarih(user_id, str(ay_basi - timedelta(days=1)))
-        portfoy_sonu = hesapla_portfoy_tarih(user_id, str(ay_sonu))
-        kazanc = portfoy_sonu - portfoy_basi
-        sonuclar.append({
-            "ay": ay_basi.strftime("%b %Y"),
-            "kazanc": kazanc,
-            "deger": portfoy_sonu
-        })
-    return sonuclar
+        basi_tarih = str(ay_basi - timedelta(days=1))
+        sonu_tarih = str(ay_sonu)
+        kur = get_usdtry_gecmis(sonu_tarih) or get_usd_try() or None
 
-def hesapla_portfoy_tarih(user_id, tarih_str):
-    """Belirli bir tarihteki portföy değerini hesapla."""
+        fon_basi = hesapla_portfoy_tarih(user_id, basi_tarih, "FON")
+        fon_sonu = hesapla_portfoy_tarih(user_id, sonu_tarih, "FON")
+        fon_kazanc_try = fon_sonu - fon_basi
+        fon_sonuclar.append({
+            "ay": ay_basi.strftime("%b %Y"),
+            "kazanc_try": fon_kazanc_try,
+            "kazanc_usd": (fon_kazanc_try / kur) if kur else 0,
+        })
+
+        abd_basi_usd = hesapla_portfoy_tarih(user_id, basi_tarih, "ABD")
+        abd_sonu_usd = hesapla_portfoy_tarih(user_id, sonu_tarih, "ABD")
+        abd_kazanc_usd = abd_sonu_usd - abd_basi_usd
+        abd_sonuclar.append({
+            "ay": ay_basi.strftime("%b %Y"),
+            "kazanc_usd": abd_kazanc_usd,
+            "kazanc_try": (abd_kazanc_usd * kur) if kur else 0,
+        })
+
+    return fon_sonuclar, abd_sonuclar
+
+def hesapla_portfoy_tarih(user_id, tarih_str, tur_filtre=None):
+    """Belirli bir tarihteki portfoy degerini (native para biriminde), istenirse tek bir
+    tur (FON/BIST/ABD) ile sinirli olarak hesapla."""
     with get_db() as conn:
-        rows = conn.execute("""
-            SELECT sembol,
-                SUM(CASE WHEN alissat='Alış' THEN adet ELSE -adet END) as net_adet
-            FROM islemler
-            WHERE user_id=? AND tarih<=?
-            GROUP BY sembol
-        """, (user_id, tarih_str)).fetchall()
+        if tur_filtre:
+            rows = conn.execute("""
+                SELECT sembol,
+                    SUM(CASE WHEN alissat='Alış' THEN adet ELSE -adet END) as net_adet
+                FROM islemler
+                WHERE user_id=? AND tarih<=? AND tur=?
+                GROUP BY sembol
+            """, (user_id, tarih_str, tur_filtre)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT sembol,
+                    SUM(CASE WHEN alissat='Alış' THEN adet ELSE -adet END) as net_adet
+                FROM islemler
+                WHERE user_id=? AND tarih<=?
+                GROUP BY sembol
+            """, (user_id, tarih_str)).fetchall()
     toplam = 0
     for r in rows:
         if r["net_adet"] > 0:
@@ -756,7 +817,7 @@ def dashboard():
     abd_kar_tl      = abd_kar_usd * usd_try if usd_try else 0
     genel_kar_tl    = fon_kar + bist_kar + abd_kar_tl
 
-    aylik = get_aylik_getiri(user_id)
+    fon_aylik, abd_aylik = get_aylik_getiri(user_id)
 
     with get_db() as conn:
         son_fiyat_tarihi = conn.execute(
@@ -783,7 +844,7 @@ def dashboard():
         nakit_usd=nakit_usd, nakit_try=nakit_try, nakit_usd_tl=nakit_usd_tl,
         abd_gunluk_tl=abd_gunluk_tl,
         hesaplar=hesaplar, hesap_filtre=hesap_filtre,
-        aylik=aylik, son_fiyat_tarihi=son_fiyat_tarihi, son_log=son_log,
+        fon_aylik=fon_aylik, abd_aylik=abd_aylik, son_fiyat_tarihi=son_fiyat_tarihi, son_log=son_log,
     )
 
 # ── İşlemler ────────────────────────────────────────────────────────────────
