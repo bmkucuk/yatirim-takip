@@ -2453,6 +2453,51 @@ def fon_icerik_tefas_sayfa_debug():
         return jsonify({"hata": str(e)}), 200
 
 
+@app.route("/fon-icerik/kap-oid-debug")
+@login_required
+def fon_icerik_kap_oid_debug():
+    """Geçici tanılama: fon kodunun KAP'ta hangi mkkMemberOid'e eşlendiğini ve
+    o üye için son 90 gündeki TÜM bildirim başlıklarını (konu filtresiz) gösterir.
+    'Portföy Dağılım Raporu' bulunamayan fonlarda gerçek sebebi (yanlış OID, farklı
+    başlık ifadesi, hiç bildirim yok vb.) görmek için kullanılır."""
+    import requests as req
+
+    fon_kodu = (request.args.get("fon") or "").strip().upper()
+    if not fon_kodu:
+        return jsonify({"hata": "?fon=KOD gerekli"}), 400
+
+    oid, unvan, oid_debug = kap_client.kap_fon_oid_bul(fon_kodu)
+    sonuc = {"fon_kodu": fon_kodu, "oid": oid, "unvan": unvan, "oid_debug": oid_debug}
+
+    if oid:
+        body = {
+            "fromDate": (date.today() - timedelta(days=90)).isoformat(),
+            "toDate": date.today().isoformat(),
+            "mkkMemberOidList": [oid],
+            "subjectList": [],
+        }
+        try:
+            r = req.post(
+                f"{kap_client.KAP_BASE}/tr/api/disclosure/members/byCriteria",
+                json=body, headers=kap_client.KAP_HEADERS, timeout=15
+            )
+            sonuc["disclosure_status"] = r.status_code
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, list):
+                    sonuc["disclosure_sayisi"] = len(data)
+                    sonuc["ornekler"] = [
+                        {"subject": d.get("subject"), "publishDate": d.get("publishDate"), "disclosureIndex": d.get("disclosureIndex")}
+                        for d in sorted(data, key=lambda d: d.get("publishDate", ""), reverse=True)[:25]
+                    ]
+                else:
+                    sonuc["disclosure_sayisi"] = "beklenmeyen tip"
+        except Exception as e:
+            sonuc["disclosure_hata"] = str(e)
+
+    return jsonify(sonuc)
+
+
 @app.route("/fon-icerik/ybf-debug")
 def fon_icerik_ybf_debug():
     """Geçici tanılama uç noktası: fonun 'Yatırımcı Bilgi Formu' bildirimini KAP'ta
