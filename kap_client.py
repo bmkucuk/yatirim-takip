@@ -353,7 +353,10 @@ def pdf_hisse_dagilimi_ayikla(pdf_bytes):
                     bolum_bitti = True
                     break
 
-                ilk = (satir[0] or "").strip()
+                ilk_ham = (satir[0] or "").strip()
+                # Bazı satırlar kod önüne önek taşır (örn. "Tem.Ver. DSTKF" = teminata
+                # verilen hisseler) — hücrenin SON kelimesi gerçek kodu verir.
+                ilk = ilk_ham.split()[-1] if ilk_ham else ""
                 if not _KOD_RE.match(ilk):
                     continue
                 # Bu satırdaki tüm hücrelerden ondalıklı sayı token'larını çıkar
@@ -365,8 +368,14 @@ def pdf_hisse_dagilimi_ayikla(pdf_bytes):
                             sayi_tokenlari.append(parca)
                 if len(sayi_tokenlari) < 3:
                     continue
-                # Son 3 ondalıklı sayı: TOPLAM(FPD GÖRE), GRUP(%), TOPLAM(FTD GÖRE)
-                grup_pct = _tr_sayi(sayi_tokenlari[-2])
+                # "Tem.Ver." (teminata verilen hisseler) satırlarında sondaki
+                # TOPLAM(FTD GÖRE) sütunu genelde boş kalır — bu durumda gerçek
+                # GRUP(%) değeri sondan ikinci değil, en sonuncu token olur.
+                if ilk_ham.upper().replace(" ", "").startswith("TEM.VER"):
+                    grup_pct = _tr_sayi(sayi_tokenlari[-1])
+                else:
+                    # Son 3 ondalıklı sayı: TOPLAM(FPD GÖRE), GRUP(%), TOPLAM(FTD GÖRE)
+                    grup_pct = _tr_sayi(sayi_tokenlari[-2])
                 if grup_pct is None:
                     continue
                 agirliklar[ilk] = agirliklar.get(ilk, 0.0) + grup_pct
