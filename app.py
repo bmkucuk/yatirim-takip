@@ -2453,6 +2453,39 @@ def fon_icerik_tefas_sayfa_debug():
         return jsonify({"hata": str(e)}), 200
 
 
+@app.route("/fon-icerik/kap-pdr-ornek-debug")
+@login_required
+def fon_icerik_kap_pdr_ornek_debug():
+    """Geçici tanılama: belirli bir tarih aralığındaki TÜM 'Portföy Dağılım Raporu'
+    bildirimlerinin HAM JSON'unu (tüm alanlarıyla) döker — fonların bu bildirimlerde
+    hangi alanla (stockCodes/fundCode/relatedStocks/başka) tanımlandığını görmek için."""
+    import requests as req
+
+    baslangic = request.args.get("from", (date.today() - timedelta(days=5)).isoformat())
+    bitis = request.args.get("to", date.today().isoformat())
+
+    body = {"fromDate": baslangic, "toDate": bitis, "mkkMemberOidList": [], "subjectList": []}
+    try:
+        r = req.post(
+            f"{kap_client.KAP_BASE}/tr/api/disclosure/members/byCriteria",
+            json=body, headers=kap_client.KAP_HEADERS, timeout=25
+        )
+        if r.status_code != 200:
+            return jsonify({"hata": f"status {r.status_code}", "body": r.text[:500]})
+        data = r.json()
+        if not isinstance(data, list):
+            return jsonify({"hata": "beklenmeyen tip", "raw": str(data)[:500]})
+        pdr = [d for d in data if "portföy dağılım raporu" in (d.get("subject") or "").lower()]
+        return jsonify({
+            "aralik": [baslangic, bitis],
+            "toplam_bildirim": len(data),
+            "pdr_sayisi": len(pdr),
+            "pdr_ornekler": pdr[:8],
+        })
+    except Exception as e:
+        return jsonify({"hata": str(e)})
+
+
 @app.route("/fon-icerik/kap-oid-debug")
 @login_required
 def fon_icerik_kap_oid_debug():
