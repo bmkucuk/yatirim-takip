@@ -2748,59 +2748,19 @@ def fon_adi_formatla(ad, kod):
     return f"{ad} ({kod})"
 
 
-def _fon_icerik_fon_ekle_calistir(fon_kodu):
-    """KAP'tan fon kompozisyonunu çekip fon_kompozisyon tablosuna yazar.
-    Hem POST JSON endpoint'i hem de tarayıcıdan tek tıkla ekleme kısayolu bunu kullanır."""
-    fon_kodu = (fon_kodu or "").strip().upper()
-    if not fon_kodu:
-        return {"basarili": False, "hata": "Fon kodu boş olamaz."}
-
-    sonuc = kap_client.kap_fon_kompozisyon_getir(fon_kodu)
-    if not sonuc.get("basarili"):
-        return sonuc
-
-    fon_adi = fon_adi_formatla(sonuc.get("fon_adi"), fon_kodu)
+@app.route("/fon-icerik/ad-duzelt")
+@login_required
+def fon_icerik_ad_duzelt():
+    """Fon İçerik'teki bir fonun görünen adını (fon_ad) düzeltmek için kısayol.
+    ?kod=KHA&ad=Yeni%20Ad şeklinde kullanılır."""
+    fon_kodu = (request.args.get("kod") or "").strip().upper()
+    yeni_ad = (request.args.get("ad") or "").strip()
+    if not fon_kodu or not yeni_ad:
+        flash("?kod= ve ?ad= parametreleri gerekli.", "error")
+        return redirect(url_for("fon_icerik"))
     with get_db() as conn:
-        conn.execute("DELETE FROM fon_kompozisyon WHERE fon_kod = ?", (fon_kodu,))
-        conn.execute("DELETE FROM fon_silinen WHERE fon_kod = ?", (fon_kodu,))
-        for kod, agirlik in sonuc["hisseler"]:
-            conn.execute(
-                "INSERT INTO fon_kompozisyon (fon_kod, fon_ad, hisse_kod, agirlik, donem) "
-                "VALUES (?,?,?,?,?)",
-                (fon_kodu, fon_adi, kod, agirlik, sonuc.get("donem")),
-            )
-
-    return {
-        "basarili": True,
-        "fon_kodu": fon_kodu,
-        "donem": sonuc.get("donem"),
-        "kap_toplam": sonuc.get("kap_toplam"),
-        "hesaplanan_toplam": sonuc.get("hesaplanan_toplam"),
-        "dogrulandi": sonuc.get("dogrulandi"),
-    }
-
-
-@app.route("/fon-icerik/fon-ekle", methods=["POST"])
-@login_required
-def fon_icerik_fon_ekle():
-    fon_kodu = (request.json or {}).get("fon_kodu", "")
-    sonuc = _fon_icerik_fon_ekle_calistir(fon_kodu)
-    if not sonuc.get("basarili"):
-        return jsonify(sonuc), 200
-    sonuc["fonlar"] = fon_icerik_hesapla()
-    return jsonify(sonuc)
-
-
-@app.route("/fon-icerik/fon-ekle-hizli")
-@login_required
-def fon_icerik_fon_ekle_hizli():
-    """Tarayıcıdan tek tıkla (GET ile) fon eklemek için kısayol — POST JSON endpoint'iyle aynı mantığı kullanır."""
-    fon_kodu = request.args.get("kod", "")
-    sonuc = _fon_icerik_fon_ekle_calistir(fon_kodu)
-    if sonuc.get("basarili"):
-        flash(f"✅ {sonuc['fon_kodu']} Fon İçerik'e eklendi (doğrulandı: %{sonuc.get('hesaplanan_toplam')} = KAP %{sonuc.get('kap_toplam')}).", "success")
-    else:
-        flash(f"❌ Fon eklenemedi: {sonuc.get('hata', 'bilinmeyen hata')}", "error")
+        conn.execute("UPDATE fon_kompozisyon SET fon_ad=? WHERE fon_kod=?", (yeni_ad, fon_kodu))
+    flash(f"✅ {fon_kodu} adı güncellendi: {yeni_ad}", "success")
     return redirect(url_for("fon_icerik"))
 
 
