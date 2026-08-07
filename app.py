@@ -2620,16 +2620,16 @@ def fon_adi_formatla(ad, kod):
     return f"{ad} ({kod})"
 
 
-@app.route("/fon-icerik/fon-ekle", methods=["POST"])
-@login_required
-def fon_icerik_fon_ekle():
-    fon_kodu = (request.json or {}).get("fon_kodu", "").strip().upper()
+def _fon_icerik_fon_ekle_calistir(fon_kodu):
+    """KAP'tan fon kompozisyonunu çekip fon_kompozisyon tablosuna yazar.
+    Hem POST JSON endpoint'i hem de tarayıcıdan tek tıkla ekleme kısayolu bunu kullanır."""
+    fon_kodu = (fon_kodu or "").strip().upper()
     if not fon_kodu:
-        return jsonify({"basarili": False, "hata": "Fon kodu boş olamaz."}), 400
+        return {"basarili": False, "hata": "Fon kodu boş olamaz."}
 
     sonuc = kap_client.kap_fon_kompozisyon_getir(fon_kodu)
     if not sonuc.get("basarili"):
-        return jsonify(sonuc), 200
+        return sonuc
 
     fon_adi = fon_adi_formatla(sonuc.get("fon_adi"), fon_kodu)
     with get_db() as conn:
@@ -2642,16 +2642,38 @@ def fon_icerik_fon_ekle():
                 (fon_kodu, fon_adi, kod, agirlik, sonuc.get("donem")),
             )
 
-    guncel = fon_icerik_hesapla()
-    return jsonify({
+    return {
         "basarili": True,
         "fon_kodu": fon_kodu,
         "donem": sonuc.get("donem"),
         "kap_toplam": sonuc.get("kap_toplam"),
         "hesaplanan_toplam": sonuc.get("hesaplanan_toplam"),
         "dogrulandi": sonuc.get("dogrulandi"),
-        "fonlar": guncel,
-    })
+    }
+
+
+@app.route("/fon-icerik/fon-ekle", methods=["POST"])
+@login_required
+def fon_icerik_fon_ekle():
+    fon_kodu = (request.json or {}).get("fon_kodu", "")
+    sonuc = _fon_icerik_fon_ekle_calistir(fon_kodu)
+    if not sonuc.get("basarili"):
+        return jsonify(sonuc), 200
+    sonuc["fonlar"] = fon_icerik_hesapla()
+    return jsonify(sonuc)
+
+
+@app.route("/fon-icerik/fon-ekle-hizli")
+@login_required
+def fon_icerik_fon_ekle_hizli():
+    """Tarayıcıdan tek tıkla (GET ile) fon eklemek için kısayol — POST JSON endpoint'iyle aynı mantığı kullanır."""
+    fon_kodu = request.args.get("kod", "")
+    sonuc = _fon_icerik_fon_ekle_calistir(fon_kodu)
+    if sonuc.get("basarili"):
+        flash(f"✅ {sonuc['fon_kodu']} Fon İçerik'e eklendi (doğrulandı: %{sonuc.get('hesaplanan_toplam')} = KAP %{sonuc.get('kap_toplam')}).", "success")
+    else:
+        flash(f"❌ Fon eklenemedi: {sonuc.get('hata', 'bilinmeyen hata')}", "error")
+    return redirect(url_for("fon_icerik"))
 
 
 @app.route("/fon-icerik/sira-kaydet", methods=["POST"])

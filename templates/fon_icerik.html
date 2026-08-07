@@ -5,6 +5,12 @@
 <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
   <h2>🔍 Fon İçerik Analizi</h2>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input id="yeni-fon-kodu" type="text" placeholder="Fon kodu (ör. KHA)" maxlength="10"
+           style="padding:8px 10px;font-size:0.9rem;text-transform:uppercase;width:150px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text)"
+           onkeydown="if(event.key==='Enter') fonKoduIleEkle()">
+    <button id="fon-ekle-btn" class="btn-primary" style="padding:8px 14px;font-size:0.9rem" onclick="fonKoduIleEkle()">
+      ➕ Fon Ekle
+    </button>
     <input id="yeni-fon-pdf" type="file" accept="application/pdf" style="display:none" onchange="fonPdfSecildi()">
     <button id="pdf-yukle-btn" class="btn-primary" style="padding:8px 14px;font-size:0.9rem" onclick="document.getElementById('yeni-fon-pdf').click()">
       📎 PDF Yükle
@@ -298,6 +304,40 @@ const FON_VERI = {{ fonlar | tojson }};
 let aktifFonKod = null;
 let sonSiralamaKolonIndex = null;
 let sonSiralamaDir = null;
+
+async function fonKoduIleEkle() {
+  const input = document.getElementById('yeni-fon-kodu');
+  const fonKodu = input.value.trim().toUpperCase();
+  if (!fonKodu) { input.focus(); return; }
+  const durum = document.getElementById('fon-ekle-durum');
+  const btn = document.getElementById('fon-ekle-btn');
+  durum.style.display = 'block';
+  durum.style.color = 'var(--text2)';
+  durum.textContent = `⏳ ${fonKodu} KAP'tan çekiliyor...`;
+  btn.disabled = true;
+  try {
+    const r = await fetch("{{ url_for('fon_icerik_fon_ekle') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fon_kodu: fonKodu }),
+    });
+    const data = await r.json();
+    if (!data.basarili) {
+      durum.style.color = 'var(--neg)';
+      durum.textContent = `❌ ${data.hata || 'Bilinmeyen hata'}`;
+    } else {
+      durum.style.color = 'var(--pos)';
+      durum.textContent = `✅ ${data.fon_kodu} eklendi — doğrulandı (hesaplanan %${data.hesaplanan_toplam} = KAP %${data.kap_toplam}). Sayfa yenileniyor...`;
+      input.value = '';
+      setTimeout(() => location.reload(), 1500);
+    }
+  } catch (e) {
+    durum.style.color = 'var(--neg)';
+    durum.textContent = '❌ Ekleme başarısız: ' + e;
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 async function fonPdfSecildi() {
   const dosyaInput = document.getElementById('yeni-fon-pdf');
