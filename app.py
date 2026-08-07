@@ -2511,22 +2511,46 @@ def fon_icerik_kap_oid_debug():
     """Geçici tanılama: fon kodunun KAP'ta hangi mkkMemberOid'e eşlendiğini ve
     o üye için son 90 gündeki TÜM bildirim başlıklarını (konu filtresiz) gösterir.
     'Portföy Dağılım Raporu' bulunamayan fonlarda gerçek sebebi (yanlış OID, farklı
-    başlık ifadesi, hiç bildirim yok vb.) görmek için kullanılır."""
+    başlık ifadesi, hiç bildirim yok vb.) görmek için kullanılır.
+    ?oid=... verilirse kap_fon_oid_bul atlanır, doğrudan o OID ile bildirimler çekilir
+    (elle bulunan doğru OID'i test etmek için).
+    ?deneme_uclari=1 verilirse fon-arama için olası KAP endpoint'leri de denenir."""
     import requests as req
 
     fon_kodu = (request.args.get("fon") or "").strip().upper()
     if not fon_kodu:
         return jsonify({"hata": "?fon=KOD gerekli"}), 400
 
-    oid, unvan, oid_debug = kap_client.kap_fon_oid_bul(fon_kodu)
+    elle_oid = request.args.get("oid")
+    if elle_oid:
+        oid, unvan, oid_debug = elle_oid, "(elle verildi)", None
+    else:
+        oid, unvan, oid_debug = kap_client.kap_fon_oid_bul(fon_kodu)
     sonuc = {"fon_kodu": fon_kodu, "oid": oid, "unvan": unvan, "oid_debug": oid_debug}
 
-    try:
-        r0 = req.get(f"{kap_client.KAP_BASE}/tr/api/member/filter/{fon_kodu}", headers=kap_client.KAP_HEADERS, timeout=10)
-        sonuc["member_filter_status"] = r0.status_code
-        sonuc["member_filter_raw"] = r0.json() if r0.status_code == 200 else r0.text[:500]
-    except Exception as e:
-        sonuc["member_filter_hata"] = str(e)
+    if request.args.get("deneme_uclari"):
+        adaylar = [
+            f"/tr/api/fund/filter/{fon_kodu}",
+            f"/tr/api/fundMember/filter/{fon_kodu}",
+            f"/tr/api/yatirimFonu/filter/{fon_kodu}",
+            f"/tr/api/YatirimFonlari/filter/{fon_kodu}",
+            f"/tr/api/member/fundFilter/{fon_kodu}",
+        ]
+        sonuc["ucu_denemeleri"] = {}
+        for yol in adaylar:
+            try:
+                rt = req.get(f"{kap_client.KAP_BASE}{yol}", headers=kap_client.KAP_HEADERS, timeout=8)
+                sonuc["ucu_denemeleri"][yol] = {"status": rt.status_code, "body": rt.text[:300]}
+            except Exception as e:
+                sonuc["ucu_denemeleri"][yol] = {"hata": str(e)}
+
+    if not elle_oid:
+        try:
+            r0 = req.get(f"{kap_client.KAP_BASE}/tr/api/member/filter/{fon_kodu}", headers=kap_client.KAP_HEADERS, timeout=10)
+            sonuc["member_filter_status"] = r0.status_code
+            sonuc["member_filter_raw"] = r0.json() if r0.status_code == 200 else r0.text[:500]
+        except Exception as e:
+            sonuc["member_filter_hata"] = str(e)
 
     if oid:
         body = {
