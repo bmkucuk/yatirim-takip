@@ -4,7 +4,7 @@ from functools import wraps
 import sqlite3, os, hashlib, secrets, re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari, fon_getiri_hesapla, fetch_piyasa_verileri, fetch_milliyet_altin, fetch_milliyet_fiyatlar, fetch_altin_s1_milliyet, fetch_altin_s1_doviz, fetch_altin_s1
+from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari, fon_getiri_hesapla, fetch_piyasa_verileri, fetch_milliyet_altin, fetch_milliyet_fiyatlar, fetch_altin_s1_milliyet, fetch_altin_s1_doviz, fetch_altin_s1, fetch_fon_aralik
 import kap_client
 
 app = Flask(__name__)
@@ -2350,6 +2350,54 @@ def cron_guncelle():
         pass
 
     return f"OK: {basarili} fiyat güncellendi. {sonuc.get('method')}. Fon getiri: {getiri_guncellenen} fon kontrol edildi.", 200
+
+
+@app.route("/fiyatlar/gecmis-yukle")
+@login_required
+def fiyatlar_gecmis_yukle():
+    """CRON_KEY gerektirmeyen, tek bir sembol için istenen tarih aralığındaki
+    TEFAS fiyat geçmişini fiyat_gecmisi tablosuna dolduran kısayol.
+    ?sembol=KHA&baslangic=2025-10-31 (bitis verilmezse bugün)."""
+    import threading
+
+    sembol = (request.args.get("sembol") or "").strip().upper()
+    baslangic_str = request.args.get("baslangic", "")
+    bitis_str = request.args.get("bitis", "")
+
+    if not sembol or not baslangic_str:
+        flash("?sembol= ve ?baslangic= (YYYY-MM-DD) parametreleri gerekli.", "error")
+        return redirect(url_for("fiyatlar"))
+
+    try:
+        baslangic = datetime.strptime(baslangic_str, "%Y-%m-%d").date()
+    except ValueError:
+        flash("Geçersiz başlangıç tarihi, YYYY-MM-DD formatında olmalı.", "error")
+        return redirect(url_for("fiyatlar"))
+    bitis = date.today()
+    if bitis_str:
+        try:
+            bitis = datetime.strptime(bitis_str, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    def _yukle():
+        with app.app_context():
+            tum_veriler = fetch_fon_aralik([sembol], baslangic, bitis)
+            eklenen = 0
+            with get_db() as conn:
+                for (s, tarih_str), fiyat in tum_veriler.items():
+                    conn.execute(
+                        "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                        (s, tarih_str, fiyat))
+                    eklenen += 1
+                simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
+                conn.execute(
+                    "INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
+                    (simdi, "Manuel-Gecmis-Yukle", f"{sembol}: {eklenen} gün ({baslangic}–{bitis})"))
+
+    threading.Thread(target=_yukle, daemon=True).start()
+    flash(f"⏳ {sembol} için {baslangic}–{bitis} arası fiyat geçmişi arka planda yükleniyor (TEFAS hız sınırı nedeniyle birkaç dakika sürebilir).", "success")
+    return redirect(url_for("fiyatlar"))
 
 
 @app.route("/cron/backfill")
