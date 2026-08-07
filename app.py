@@ -2358,8 +2358,6 @@ def fiyatlar_gecmis_yukle():
     """CRON_KEY gerektirmeyen, tek bir sembol için istenen tarih aralığındaki
     TEFAS fiyat geçmişini fiyat_gecmisi tablosuna dolduran kısayol.
     ?sembol=KHA&baslangic=2025-10-31 (bitis verilmezse bugün)."""
-    import threading
-
     sembol = (request.args.get("sembol") or "").strip().upper()
     baslangic_str = request.args.get("baslangic", "")
     bitis_str = request.args.get("bitis", "")
@@ -2380,23 +2378,28 @@ def fiyatlar_gecmis_yukle():
         except ValueError:
             pass
 
-    def _yukle():
-        with app.app_context():
-            tum_veriler = fetch_fon_aralik([sembol], baslangic, bitis)
-            eklenen = 0
-            with get_db() as conn:
-                for (s, tarih_str), fiyat in tum_veriler.items():
-                    conn.execute(
-                        "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
-                        (s, tarih_str, fiyat))
-                    eklenen += 1
-                simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
-                conn.execute(
-                    "INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
-                    (simdi, "Manuel-Gecmis-Yukle", f"{sembol}: {eklenen} gün ({baslangic}–{bitis})"))
+    # NOT: Bilerek arka plan thread'i KULLANMIYORUZ — Fly.io makinesi istek bittikten
+    # sonra trafik yoksa kısa sürede askıya alınabiliyor ve arka plan thread'i
+    # tamamlanmadan öldürülüyor (önceki denemede olan buydu). Bağlantıyı açık
+    # tutup senkron çalışmak, TEFAS'ın 11sn/istek hız sınırı nedeniyle uzun
+    # sürebilir (10 günlük parça ~2 dk) ama makineyi canlı tutar.
+    tum_veriler = fetch_fon_aralik([sembol], baslangic, bitis)
+    eklenen = 0
+    with get_db() as conn:
+        for (s, tarih_str), fiyat in tum_veriler.items():
+            conn.execute(
+                "INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                (s, tarih_str, fiyat))
+            eklenen += 1
+        simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            "INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
+            (simdi, "Manuel-Gecmis-Yukle", f"{sembol}: {eklenen} gün ({baslangic}–{bitis})"))
 
-    threading.Thread(target=_yukle, daemon=True).start()
-    flash(f"⏳ {sembol} için {baslangic}–{bitis} arası fiyat geçmişi arka planda yükleniyor (TEFAS hız sınırı nedeniyle birkaç dakika sürebilir).", "success")
+    if eklenen:
+        flash(f"✅ {sembol}: {baslangic}–{bitis} arası {eklenen} günlük fiyat yüklendi.", "success")
+    else:
+        flash(f"❌ {sembol} için {baslangic}–{bitis} aralığında TEFAS'tan hiç veri gelmedi.", "error")
     return redirect(url_for("fiyatlar"))
 
 
