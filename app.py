@@ -2469,6 +2469,13 @@ def fon_icerik_kap_oid_debug():
     oid, unvan, oid_debug = kap_client.kap_fon_oid_bul(fon_kodu)
     sonuc = {"fon_kodu": fon_kodu, "oid": oid, "unvan": unvan, "oid_debug": oid_debug}
 
+    try:
+        r0 = req.get(f"{kap_client.KAP_BASE}/tr/api/member/filter/{fon_kodu}", headers=kap_client.KAP_HEADERS, timeout=10)
+        sonuc["member_filter_status"] = r0.status_code
+        sonuc["member_filter_raw"] = r0.json() if r0.status_code == 200 else r0.text[:500]
+    except Exception as e:
+        sonuc["member_filter_hata"] = str(e)
+
     if oid:
         body = {
             "fromDate": (date.today() - timedelta(days=90)).isoformat(),
