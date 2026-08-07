@@ -183,7 +183,7 @@ def bugun():
 VERGISIZ_FONLAR = {"PHE", "TTE", "YHZ", "KHA"}
 VERGI_ORANI = 0.175  # %17.5
 
-# Fon detay bilgileri (Alış/Satış Valörü, Risk Değeri, Son Emir Saati) — statik,
+# Fon detay bilgileri (Alış/Satış Valörü, Risk Değeri, Valör atlama saati) — statik,
 # KAP'ın resmi "Genel Bilgiler" sayfasındaki "Alım Satım Saatleri" ve "Risk Değeri"
 # tablolarından alınmıştır (kap.org.tr/tr/fon-bilgileri/genel/{fon-slug}). Kullanıcıdan
 # bir arayüz üzerinden istenmez; kod içinde elle güncellenir.
@@ -191,14 +191,14 @@ VERGI_ORANI = 0.175  # %17.5
 #            PHE https://kap.org.tr/tr/fon-bilgileri/genel/phe-pusula-portfoy-hisse-senedi-fonu-hisse-senedi-yogun-fon
 #            PBR https://kap.org.tr/tr/fon-bilgileri/genel/pbr-pusula-portfoy-birinci-degisken-fon
 #            TTE https://kap.org.tr/tr/fon-bilgileri/genel/tte-is-portfoy-bist-teknoloji-agirlik-sinirlamali-endeksi-hisse-senedi-tl-fonu-hisse-senedi-yogun-fon
-#            KHA TEFAS fon bilgi kartı (kullanıcı tarafından paylaşıldı) — son_emir_saati bilinmiyor, "—" gösterilir
+#            KHA TEFAS fon bilgi kartı (kullanıcı tarafından paylaşıldı)
 FON_DETAY_BILGI = {
     "TLY": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "7/7", "son_emir_saati": "13:00"},
     "PHE": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "6/7", "son_emir_saati": "13:30"},
     "PBR": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "4/7", "son_emir_saati": "13:30"},
     "TTE": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "7/7", "son_emir_saati": "13:30"},
     "YHZ": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "6/7", "son_emir_saati": "13:30"},
-    "KHA": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "6/7"},
+    "KHA": {"alis_valoru": "T+1", "satis_valoru": "T+2", "risk_degeri": "6/7", "son_emir_saati": "13:30"},
 }
 # ── Fon İçerik Analizi ────────────────────────────────────────────────────────
 # Her fonun hisse bazlı ağırlıkları (%). KAP'ta yayınlanan resmi aylık Portföy
