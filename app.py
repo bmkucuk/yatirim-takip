@@ -2748,6 +2748,22 @@ def fon_adi_formatla(ad, kod):
     return f"{ad} ({kod})"
 
 
+@app.route("/fon-icerik/getiri-yenile")
+@login_required
+def fon_icerik_getiri_yenile_route():
+    """/cron/guncelle?force_getiri=1 ile aynı işi yapar ama CRON_KEY gerektirmez —
+    zaten giriş yapmış kullanıcı tek tıkla TEFAS getiri cache'ini tazeleyebilir."""
+    guncellenen = 0
+    for fon_kod in fon_tum_kompozisyonlari_getir():
+        try:
+            fon_getiri_yenile(fon_kod, max_yas_saat=0)
+            guncellenen += 1
+        except Exception:
+            pass
+    flash(f"✅ TEFAS getiri verisi tazelendi ({guncellenen} fon kontrol edildi).", "success")
+    return redirect(url_for("fon_icerik"))
+
+
 @app.route("/fon-icerik/ad-duzelt")
 @login_required
 def fon_icerik_ad_duzelt():
