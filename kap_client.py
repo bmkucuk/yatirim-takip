@@ -387,7 +387,13 @@ def pdf_hisse_dagilimi_ayikla(pdf_bytes):
     # pdfplumber'ın tablo tespiti kelimeleri ortadan bölüp anlamsız hale
     # getiriyor — örn. Yapı Kredi Portföy raporları), düz metin satırlarını
     # deneyen yedek yönteme düş.
-    return pdf_hisse_dagilimi_ayikla_metin_bazli(pdf_bytes)
+    hisseler2, kap_toplam2 = pdf_hisse_dagilimi_ayikla_metin_bazli(pdf_bytes)
+    if hisseler2:
+        return hisseler2, kap_toplam2
+    # İkinci yedek de boş kalırsa (kod+ISIN bitişik değil — örn. İş Portföy TTE
+    # raporları), sadece ilk kelimenin geçerli kod olup olmadığına bakan üçüncü
+    # yönteme düş.
+    return pdf_hisse_dagilimi_ayikla_ilk_token_bazli(pdf_bytes)
 
 
 _KOD_ISIN_SATIR_RE = re.compile(r"^([A-Z]{3,6})\s+(TR[A-Z0-9]{8,15})\s+(.*)$")
@@ -454,6 +460,63 @@ def pdf_hisse_dagilimi_ayikla_metin_bazli(pdf_bytes):
                 if yuzde is None:
                     continue
                 agirliklar[kod] = agirliklar.get(kod, 0.0) + yuzde
+
+    hisseler = sorted(agirliklar.items(), key=lambda x: -x[1])
+    return hisseler, kap_toplam
+
+
+def pdf_hisse_dagilimi_ayikla_ilk_token_bazli(pdf_bytes):
+    """Üçüncü yöntem: bazı raporlarda (örn. İş Portföy TTE) her hisse satırı düz
+    metinde tek satırda gelir ama kod'dan sonra doğrudan ISIN gelmez — araya döviz
+    cinsi ve/veya şirket adı parçası girer (örn. 'ALCTL TL TELETAŞ TRAALCTL91H9 ...').
+    Bu yüzden _KOD_ISIN_SATIR_RE eşleşmiyor. Bu yöntem sadece satırın İLK kelimesinin
+    geçerli bir hisse kodu olup olmadığına bakar; sondaki 3 ondalıklı (ABD biçimi)
+    sayıdan ORTADAKİNİ (GRUP %) alır — birincil yöntemle aynı kural.
+    Döner: (hisseler: [(kod, agirlik), ...] aggregated, kap_grup_toplami: float|None)
+    """
+    import pdfplumber
+    import io
+
+    agirliklar = {}
+    kap_toplam = None
+    bolum_bulundu = False
+    bolum_bitti = False
+
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        for page in pdf.pages:
+            if bolum_bitti:
+                break
+            metin = page.extract_text() or ""
+            for satir in metin.split("\n"):
+                satir = satir.strip()
+                if not satir:
+                    continue
+                if not bolum_bulundu:
+                    if re.sub(r"\s+", " ", satir).upper() == "HİSSE SENETLERİ":
+                        bolum_bulundu = True
+                    continue
+                if satir.upper().startswith("GRUP TOPLAMI"):
+                    sayi_tokenlari = [t for t in satir.split() if _SAYI_TOKEN_US_RE.match(t)]
+                    if len(sayi_tokenlari) >= 2:
+                        try:
+                            kap_toplam = _us_sayi(sayi_tokenlari[-2])
+                        except Exception:
+                            pass
+                    bolum_bitti = True
+                    break
+                if "TÜREV" in satir.upper() or "BORÇLANMA SENETLERİ" in satir.upper():
+                    bolum_bitti = True
+                    break
+                ilk_token = satir.split()[0]
+                if not _KOD_RE.match(ilk_token):
+                    continue
+                sayi_tokenlari = [t for t in satir.split() if _SAYI_TOKEN_US_RE.match(t)]
+                if len(sayi_tokenlari) < 3:
+                    continue
+                yuzde = _us_sayi(sayi_tokenlari[-2])
+                if yuzde is None:
+                    continue
+                agirliklar[ilk_token] = agirliklar.get(ilk_token, 0.0) + yuzde
 
     hisseler = sorted(agirliklar.items(), key=lambda x: -x[1])
     return hisseler, kap_toplam
