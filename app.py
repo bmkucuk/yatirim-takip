@@ -2456,34 +2456,53 @@ def fon_icerik_tefas_sayfa_debug():
 @app.route("/fon-icerik/kap-pdr-ornek-debug")
 @login_required
 def fon_icerik_kap_pdr_ornek_debug():
-    """Geçici tanılama: belirli bir tarih aralığındaki TÜM 'Portföy Dağılım Raporu'
-    bildirimlerinin HAM JSON'unu (tüm alanlarıyla) döker — fonların bu bildirimlerde
-    hangi alanla (stockCodes/fundCode/relatedStocks/başka) tanımlandığını görmek için."""
+    """Geçici tanılama: belirli bir tarih aralığındaki bildirimleri hem varsayılan hem de
+    disclosureClass=DG filtresiyle çeker, 'Portföy Dağılım Raporu' var mı diye bakar ve
+    varsayılan sorguda hangi disclosureClass/subject değerlerinin geldiğini listeler."""
     import requests as req
 
     baslangic = request.args.get("from", (date.today() - timedelta(days=5)).isoformat())
     bitis = request.args.get("to", date.today().isoformat())
+    sonuc = {"aralik": [baslangic, bitis]}
 
-    body = {"fromDate": baslangic, "toDate": bitis, "mkkMemberOidList": [], "subjectList": []}
-    try:
+    def _sorgula(ek_alanlar=None):
+        body = {"fromDate": baslangic, "toDate": bitis, "mkkMemberOidList": [], "subjectList": []}
+        if ek_alanlar:
+            body.update(ek_alanlar)
         r = req.post(
             f"{kap_client.KAP_BASE}/tr/api/disclosure/members/byCriteria",
             json=body, headers=kap_client.KAP_HEADERS, timeout=25
         )
         if r.status_code != 200:
-            return jsonify({"hata": f"status {r.status_code}", "body": r.text[:500]})
+            return None, f"status {r.status_code}: {r.text[:300]}"
         data = r.json()
         if not isinstance(data, list):
-            return jsonify({"hata": "beklenmeyen tip", "raw": str(data)[:500]})
-        pdr = [d for d in data if "portföy dağılım raporu" in (d.get("subject") or "").lower()]
-        return jsonify({
-            "aralik": [baslangic, bitis],
-            "toplam_bildirim": len(data),
-            "pdr_sayisi": len(pdr),
-            "pdr_ornekler": pdr[:8],
-        })
-    except Exception as e:
-        return jsonify({"hata": str(e)})
+            return None, f"beklenmeyen tip: {str(data)[:300]}"
+        return data, None
+
+    varsayilan, hata1 = _sorgula()
+    if hata1:
+        sonuc["varsayilan_hata"] = hata1
+    else:
+        sonuc["varsayilan_toplam"] = len(varsayilan)
+        sonuc["varsayilan_pdr_sayisi"] = sum(1 for d in varsayilan if "portföy dağılım raporu" in (d.get("subject") or "").lower())
+        sonuc["varsayilan_disclosureClass_dagilimi"] = {}
+        for d in varsayilan:
+            dc = d.get("disclosureClass", "?")
+            sonuc["varsayilan_disclosureClass_dagilimi"][dc] = sonuc["varsayilan_disclosureClass_dagilimi"].get(dc, 0) + 1
+        if varsayilan:
+            sonuc["ornek_ilk_kayit_tum_alanlar"] = varsayilan[0]
+
+    dg, hata2 = _sorgula({"disclosureClass": "DG"})
+    if hata2:
+        sonuc["dg_hata"] = hata2
+    else:
+        sonuc["dg_toplam"] = len(dg)
+        pdr_dg = [d for d in dg if "portföy dağılım raporu" in (d.get("subject") or "").lower()]
+        sonuc["dg_pdr_sayisi"] = len(pdr_dg)
+        sonuc["dg_pdr_ornekler"] = pdr_dg[:6]
+
+    return jsonify(sonuc)
 
 
 @app.route("/fon-icerik/kap-oid-debug")
