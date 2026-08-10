@@ -142,7 +142,7 @@
     <td><strong>{{ p.sembol }}</strong></td>
     <td>{{ "{:.4f}".format(p.son_fiyat).rstrip('0').rstrip('.') | replace(".",",") }} {{ para }}</td>
     <td>{{ "{:,.0f}".format(p.kalan_adet).replace(",",".") }}</td>
-    <td>{{ "{:,.0f}".format(p.alis_maliyet).replace(",",".") }} {{ para }}</td>
+    <td>{{ "{:,.2f}".format(p.alis_maliyet).replace(",","X").replace(".",",").replace("X",".") }} {{ para }}</td>
     <td class="{{ 'pos' if p.gunluk_tl >= 0 else 'neg' }}" style="text-align:center">
       {{ ("▲ " if p.gunluk_tl>=0 else "▼ ") }}{{ "{:,.0f}".format(p.gunluk_tl|abs).replace(",",".") }} {{ para }}<br>
       <small>%{{ "{:.2f}".format(p.gunluk_yuzde|abs).replace(".",",") }}</small>
