@@ -512,37 +512,41 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
     pozisyonlar = {}
     for sembol, data in sembol_islemler.items():
         kalan_adet = 0.0
+        kalan_maliyet = 0.0  # ağırlıklı ortalama yöntemiyle güncel maliyet bazı
         alis_adet = 0.0
-        alis_tutar = 0.0
         satis_adet = 0.0
-        satis_tutar = 0.0
         bugun_net_adet = 0.0
         for r in data["islemler"]:
             if r["alissat"] == "Alış":
                 kalan_adet += r["adet"]
+                kalan_maliyet += r["tutar"]
                 alis_adet += r["adet"]
-                alis_tutar += r["tutar"]
                 if r["tarih"] == bugun_str:
                     bugun_net_adet += r["adet"]
             else:
+                # Satılan adedin maliyeti: satış TUTARI değil, o ana kadarki
+                # ağırlıklı ortalama birim maliyet üzerinden hesaplanır.
+                if kalan_adet > 0:
+                    ortalama_birim_maliyet = kalan_maliyet / kalan_adet
+                else:
+                    ortalama_birim_maliyet = 0.0
+                satilan_maliyet = ortalama_birim_maliyet * r["adet"]
+                kalan_maliyet -= satilan_maliyet
                 kalan_adet -= r["adet"]
                 satis_adet += r["adet"]
-                satis_tutar += r["tutar"]
                 if r["tarih"] == bugun_str:
                     bugun_net_adet -= r["adet"]
             # Pozisyon sıfırlandıysa (veya negatife düştüyse) resetle
             if kalan_adet <= 0.0001:
                 kalan_adet = 0.0
+                kalan_maliyet = 0.0
                 alis_adet = 0.0
-                alis_tutar = 0.0
                 satis_adet = 0.0
-                satis_tutar = 0.0
                 bugun_net_adet = 0.0
         pozisyonlar[sembol] = {
             "alis_adet": alis_adet,
-            "alis_tutar": alis_tutar,
             "satis_adet": satis_adet,
-            "satis_tutar": satis_tutar,
+            "kalan_maliyet": max(0.0, kalan_maliyet),
             "tur": data["tur"],
             "bugun_net_adet": bugun_net_adet,
         }
@@ -565,7 +569,7 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
         tur = p["tur"]
         para_birimi = "USD" if tur == "ABD" else "TRY"
         mevcut_deger = kalan_adet * son_fiyat
-        maliyet = p["alis_tutar"] - p["satis_tutar"]
+        maliyet = p["kalan_maliyet"]
         kar_zarar = mevcut_deger - maliyet
 
         dun_fiyat = get_fiyat(sembol, dun_str)
