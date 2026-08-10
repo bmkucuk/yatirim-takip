@@ -36,7 +36,7 @@
       <!-- Hesap -->
       <div class="form-group" style="flex:1;min-width:110px">
         <label>Hesap</label>
-        <select name="hesap">
+        <select name="hesap" id="hesap-select" onchange="hesapDegistiAraciKurumAyarla(this.value)">
           {% for h in hesaplar %}
           <option value="{{ h }}">{{ h }}</option>
           {% endfor %}
@@ -46,7 +46,7 @@
       <!-- Aracı Kurum -->
       <div class="form-group" style="flex:1;min-width:120px">
         <label>Aracı Kurum</label>
-        <select name="araciKurum">
+        <select name="araciKurum" id="araci-kurum-select">
           {% for a in aracilar %}
           <option value="{{ a }}">{{ a }}</option>
           {% endfor %}
@@ -103,6 +103,26 @@
   </form>
 </div>
 <script>
+const HESAP_ARACI_ONERI = {
+  "Murat": "Murat Denizbank",
+  "Berrin": "Berrin Denizbank"
+};
+
+function hesapDegistiAraciKurumAyarla(hesapDegeri) {
+  const onerilen = HESAP_ARACI_ONERI[hesapDegeri];
+  if (!onerilen) return;
+  const araciSelect = document.getElementById('araci-kurum-select');
+  if (!araciSelect) return;
+  // Önerilen aracı kurum listede varsa seç (kullanıcı sonrasında manuel değiştirebilir)
+  const varMi = Array.from(araciSelect.options).some(o => o.value === onerilen);
+  if (varMi) araciSelect.value = onerilen;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const hesapSelect = document.getElementById('hesap-select');
+  if (hesapSelect) hesapDegistiAraciKurumAyarla(hesapSelect.value);
+});
+
 function tarihBasDegisti(deger) {
   if (!deger) return;
   const bitInput = document.getElementById('tarihBitInput');
