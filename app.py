@@ -147,6 +147,12 @@ def init_db():
             sira INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (user_id, kart_kod)
         );
+        CREATE TABLE IF NOT EXISTS fon_icerik_adet (
+            user_id INTEGER NOT NULL,
+            fon_kod TEXT NOT NULL,
+            adet REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, fon_kod)
+        );
         """)
     try:
         conn.execute("ALTER TABLE fon_bilgi ADD COLUMN sira INTEGER")
@@ -2467,7 +2473,70 @@ if __name__ == "__main__":
 @login_required
 def fon_icerik():
     veri = fon_icerik_hesapla()
-    return render_template("fon_icerik.html", fonlar=veri)
+    user_id = session["user_id"]
+    with get_db() as conn:
+        adet_rows = conn.execute(
+            "SELECT fon_kod, adet FROM fon_icerik_adet WHERE user_id=?", (user_id,)
+        ).fetchall()
+    adet_map = {r["fon_kod"]: r["adet"] for r in adet_rows}
+    hesaplayici = fon_icerik_getiri_hesaplayici_olustur(veri, adet_map)
+    return render_template("fon_icerik.html", fonlar=veri, hesaplayici=hesaplayici)
+
+
+def fon_icerik_getiri_hesaplayici_olustur(veri, adet_map):
+    """Kullanıcının girdiği adetlere göre her fonun o anki % ve TL getirisini hesaplar."""
+    satirlar = []
+    toplam_deger = 0.0
+    toplam_getiri_tl = 0.0
+    for fon_kod, fon in veri.items():
+        adet = adet_map.get(fon_kod, 0) or 0
+        son_fiyat = get_son_fiyat(fon_kod)
+        getiri_pct = fon.get("toplam_katki")
+        mevcut_deger = (adet * son_fiyat) if (adet and son_fiyat) else 0.0
+        getiri_tl = (mevcut_deger * getiri_pct / 100.0) if (mevcut_deger and getiri_pct is not None) else 0.0
+        toplam_deger += mevcut_deger
+        toplam_getiri_tl += getiri_tl
+        satirlar.append({
+            "fon_kod": fon_kod, "ad_gosterim": fon.get("ad_gosterim"),
+            "adet": adet, "son_fiyat": son_fiyat, "getiri_pct": getiri_pct,
+            "mevcut_deger": mevcut_deger, "getiri_tl": getiri_tl,
+        })
+    toplam_getiri_pct = (toplam_getiri_tl / toplam_deger * 100.0) if toplam_deger else None
+    return {
+        "satirlar": satirlar,
+        "toplam_deger": toplam_deger,
+        "toplam_getiri_tl": toplam_getiri_tl,
+        "toplam_getiri_pct": toplam_getiri_pct,
+    }
+
+
+@app.route("/fon-icerik/adet-kaydet", methods=["POST"])
+@login_required
+def fon_icerik_adet_kaydet():
+    """Bir fon için manuel girilen adedi kaydeder ve o fonun/toplamın güncel
+    getiri hesabını döner (sayfa yeniden yüklenmeden anlık gösterim için)."""
+    user_id = session["user_id"]
+    veri_json = request.json or {}
+    fon_kodu = (veri_json.get("fon_kodu") or "").strip().upper()
+    if not fon_kodu:
+        return jsonify({"basarili": False, "hata": "Fon kodu gerekli."}), 400
+    try:
+        adet = float(str(veri_json.get("adet", 0)).replace(",", "."))
+    except (TypeError, ValueError):
+        return jsonify({"basarili": False, "hata": "Geçersiz adet."}), 400
+
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO fon_icerik_adet (user_id, fon_kod, adet) VALUES (?,?,?)
+            ON CONFLICT(user_id, fon_kod) DO UPDATE SET adet=excluded.adet
+        """, (user_id, fon_kodu, adet))
+        adet_rows = conn.execute(
+            "SELECT fon_kod, adet FROM fon_icerik_adet WHERE user_id=?", (user_id,)
+        ).fetchall()
+    adet_map = {r["fon_kod"]: r["adet"] for r in adet_rows}
+    veri = fon_icerik_hesapla()
+    hesaplayici = fon_icerik_getiri_hesaplayici_olustur(veri, adet_map)
+    return jsonify({"basarili": True, "hesaplayici": hesaplayici})
 
 
 @app.route("/api/fon-icerik-guncelle")
