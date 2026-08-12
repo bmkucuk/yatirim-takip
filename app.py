@@ -403,7 +403,8 @@ def fon_icerik_hesapla():
         getiri = getiri_cache.get(fon_kod, {})
         diger_toplam = round(max(0.0, 100.0 - hisse_agirlik_toplam), 2)
         sonuc[fon_kod] = {
-            "ad": fon["ad"], "satirlar": satirlar, "toplam_katki": round(toplam_katki, 3),
+            "ad": fon["ad"], "ad_gosterim": fon_adi_kod_tekrarsiz(fon["ad"], fon_kod),
+            "satirlar": satirlar, "toplam_katki": round(toplam_katki, 3),
             "bilgi": {
                 "alis_valoru": detay.get("alis_valoru"),
                 "satis_valoru": detay.get("satis_valoru"),
@@ -2810,6 +2811,20 @@ def fon_adi_formatla(ad, kod):
     if ad.rstrip().upper().endswith(f"({kod.upper()})"):
         return ad
     return f"{ad} ({kod})"
+
+
+def fon_adi_kod_tekrarsiz(ad, kod):
+    """Kart başlığında 'KOD — İsim' gösterimi için, ismin başındaki/sonundaki
+    kod tekrarını temizler (örn. 'TLY Portföyü (TLY)' -> 'Portföyü')."""
+    ad = (ad or "").strip()
+    kod_u = kod.upper()
+    if ad.upper().endswith(f"({kod_u})"):
+        ad = ad[: -(len(kod) + 2)].strip()
+    if ad.upper().startswith(kod_u):
+        kalan = ad[len(kod):]
+        if not kalan or kalan[0] in "-: —–":
+            ad = kalan.lstrip("-: —–").strip()
+    return ad or kod
 
 
 @app.route("/fon-icerik/getiri-yenile")

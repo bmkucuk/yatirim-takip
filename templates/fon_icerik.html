@@ -29,7 +29,7 @@
 {% for fon_kod, fon in fonlar.items() %}
   <div class="card fon-karti-ozet" data-fon="{{ fon_kod }}" draggable="true" tabindex="0">
     <div class="fon-ozet-ust">
-      <div class="fon-ozet-ad" title="{{ fon_kod }} — {{ fon.ad }}">{{ fon_kod }} — {{ fon.ad }}</div>
+      <div class="fon-ozet-ad" title="{{ fon_kod }} — {{ fon.ad }}">{{ fon_kod }} — {{ fon.ad_gosterim }}</div>
       <button class="fon-sil-btn" title="Fonu sil" onclick="fonSil('{{ fon_kod }}')">🗑</button>
     </div>
     <div class="fon-ozet-alt">
@@ -413,7 +413,7 @@ function fonDetayAc(fonKod) {
   const fon = FON_VERI[fonKod];
   if (!fon) return;
   aktifFonKod = fonKod;
-  document.getElementById('fon-modal-baslik').textContent = fonKod + ' — ' + fon.ad;
+  document.getElementById('fon-modal-baslik').textContent = fonKod + ' — ' + fon.ad_gosterim;
   const toplamEl = document.getElementById('fon-modal-toplam');
   toplamEl.textContent = (fon.toplam_katki >= 0 ? '+' : '') + fon.toplam_katki.toFixed(2) + '%';
   toplamEl.className = fon.toplam_katki >= 0 ? 'pos' : 'neg';
