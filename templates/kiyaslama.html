@@ -205,7 +205,8 @@
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
             <div style="display:flex;align-items:center;gap:6px">
               <span class="kalem-tutamac" title="Sürükleyerek sırala" style="cursor:grab;color:var(--text2);
-                    font-size:0.95rem;line-height:1;touch-action:none;user-select:none">⠿</span>
+                    font-size:1rem;line-height:1;touch-action:none;user-select:none;
+                    padding:6px 8px;margin:-6px -8px -6px -4px;display:inline-flex">⠿</span>
               <strong style="font-size:0.95rem">{{ k.sembol }}</strong>
             </div>
             <div>
@@ -432,7 +433,6 @@ gunSayisiGuncelle();
 (function () {
   document.querySelectorAll('.kalem-container').forEach(function (container) {
     let suruklenenKalem = null;
-    let pointerId = null;
 
     function kalemleriniAl() {
       return Array.from(container.querySelectorAll('.kalem-item'));
@@ -460,36 +460,48 @@ gunSayisiGuncelle();
       }).catch(function () { /* sessizce yut — sıralama kozmetik */ });
     }
 
+    function pointerHareket(e) {
+      if (!suruklenenKalem) return;
+      e.preventDefault();
+      const nokta = e.touches ? e.touches[0] : e;
+      const komsu = enYakinKalemiBul(nokta.clientX, nokta.clientY);
+      if (!komsu) return;
+      const box = komsu.getBoundingClientRect();
+      const merkezY = box.top + box.height / 2;
+      if (nokta.clientY < merkezY) komsu.before(suruklenenKalem);
+      else komsu.after(suruklenenKalem);
+    }
+
+    function pointerBirak() {
+      if (!suruklenenKalem) return;
+      suruklenenKalem.style.opacity = '';
+      suruklenenKalem = null;
+      document.removeEventListener('pointermove', pointerHareket);
+      document.removeEventListener('pointerup', pointerBirak);
+      document.removeEventListener('pointercancel', pointerBirak);
+      document.removeEventListener('touchmove', pointerHareket);
+      document.removeEventListener('touchend', pointerBirak);
+      document.removeEventListener('touchcancel', pointerBirak);
+      siraKaydet();
+    }
+
+    function pointerBaslat(e) {
+      e.preventDefault();
+      const tutamac = e.currentTarget;
+      suruklenenKalem = tutamac.closest('.kalem-item');
+      if (!suruklenenKalem) return;
+      suruklenenKalem.style.opacity = '0.45';
+      document.addEventListener('pointermove', pointerHareket, { passive: false });
+      document.addEventListener('pointerup', pointerBirak);
+      document.addEventListener('pointercancel', pointerBirak);
+      document.addEventListener('touchmove', pointerHareket, { passive: false });
+      document.addEventListener('touchend', pointerBirak);
+      document.addEventListener('touchcancel', pointerBirak);
+    }
+
     container.querySelectorAll('.kalem-tutamac').forEach(function (tutamac) {
-      tutamac.addEventListener('pointerdown', function (e) {
-        e.preventDefault();
-        suruklenenKalem = tutamac.closest('.kalem-item');
-        pointerId = e.pointerId;
-        tutamac.setPointerCapture(pointerId);
-        suruklenenKalem.style.opacity = '0.45';
-        tutamac.style.cursor = 'grabbing';
-      });
-
-      tutamac.addEventListener('pointermove', function (e) {
-        if (!suruklenenKalem) return;
-        const komsu = enYakinKalemiBul(e.clientX, e.clientY);
-        if (!komsu) return;
-        const box = komsu.getBoundingClientRect();
-        const merkezY = box.top + box.height / 2;
-        if (e.clientY < merkezY) komsu.before(suruklenenKalem);
-        else komsu.after(suruklenenKalem);
-      });
-
-      function birak(e) {
-        if (!suruklenenKalem) return;
-        suruklenenKalem.style.opacity = '';
-        tutamac.style.cursor = 'grab';
-        try { tutamac.releasePointerCapture(pointerId); } catch (err) {}
-        suruklenenKalem = null;
-        siraKaydet();
-      }
-      tutamac.addEventListener('pointerup', birak);
-      tutamac.addEventListener('pointercancel', birak);
+      tutamac.addEventListener('pointerdown', pointerBaslat);
+      tutamac.addEventListener('touchstart', pointerBaslat, { passive: false });
     });
   });
 })();
