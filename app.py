@@ -158,6 +158,10 @@ def init_db():
     except Exception:
         pass
     try:
+        conn.execute("ALTER TABLE kiyaslama_kalem ADD COLUMN sira INTEGER NOT NULL DEFAULT 0")
+    except Exception:
+        pass
+    try:
         conn.execute("ALTER TABLE kiyaslama_global_tarih ADD COLUMN toplam_para REAL DEFAULT 0")
     except Exception:
         pass
@@ -2975,6 +2979,39 @@ def fon_icerik_pdf_yukle():
     })
 
 
+@app.route("/kiyaslama/kalem-sira-kaydet", methods=["POST"])
+@login_required
+def kiyaslama_kalem_sira_kaydet():
+    """Bir portföy içindeki fonların sürükle-bırakla belirlenen sırasını kaydeder.
+    Body: {"portfoy_id": 3, "sira": [12, 9, 15, ...]} — kalem id'leri, yeni sırayla."""
+    user_id = session["user_id"]
+    veri = request.json or {}
+    try:
+        portfoy_id = int(veri.get("portfoy_id"))
+    except (TypeError, ValueError):
+        return jsonify({"basarili": False, "hata": "Geçersiz portföy."}), 400
+    sira_listesi = veri.get("sira")
+    if not isinstance(sira_listesi, list) or not sira_listesi:
+        return jsonify({"basarili": False, "hata": "Geçersiz sıra listesi."}), 400
+
+    with get_db() as conn:
+        p = conn.execute(
+            "SELECT id FROM kiyaslama_portfoy WHERE id=? AND user_id=?", (portfoy_id, user_id)
+        ).fetchone()
+        if not p:
+            return jsonify({"basarili": False, "hata": "Portföy bulunamadı."}), 404
+        for i, kalem_id in enumerate(sira_listesi):
+            try:
+                kalem_id = int(kalem_id)
+            except (TypeError, ValueError):
+                continue
+            conn.execute(
+                "UPDATE kiyaslama_kalem SET sira=? WHERE id=? AND portfoy_id=?",
+                (i, kalem_id, portfoy_id)
+            )
+    return jsonify({"basarili": True})
+
+
 @app.route("/kiyaslama")
 @login_required
 def kiyaslama():
@@ -2986,7 +3023,7 @@ def kiyaslama():
         kalemler = {}
         for p in portfoyler:
             kalemler[p["id"]] = conn.execute(
-                "SELECT * FROM kiyaslama_kalem WHERE portfoy_id=?", (p["id"],)
+                "SELECT * FROM kiyaslama_kalem WHERE portfoy_id=? ORDER BY sira, id", (p["id"],)
             ).fetchall()
     bugun_str = str(bugun())
     from datetime import datetime as _dt2, timedelta as _td2
@@ -3317,9 +3354,12 @@ def kiyaslama_kalem_ekle():
     except:
         vergi_orani = 0
     with get_db() as conn:
+        max_sira = conn.execute(
+            "SELECT COALESCE(MAX(sira),-1) as m FROM kiyaslama_kalem WHERE portfoy_id=?", (portfoy_id,)
+        ).fetchone()["m"]
         conn.execute(
-            "INSERT INTO kiyaslama_kalem (portfoy_id,sembol,agirlik,ilk_fiyat,son_fiyat,vergi_orani) VALUES (?,?,?,?,?,?)",
-            (portfoy_id, sembol, agirlik, ilk_fiyat, son_fiyat, vergi_orani)
+            "INSERT INTO kiyaslama_kalem (portfoy_id,sembol,agirlik,ilk_fiyat,son_fiyat,vergi_orani,sira) VALUES (?,?,?,?,?,?,?)",
+            (portfoy_id, sembol, agirlik, ilk_fiyat, son_fiyat, vergi_orani, max_sira + 1)
         )
     return redirect(url_for("kiyaslama"))
 

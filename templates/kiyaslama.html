@@ -194,15 +194,20 @@
 
     <!-- Kalem Listesi — Dikey -->
     {% if kl %}
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.5rem;margin-bottom:0.75rem">
+    <div class="kalem-container" id="kalem-container-{{ p.id }}" data-portfoy="{{ p.id }}"
+         style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.5rem;margin-bottom:0.75rem">
       {% for k in kl %}
         {% set getiri = ((k.son_fiyat / k.ilk_fiyat - 1) * 100) if k.son_fiyat and k.ilk_fiyat else none %}
         {% set vergi = k.vergi_orani if k.vergi_orani else 0 %}
         {% set net_getiri = (getiri * (1 - vergi/100)) if getiri is not none else none %}
-        <div id="kalem-row-{{ k.id }}"
+        <div id="kalem-row-{{ k.id }}" class="kalem-item" data-kalem-id="{{ k.id }}"
              style="background:var(--card2);border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <strong style="font-size:0.95rem">{{ k.sembol }}</strong>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="kalem-tutamac" title="Sürükleyerek sırala" style="cursor:grab;color:var(--text2);
+                    font-size:0.95rem;line-height:1;touch-action:none;user-select:none">⠿</span>
+              <strong style="font-size:0.95rem">{{ k.sembol }}</strong>
+            </div>
             <div>
               <button onclick="kalemDuzenle({{ k.id }}, '{{ k.sembol }}', {{ k.agirlik }}, '{{ k.ilk_fiyat or '' }}', '{{ k.son_fiyat or '' }}')"
                 style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.8rem;padding:0 4px">✏️</button>
@@ -422,6 +427,72 @@ document.querySelectorAll('input[name="ilk_tarih"], input[name="son_tarih"]').fo
   el => el.addEventListener('change', gunSayisiGuncelle)
 );
 gunSayisiGuncelle();
+
+// ── Kalem sıralama: basılı tutup sürükleme (mouse + dokunmatik) ────────────
+(function () {
+  document.querySelectorAll('.kalem-container').forEach(function (container) {
+    let suruklenenKalem = null;
+    let pointerId = null;
+
+    function kalemleriniAl() {
+      return Array.from(container.querySelectorAll('.kalem-item'));
+    }
+
+    function enYakinKalemiBul(x, y) {
+      let enYakin = null, enKisaMesafe = Infinity;
+      kalemleriniAl().forEach(function (el) {
+        if (el === suruklenenKalem) return;
+        const box = el.getBoundingClientRect();
+        const merkezX = box.left + box.width / 2;
+        const merkezY = box.top + box.height / 2;
+        const mesafe = Math.hypot(x - merkezX, y - merkezY);
+        if (mesafe < enKisaMesafe) { enKisaMesafe = mesafe; enYakin = el; }
+      });
+      return enYakin;
+    }
+
+    function siraKaydet() {
+      const idler = kalemleriniAl().map(function (el) { return el.dataset.kalemId; });
+      fetch("{{ url_for('kiyaslama_kalem_sira_kaydet') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portfoy_id: container.dataset.portfoy, sira: idler }),
+      }).catch(function () { /* sessizce yut — sıralama kozmetik */ });
+    }
+
+    container.querySelectorAll('.kalem-tutamac').forEach(function (tutamac) {
+      tutamac.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        suruklenenKalem = tutamac.closest('.kalem-item');
+        pointerId = e.pointerId;
+        tutamac.setPointerCapture(pointerId);
+        suruklenenKalem.style.opacity = '0.45';
+        tutamac.style.cursor = 'grabbing';
+      });
+
+      tutamac.addEventListener('pointermove', function (e) {
+        if (!suruklenenKalem) return;
+        const komsu = enYakinKalemiBul(e.clientX, e.clientY);
+        if (!komsu) return;
+        const box = komsu.getBoundingClientRect();
+        const merkezY = box.top + box.height / 2;
+        if (e.clientY < merkezY) komsu.before(suruklenenKalem);
+        else komsu.after(suruklenenKalem);
+      });
+
+      function birak(e) {
+        if (!suruklenenKalem) return;
+        suruklenenKalem.style.opacity = '';
+        tutamac.style.cursor = 'grab';
+        try { tutamac.releasePointerCapture(pointerId); } catch (err) {}
+        suruklenenKalem = null;
+        siraKaydet();
+      }
+      tutamac.addEventListener('pointerup', birak);
+      tutamac.addEventListener('pointercancel', birak);
+    });
+  });
+})();
 </script>
 
 {% endblock %}
