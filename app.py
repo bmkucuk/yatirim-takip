@@ -666,6 +666,60 @@ def get_usdtry_gecmis(tarih_str):
     """Verilen tarih (veya oncesi) icin USD/TRY kurunu dondurur."""
     return get_fiyat("USDTRY", tarih_str)
 
+
+def portfoy_deger_tarihte(user_id, hesap_filtre, tarih_str):
+    """Belirli bir geçmiş tarihte (o tarihe kadarki işlemlere ve o tarihteki
+    fiyatlara/kura göre) portföyün toplam TL değerini hesaplar."""
+    with get_db() as conn:
+        if hesap_filtre == "Hepsi":
+            rows = conn.execute("""
+                SELECT sembol, tur, alissat, adet, tarih
+                FROM islemler WHERE user_id=? AND tarih<=?
+                ORDER BY sembol, tarih ASC
+            """, (user_id, tarih_str)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT sembol, tur, alissat, adet, tarih
+                FROM islemler WHERE user_id=? AND hesap=? AND tarih<=?
+                ORDER BY sembol, tarih ASC
+            """, (user_id, hesap_filtre, tarih_str)).fetchall()
+
+    sembol_islemler = {}
+    for r in rows:
+        s = r["sembol"]
+        if s not in sembol_islemler:
+            sembol_islemler[s] = {"tur": r["tur"], "adet": 0.0}
+        if r["alissat"] == "Alış":
+            sembol_islemler[s]["adet"] += r["adet"]
+        else:
+            sembol_islemler[s]["adet"] -= r["adet"]
+
+    kur = get_usdtry_gecmis(tarih_str)
+    detaylar = []
+    toplam_tl = 0.0
+    fiyat_eksik = []
+    for sembol, data in sembol_islemler.items():
+        kalan_adet = data["adet"]
+        if kalan_adet <= 0.0001:
+            continue
+        fiyat = get_fiyat(sembol, tarih_str)
+        if not fiyat:
+            fiyat_eksik.append(sembol)
+            continue
+        tur = data["tur"]
+        carpan = (kur or 0) if tur == "ABD" else 1.0
+        deger_tl = kalan_adet * fiyat * carpan
+        toplam_tl += deger_tl
+        detaylar.append({
+            "sembol": sembol, "adet": round(kalan_adet, 4), "fiyat": fiyat,
+            "tur": tur, "deger_tl": round(deger_tl, 2),
+        })
+    detaylar.sort(key=lambda d: -d["deger_tl"])
+    return {
+        "tarih": tarih_str, "toplam_tl": round(toplam_tl, 2),
+        "kur": kur, "detaylar": detaylar, "fiyat_eksik": fiyat_eksik,
+    }
+
 def hisse_gecmis_doldur(sembol, tur):
     """Bir ABD/BIST hissesi icin uzun donemli (5 yil) gunluk fiyat gecmisini Yahoo
     Finance'ten cekip fiyat_gecmisi tablosuna yazar. fetch_hisse_fiyatlari sadece son
@@ -860,6 +914,21 @@ def logout():
     return redirect(url_for("login"))
 
 # ── Dashboard ────────────────────────────────────────────────────────────────
+
+@app.route("/dashboard/tarihte-deger")
+@login_required
+def dashboard_tarihte_deger():
+    """Belirli bir geçmiş tarihte portföyün toplam TL değerini döner."""
+    user_id = session["user_id"]
+    hesap_filtre = request.args.get("hesap", "Hepsi")
+    tarih_str = (request.args.get("tarih") or "").strip()
+    try:
+        datetime.strptime(tarih_str, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"basarili": False, "hata": "Geçersiz tarih (YYYY-AA-GG)."}), 400
+    sonuc = portfoy_deger_tarihte(user_id, hesap_filtre, tarih_str)
+    return jsonify({"basarili": True, **sonuc})
+
 
 @app.route("/dashboard")
 @login_required
