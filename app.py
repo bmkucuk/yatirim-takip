@@ -758,6 +758,27 @@ def _fiyat_gecmisi_yeterli_mi(sembol, baslangic, bitis):
         ).fetchone()
     return (row["c"] if row else 0) >= 3
 
+def toplam_net_yatirim(user_id, tur_filtre, hesap_filtre="Hepsi"):
+    """Tum zamanlar boyunca (tarih siniri olmadan) belirtilen tur icin net yatirilan
+    nakit (alis tutari - satis tutari) hesaplar. Bu, 'ana para' (gercek cepten cikan
+    toplam para) rakamidir. Bir pozisyon karla kapatilip baska bir fona/hisseye
+    gecildiginde, hesapla_portfoy'daki 'kalan_maliyet' resetlenir ve gerceklesen kar
+    o yeni pozisyonun maliyetine gomulur - bu da toplam kar/zarar kartinda gercek
+    getiriyi dusuk gosterir. Bu fonksiyon yerine deger - toplam_net_yatirim kullanilarak
+    gerceklesen + gerceklesmeyen TUM getiri (ana paraya gore) doğru hesaplanir."""
+    with get_db() as conn:
+        if hesap_filtre == "Hepsi":
+            row = conn.execute("""
+                SELECT SUM(CASE WHEN alissat='Alış' THEN tutar ELSE -tutar END) as net
+                FROM islemler WHERE user_id=? AND tur=?
+            """, (user_id, tur_filtre)).fetchone()
+        else:
+            row = conn.execute("""
+                SELECT SUM(CASE WHEN alissat='Alış' THEN tutar ELSE -tutar END) as net
+                FROM islemler WHERE user_id=? AND tur=? AND hesap=?
+            """, (user_id, tur_filtre, hesap_filtre)).fetchone()
+    return row["net"] or 0.0
+
 def net_yatirim_araligi(user_id, tur_filtre, tarih_bas, tarih_bit):
     """Belirtilen tarih araliginda (dahil), belirtilen tur icin net yatirilan parayi
     (alis tutari - satis tutari) hesaplar. Aylik getiriden bu tutar cikarilarak, yeni
@@ -976,9 +997,17 @@ def dashboard():
     abd_gunluk_tl   = abd_gunluk_usd * usd_try if usd_try else 0
     genel_gunluk_tl = fon_gunluk + bist_gunluk + abd_gunluk_tl
 
-    fon_kar         = s(fon_portfoy,  "kar_zarar")
-    bist_kar        = s(bist_portfoy, "kar_zarar")
-    abd_kar_usd     = s(abd_portfoy,  "kar_zarar")
+    # Toplam Kar/Zarar: acik pozisyonlarin toplam maliyeti degil, TUM ZAMANLAR
+    # boyunca net yatirilan nakit (ana para) esas alinir. Boylece bir pozisyon
+    # karla kapatilip yeniden yatirildiginda gerceklesen kar kaybolmuyor, ana
+    # paraya gore gercek toplam getiri (gerceklesen + gerceklesmeyen) gosterilir.
+    fon_ana_para     = toplam_net_yatirim(user_id, "FON",  hesap_filtre)
+    bist_ana_para    = toplam_net_yatirim(user_id, "BIST", hesap_filtre)
+    abd_ana_para_usd = toplam_net_yatirim(user_id, "ABD",  hesap_filtre)
+
+    fon_kar         = fon_deger - fon_ana_para
+    bist_kar        = bist_deger - bist_ana_para
+    abd_kar_usd     = abd_deger_usd - abd_ana_para_usd
     abd_kar_tl      = abd_kar_usd * usd_try if usd_try else 0
     genel_kar_tl    = fon_kar + bist_kar + abd_kar_tl
 
