@@ -820,6 +820,9 @@ def get_aylik_getiri(user_id):
             "ay": ay_basi.strftime("%b %Y"),
             "kazanc_try": fon_kazanc_try,
             "kazanc_usd": (fon_kazanc_try / kur) if kur else 0,
+            "ay_basi_deger": fon_basi,
+            "ay_sonu_deger": fon_sonu,
+            "net_yatirim": fon_net_yatirim,
         })
 
         abd_basi_usd = hesapla_portfoy_tarih(user_id, basi_tarih, "ABD")
@@ -830,6 +833,9 @@ def get_aylik_getiri(user_id):
             "ay": ay_basi.strftime("%b %Y"),
             "kazanc_usd": abd_kazanc_usd,
             "kazanc_try": (abd_kazanc_usd * kur) if kur else 0,
+            "ay_basi_deger": abd_basi_usd,
+            "ay_sonu_deger": abd_sonu_usd,
+            "net_yatirim": abd_net_yatirim,
         })
 
     return fon_sonuclar, abd_sonuclar

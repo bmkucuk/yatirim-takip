@@ -134,9 +134,10 @@ async function tarihteDegerHesapla() {
     <div class="card-value {{ 'pos' if kar >= 0 else 'neg' }}" style="font-size:1rem">
       {{ ("▲ " if kar>=0 else "▼ ") }}{{ "{:,.2f}".format(kar|abs).replace(",",".") }} {{ para }}
     </div>
-    {% if deger > 0 %}
+    {% set maliyet = deger - kar %}
+    {% if maliyet > 0 %}
     <div class="card-value {{ 'pos' if kar>=0 else 'neg' }}" style="font-size:1rem;margin-top:0.2rem">
-      %{{ "{:.2f}".format((kar / deger * 100)|abs).replace(".",",") }}
+      %{{ "{:.2f}".format((kar / maliyet * 100)|abs).replace(".",",") }}
     </div>
     {% endif %}
     {% if kar_tl is not none %}
@@ -288,6 +289,36 @@ async function tarihteDegerHesapla() {
 <div class="chart-wrap">
   <canvas id="fonAylikChart"></canvas>
 </div>
+<div style="margin-top:0.5rem">
+  <button type="button" onclick="document.getElementById('fonAylikDetay').style.display = document.getElementById('fonAylikDetay').style.display === 'none' ? 'block' : 'none'"
+    style="background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 10px;font-size:0.78rem;cursor:pointer">
+    🔍 Aylık Detay (ay başı / ay sonu / net yatırım)
+  </button>
+  <div id="fonAylikDetay" style="display:none;overflow-x:auto;margin-top:0.5rem">
+    <table style="width:100%;font-size:0.78rem;border-collapse:collapse">
+      <thead>
+        <tr style="color:var(--text2);text-align:right">
+          <th style="text-align:left;padding:4px">Ay</th>
+          <th style="padding:4px">Ay Başı Değer</th>
+          <th style="padding:4px">Ay Sonu Değer</th>
+          <th style="padding:4px">Net Yatırım</th>
+          <th style="padding:4px">Kazanç</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in fon_aylik %}
+        <tr style="border-top:1px solid var(--border);text-align:right">
+          <td style="text-align:left;padding:4px">{{ d.ay }}</td>
+          <td style="padding:4px">{{ "{:,.0f}".format(d.ay_basi_deger).replace(",",".") }} ₺</td>
+          <td style="padding:4px">{{ "{:,.0f}".format(d.ay_sonu_deger).replace(",",".") }} ₺</td>
+          <td style="padding:4px">{{ "{:,.0f}".format(d.net_yatirim).replace(",",".") }} ₺</td>
+          <td style="padding:4px" class="{{ 'pos' if d.kazanc_try >= 0 else 'neg' }}">{{ "{:,.0f}".format(d.kazanc_try).replace(",",".") }} ₺</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endif %}
 
 {% if abd_aylik %}
@@ -302,6 +333,36 @@ async function tarihteDegerHesapla() {
 </div>
 <div class="chart-wrap">
   <canvas id="abdAylikChart"></canvas>
+</div>
+<div style="margin-top:0.5rem">
+  <button type="button" onclick="document.getElementById('abdAylikDetay').style.display = document.getElementById('abdAylikDetay').style.display === 'none' ? 'block' : 'none'"
+    style="background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 10px;font-size:0.78rem;cursor:pointer">
+    🔍 Aylık Detay (ay başı / ay sonu / net yatırım)
+  </button>
+  <div id="abdAylikDetay" style="display:none;overflow-x:auto;margin-top:0.5rem">
+    <table style="width:100%;font-size:0.78rem;border-collapse:collapse">
+      <thead>
+        <tr style="color:var(--text2);text-align:right">
+          <th style="text-align:left;padding:4px">Ay</th>
+          <th style="padding:4px">Ay Başı Değer</th>
+          <th style="padding:4px">Ay Sonu Değer</th>
+          <th style="padding:4px">Net Yatırım</th>
+          <th style="padding:4px">Kazanç</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in abd_aylik %}
+        <tr style="border-top:1px solid var(--border);text-align:right">
+          <td style="text-align:left;padding:4px">{{ d.ay }}</td>
+          <td style="padding:4px">{{ "{:,.2f}".format(d.ay_basi_deger).replace(",",".") }} $</td>
+          <td style="padding:4px">{{ "{:,.2f}".format(d.ay_sonu_deger).replace(",",".") }} $</td>
+          <td style="padding:4px">{{ "{:,.2f}".format(d.net_yatirim).replace(",",".") }} $</td>
+          <td style="padding:4px" class="{{ 'pos' if d.kazanc_usd >= 0 else 'neg' }}">{{ "{:,.2f}".format(d.kazanc_usd).replace(",",".") }} $</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endif %}
 
