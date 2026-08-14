@@ -89,9 +89,10 @@ async function tarihteDegerHesapla() {
     <div class="card-value {{ 'pos' if genel_kar_tl >= 0 else 'neg' }}">
       {{ ("▲ " if genel_kar_tl>=0 else "▼ ") }}{{ "{:,.0f}".format(genel_kar_tl|abs).replace(",",".") }} ₺
     </div>
-    {% if genel_toplam_tl > 0 %}
+    {% set genel_maliyet = genel_toplam_tl - genel_kar_tl %}
+    {% if genel_maliyet > 0 %}
     <div class="card-value {{ 'pos' if genel_kar_tl>=0 else 'neg' }}" style="margin-top:0.2rem">
-      %{{ "{:.2f}".format((genel_kar_tl / genel_toplam_tl * 100)|abs).replace(".",",") }}
+      %{{ "{:.2f}".format((genel_kar_tl / genel_maliyet * 100)|abs).replace(".",",") }}
     </div>
     {% endif %}
   </div>
