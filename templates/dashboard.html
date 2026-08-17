@@ -164,6 +164,7 @@ async function tarihteDegerHesapla() {
   <thead>
     <tr>
       <th>Sembol</th>
+      <th>Gün</th>
       <th>Son Fiyat</th>
       <th>Adet</th>
       <th>Maliyet</th>
@@ -181,6 +182,12 @@ async function tarihteDegerHesapla() {
   {% for p in pozisyonlar %}
   <tr>
     <td><strong>{{ p.sembol }}</strong></td>
+    <td style="text-align:center">
+      {% if p.gun_sayisi is not none %}{{ p.gun_sayisi }}{% else %}—{% endif %}
+      {% if p.yillik_getiri_pct is not none %}
+      <br><small style="color:var(--text2)" title="Yıllıklandırılmış getiri">%{{ "{:.1f}".format(p.yillik_getiri_pct).replace(".",",") }}/yıl</small>
+      {% endif %}
+    </td>
     <td>{{ "{:.4f}".format(p.son_fiyat).rstrip('0').rstrip('.') | replace(".",",") }} {{ para }}</td>
     <td>{{ "{:,.0f}".format(p.kalan_adet).replace(",",".") }}</td>
     <td>{{ "{:,.2f}".format(p.alis_maliyet).replace(",","X").replace(".",",").replace("X",".") }} {{ para }}</td>

@@ -527,11 +527,14 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
         alis_adet = 0.0
         satis_adet = 0.0
         bugun_net_adet = 0.0
+        ilk_alis_tarihi = None
         for r in data["islemler"]:
             if r["alissat"] == "Alış":
                 kalan_adet += r["adet"]
                 kalan_maliyet += r["tutar"]
                 alis_adet += r["adet"]
+                if ilk_alis_tarihi is None:
+                    ilk_alis_tarihi = r["tarih"]
                 if r["tarih"] == bugun_str:
                     bugun_net_adet += r["adet"]
             else:
@@ -554,12 +557,14 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
                 alis_adet = 0.0
                 satis_adet = 0.0
                 bugun_net_adet = 0.0
+                ilk_alis_tarihi = None
         pozisyonlar[sembol] = {
             "alis_adet": alis_adet,
             "satis_adet": satis_adet,
             "kalan_maliyet": max(0.0, kalan_maliyet),
             "tur": data["tur"],
             "bugun_net_adet": bugun_net_adet,
+            "ilk_alis_tarihi": ilk_alis_tarihi,
         }
 
     dun_str = str(bugun() - timedelta(days=1))
@@ -617,6 +622,14 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
         uc_ay_tl, uc_ay_pct = donemsel(uc_ay_str)
         yb_tl, yb_pct = donemsel(yilbasi_str)
 
+        ilk_alis_tarihi = p.get("ilk_alis_tarihi")
+        gun_sayisi = None
+        yillik_getiri_pct = None
+        if ilk_alis_tarihi:
+            gun_sayisi = (bugun() - date.fromisoformat(ilk_alis_tarihi)).days
+            if gun_sayisi > 0 and maliyet > 0 and mevcut_deger > 0:
+                yillik_getiri_pct = ((mevcut_deger / maliyet) ** (365.0 / gun_sayisi) - 1) * 100
+
         sonuclar.append({
             "sembol": sembol,
             "tur": tur,
@@ -635,6 +648,9 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
             "ay_tl": ay_tl, "ay_pct": ay_pct,
             "uc_ay_tl": uc_ay_tl, "uc_ay_pct": uc_ay_pct,
             "yb_tl": yb_tl, "yb_pct": yb_pct,
+            "ilk_alis_tarihi": ilk_alis_tarihi,
+            "gun_sayisi": gun_sayisi,
+            "yillik_getiri_pct": yillik_getiri_pct,
         })
     return sonuclar
 
