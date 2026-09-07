@@ -179,7 +179,7 @@ function tarihBasDegisti(deger) {
     {% endif %}
 
     <!-- Grup 4: Sembol (seçili kategoriye göre) — arama kutusu -->
-    {% set aktif_semboller = [] %}
+    {% set aktif_semboller = (fon_semboller + abd_semboller + bist_semboller) %}
     {% if tur_filtre == 'FON' or filtre in fon_semboller %}
       {% set aktif_semboller = fon_semboller %}
     {% elif tur_filtre == 'ABD' or filtre in abd_semboller %}
