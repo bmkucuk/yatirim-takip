@@ -190,7 +190,8 @@ def bugun():
 # Vergi muaf fonlar (Hisse Senedi Yoğun Fon sınıfındaki fonlarda stopaj yok)
 # PHE: Pusula Portföy Hisse Senedi Fonu (Hisse Senedi Yoğun Fon)
 # TTE: İş Portföy BIST Teknoloji Ağırlık Sınırlamalı Endeksi Hisse Senedi Fonu (Hisse Senedi Yoğun Fon)
-VERGISIZ_FONLAR = {"PHE", "TTE", "YHZ", "KHA"}
+# THF: (Hisse Senedi Yoğun Fon)
+VERGISIZ_FONLAR = {"PHE", "TTE", "YHZ", "KHA", "THF"}
 VERGI_ORANI = 0.175  # %17.5
 
 # Fon detay bilgileri (Alış/Satış Valörü, Risk Değeri, Valör atlama saati) — statik,
