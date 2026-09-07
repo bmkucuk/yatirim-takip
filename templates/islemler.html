@@ -218,9 +218,9 @@ function tarihBasDegisti(deger) {
   {% set usd_ozet = usd_alis + usd_satis %}
   {% set ozet_etiket = "Toplam" %}
 {% else %}
-  {% set try_ozet = try_alis - try_satis %}
-  {% set usd_ozet = usd_alis - usd_satis %}
-  {% set ozet_etiket = "Net (Alış − Satış)" %}
+  {% set try_ozet = try_satis - try_alis %}
+  {% set usd_ozet = usd_satis - usd_alis %}
+  {% set ozet_etiket = "Net (Satış − Alış)" %}
 {% endif %}
 <div class="table-wrap">
 <table class="data-table">
