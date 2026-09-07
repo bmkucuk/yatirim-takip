@@ -12,6 +12,7 @@
   <button class="tab-btn" onclick="sekmeAc('aracilar', this)">🏦 Aracı Kurumlar</button>
   <button class="tab-btn" onclick="sekmeAc('semboller', this)">🔍 Sembol Listesi</button>
   <button class="tab-btn" onclick="sekmeAc('nakit', this)">💵 Nakit Bakiye</button>
+  <button class="tab-btn" onclick="sekmeAc('vergi', this)">🧾 Fon Stopaj Durumu</button>
   <button class="tab-btn" onclick="sekmeAc('sifre', this)">🔒 Şifre Değiştir</button>
 </div>
 
@@ -96,6 +97,40 @@
         <button type="submit" class="btn-primary">Kaydet</button>
       </div>
     </div>
+  </form>
+</div>
+
+<!-- Fon Stopaj Durumu -->
+<div id="tab-vergi" class="tab-content card" style="display:none">
+  <h3>🧾 Fon Stopaj Durumu</h3>
+  <p class="card-desc">
+    "Stopajsız" işaretli fonlar (Hisse Senedi Yoğun Fon sınıfı) Dashboard'da ve Fon İçerik
+    sayfasında %0 stopaj ile gösterilir; işaretsiz olanlar için %{{ "%.1f"|format(17.5) }} stopaj uygulanır.
+  </p>
+  <ul class="settings-list">
+    {% for f in fon_vergi_listesi %}
+    <li>
+      <span>
+        <strong>{{ f.kod }}</strong>
+        <span style="font-size:0.78rem;color:var(--text2);margin-left:6px">
+          {{ "Stopajsız" if f.vergisiz else "Stopajlı (%17,5)" }}
+        </span>
+      </span>
+      <form method="POST" action="{{ url_for('ayarlar') }}" style="display:inline">
+        <input type="hidden" name="action" value="fon_vergi_durum_degistir">
+        <input type="hidden" name="fon_kodu" value="{{ f.kod }}">
+        <input type="hidden" name="yeni_durum" value="{{ 'vergili' if f.vergisiz else 'vergisiz' }}">
+        <button type="submit" class="btn-secondary" style="padding:3px 10px;font-size:0.78rem">
+          {{ "Stopajlı Yap" if f.vergisiz else "Stopajsız Yap" }}
+        </button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  <form method="POST" action="{{ url_for('ayarlar') }}" class="inline-form">
+    <input type="hidden" name="action" value="fon_vergi_ekle">
+    <input type="text" name="fon_vergi_kodu" placeholder="Fon kodu (örn. THF)" style="text-transform:uppercase">
+    <button type="submit" class="btn-secondary">Stopajsız Olarak Ekle</button>
   </form>
 </div>
 

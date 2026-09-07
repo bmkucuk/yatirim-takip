@@ -153,7 +153,16 @@ def init_db():
             adet REAL NOT NULL DEFAULT 0,
             PRIMARY KEY (user_id, fon_kod)
         );
+        CREATE TABLE IF NOT EXISTS fon_vergi_durumu (
+            fon_kod TEXT PRIMARY KEY
+        );
         """)
+    # İlk kurulumda vergisiz fon listesini varsayılan setle doldur (tablo boşsa).
+    with get_db() as conn:
+        bos_mu = conn.execute("SELECT COUNT(*) as c FROM fon_vergi_durumu").fetchone()["c"] == 0
+        if bos_mu:
+            for kod in VERGISIZ_FONLAR_VARSAYILAN:
+                conn.execute("INSERT OR IGNORE INTO fon_vergi_durumu (fon_kod) VALUES (?)", (kod,))
     try:
         conn.execute("ALTER TABLE fon_bilgi ADD COLUMN sira INTEGER")
     except Exception:
@@ -188,11 +197,17 @@ def bugun():
     return datetime.now(ZoneInfo("Europe/Istanbul")).date()
 
 # Vergi muaf fonlar (Hisse Senedi Yoğun Fon sınıfındaki fonlarda stopaj yok)
-# PHE: Pusula Portföy Hisse Senedi Fonu (Hisse Senedi Yoğun Fon)
-# TTE: İş Portföy BIST Teknoloji Ağırlık Sınırlamalı Endeksi Hisse Senedi Fonu (Hisse Senedi Yoğun Fon)
-# THF: (Hisse Senedi Yoğun Fon)
-VERGISIZ_FONLAR = {"PHE", "TTE", "YHZ", "KHA", "THF"}
+# Artık Ayarlar sayfasından yönetiliyor (fon_vergi_durumu tablosu); bu liste
+# sadece ilk kurulumda tabloyu doldurmak için varsayılan tohum verisidir.
+VERGISIZ_FONLAR_VARSAYILAN = {"PHE", "TTE", "YHZ", "KHA", "THF"}
 VERGI_ORANI = 0.175  # %17.5
+
+
+def fon_vergisiz_kodlari():
+    """Stopajdan muaf (Hisse Senedi Yoğun Fon) olarak işaretlenmiş fon kodlarını döner."""
+    with get_db() as conn:
+        rows = conn.execute("SELECT fon_kod FROM fon_vergi_durumu").fetchall()
+    return {r["fon_kod"] for r in rows}
 
 # Fon detay bilgileri (Alış/Satış Valörü, Risk Değeri, Valör atlama saati) — statik,
 # KAP'ın resmi "Genel Bilgiler" sayfasındaki "Alım Satım Saatleri" ve "Risk Değeri"
@@ -386,6 +401,7 @@ def fon_icerik_hesapla():
     fiyatlar = fetch_fon_icerik_fiyatlari(tum_semboller)
     sira_map = fon_sira_map_getir()
     getiri_cache = fon_getiri_cache_getir()
+    vergisiz_kodlar = fon_vergisiz_kodlari()
 
     sonuc = {}
     for fon_kod, fon in tum_fonlar.items():
@@ -418,7 +434,7 @@ def fon_icerik_hesapla():
                 "risk_degeri": detay.get("risk_degeri"),
                 "son_emir_saati": detay.get("son_emir_saati"),
                 "stopaj_orani": (
-                    "%0" if fon_kod in VERGISIZ_FONLAR
+                    "%0" if fon_kod in vergisiz_kodlar
                     else f"%{VERGI_ORANI * 100:.1f}".replace(".", ",")
                 ),
                 "hisse_agirlik_toplam": round(hisse_agirlik_toplam, 2),
@@ -444,7 +460,7 @@ def net_kar(sembol, tur, kar_zarar):
         return None  # Değişken vergi, sonradan ödeniyor
     if tur != "FON":
         return kar_zarar
-    if sembol in VERGISIZ_FONLAR:
+    if sembol in fon_vergisiz_kodlari():
         return kar_zarar  # Vergisiz
     if kar_zarar > 0:
         return kar_zarar * (1 - VERGI_ORANI)
@@ -575,6 +591,7 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
     yilbasi_str = f"{bugun().year}-01-01"
 
     sonuclar = []
+    vergisiz_kodlar = fon_vergisiz_kodlari()
     for sembol, p in pozisyonlar.items():
         kalan_adet = p["alis_adet"] - p["satis_adet"]
         if kalan_adet <= 0:
@@ -641,7 +658,7 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
             "mevcut_deger": mevcut_deger,
             "kar_zarar": kar_zarar,
             "net_kar": net_kar(sembol, tur, kar_zarar),
-            "vergisiz": (tur == "BIST") or (sembol in VERGISIZ_FONLAR),
+            "vergisiz": (tur == "BIST") or (sembol in vergisiz_kodlar),
             "abd_vergi": tur == "ABD",
             "gunluk_tl": gunluk_tl,
             "gunluk_yuzde": gunluk_yuzde,
@@ -1471,6 +1488,21 @@ def ayarlar():
                         ON CONFLICT(user_id, para_birimi) DO UPDATE SET tutar=excluded.tutar
                     """, (user_id, pb, tutar))
             flash("Nakit bakiyeler güncellendi.", "success")
+        elif action == "fon_vergi_durum_degistir":
+            kod = request.form.get("fon_kodu", "").strip().upper()
+            yeni_durum = request.form.get("yeni_durum", "")
+            if kod:
+                with get_db() as conn:
+                    if yeni_durum == "vergisiz":
+                        conn.execute("INSERT OR IGNORE INTO fon_vergi_durumu (fon_kod) VALUES (?)", (kod,))
+                    else:
+                        conn.execute("DELETE FROM fon_vergi_durumu WHERE fon_kod=?", (kod,))
+        elif action == "fon_vergi_ekle":
+            kod = request.form.get("fon_vergi_kodu", "").strip().upper()
+            if kod:
+                with get_db() as conn:
+                    conn.execute("INSERT OR IGNORE INTO fon_vergi_durumu (fon_kod) VALUES (?)", (kod,))
+                flash(f"{kod} stopajsız fon olarak işaretlendi.", "success")
         elif action == "sifre":
             eski = request.form.get("eski_sifre","")
             yeni = request.form.get("yeni_sifre","")
@@ -1508,7 +1540,19 @@ def ayarlar():
     with get_db() as conn:
         nakit_rows = conn.execute("SELECT para_birimi, tutar FROM nakit_bakiye WHERE user_id=?", (user_id,)).fetchall()
     nakit = {r["para_birimi"]: r["tutar"] for r in nakit_rows}
-    return render_template("ayarlar.html", hesaplar=hesaplar, aracilar=aracilar, nakit=nakit)
+
+    with get_db() as conn:
+        bilinen_fonlar = conn.execute("""
+            SELECT DISTINCT sembol as kod FROM islemler WHERE user_id=? AND tur='FON'
+            UNION SELECT DISTINCT fon_kod as kod FROM fon_kompozisyon
+            UNION SELECT fon_kod as kod FROM fon_vergi_durumu
+            ORDER BY kod
+        """, (user_id,)).fetchall()
+    vergisiz_set = fon_vergisiz_kodlari()
+    fon_vergi_listesi = [{"kod": r["kod"], "vergisiz": r["kod"] in vergisiz_set} for r in bilinen_fonlar]
+
+    return render_template("ayarlar.html", hesaplar=hesaplar, aracilar=aracilar, nakit=nakit,
+                            fon_vergi_listesi=fon_vergi_listesi)
 
 # ── API ──────────────────────────────────────────────────────────────────────
 
