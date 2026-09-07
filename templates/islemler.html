@@ -178,32 +178,29 @@ function tarihBasDegisti(deger) {
        class="filter-btn filter-btn-sm {% if tur_filtre=='BIST' or filtre in bist_semboller %}active{% endif %}">📈 BİST</a>
     {% endif %}
 
-    <!-- Grup 4: Sembol (seçili kategoriye göre) -->
+    <!-- Grup 4: Sembol (seçili kategoriye göre) — arama kutusu -->
+    {% set aktif_semboller = [] %}
     {% if tur_filtre == 'FON' or filtre in fon_semboller %}
-    <span style="width:2px;height:1.4rem;background:var(--accent);opacity:0.5;margin:0 0.4rem;border-radius:1px"></span>
-    <span style="font-size:0.78rem;color:var(--text2);font-weight:600">🏷️ Sembol:</span>
-    {% for s in fon_semboller %}
-    <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
-       class="filter-btn filter-btn-sm {% if filtre==s %}active{% endif %}">{{ s }}</a>
-    {% endfor %}
+      {% set aktif_semboller = fon_semboller %}
+    {% elif tur_filtre == 'ABD' or filtre in abd_semboller %}
+      {% set aktif_semboller = abd_semboller %}
+    {% elif tur_filtre == 'BIST' or filtre in bist_semboller %}
+      {% set aktif_semboller = bist_semboller %}
     {% endif %}
-
-    {% if tur_filtre == 'ABD' or filtre in abd_semboller %}
+    {% if aktif_semboller %}
     <span style="width:2px;height:1.4rem;background:var(--accent);opacity:0.5;margin:0 0.4rem;border-radius:1px"></span>
     <span style="font-size:0.78rem;color:var(--text2);font-weight:600">🏷️ Sembol:</span>
-    {% for s in abd_semboller %}
-    <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
-       class="filter-btn filter-btn-sm {% if filtre==s %}active{% endif %}">{{ s }}</a>
-    {% endfor %}
+    <div style="position:relative;display:inline-block">
+      <input type="text" id="sembol-filtre-input" placeholder="Ara..." value="{{ filtre or '' }}"
+        autocomplete="off"
+        style="width:130px;background:var(--card2);border:1px solid var(--border);color:var(--text);
+               padding:4px 10px;border-radius:14px;font-size:0.78rem">
+      <div id="sembol-filtre-dropdown" class="sembol-dropdown"></div>
+    </div>
+    {% if filtre %}
+    <a href="?{% if hesap_filtre %}hesap={{ hesap_filtre }}&{% endif %}{% if alissat_filtre %}alissat={{ alissat_filtre }}&{% endif %}{% if tur_filtre %}tur={{ tur_filtre }}&{% endif %}{% if tarih_bas %}tarih_bas={{ tarih_bas }}&{% endif %}{% if tarih_bit %}tarih_bit={{ tarih_bit }}{% endif %}"
+       class="filter-btn filter-btn-sm">✕</a>
     {% endif %}
-
-    {% if tur_filtre == 'BIST' or filtre in bist_semboller %}
-    <span style="width:2px;height:1.4rem;background:var(--accent);opacity:0.5;margin:0 0.4rem;border-radius:1px"></span>
-    <span style="font-size:0.78rem;color:var(--text2);font-weight:600">🏷️ Sembol:</span>
-    {% for s in bist_semboller %}
-    <a href="?sembol={{ s }}{% if hesap_filtre %}&hesap={{ hesap_filtre }}{% endif %}{% if alissat_filtre %}&alissat={{ alissat_filtre }}{% endif %}{% if tarih_bas %}&tarih_bas={{ tarih_bas }}{% endif %}{% if tarih_bit %}&tarih_bit={{ tarih_bit }}{% endif %}"
-       class="filter-btn filter-btn-sm {% if filtre==s %}active{% endif %}">{{ s }}</a>
-    {% endfor %}
     {% endif %}
 
   </div>
@@ -349,7 +346,53 @@ function tarihBasDegisti(deger) {
 // Bugünün tarihi
 document.querySelector('input[name="tarih"]').value = new Date().toISOString().split('T')[0];
 
-// Sembol Autocomplete
+// Filtre çubuğundaki sembol arama kutusu (kategoriye göre daralan liste)
+const SEMBOL_FILTRE_LISTE = {{ aktif_semboller | tojson }};
+const sembolFiltreInput = document.getElementById('sembol-filtre-input');
+const sembolFiltreDropdown = document.getElementById('sembol-filtre-dropdown');
+
+if (sembolFiltreInput) {
+  function filtreBaseParams() {
+    const params = new URLSearchParams();
+    {% if hesap_filtre %}params.set('hesap', {{ hesap_filtre|tojson }});{% endif %}
+    {% if alissat_filtre %}params.set('alissat', {{ alissat_filtre|tojson }});{% endif %}
+    {% if tur_filtre %}params.set('tur', {{ tur_filtre|tojson }});{% endif %}
+    {% if tarih_bas %}params.set('tarih_bas', {{ tarih_bas|tojson }});{% endif %}
+    {% if tarih_bit %}params.set('tarih_bit', {{ tarih_bit|tojson }});{% endif %}
+    return params;
+  }
+
+  function sembolFiltreSonucGoster(liste) {
+    if (!liste.length) { sembolFiltreDropdown.style.display = 'none'; return; }
+    sembolFiltreDropdown.innerHTML = liste.map(s =>
+      `<div class="sembol-item" data-kod="${s}"><strong>${s}</strong></div>`
+    ).join('');
+    sembolFiltreDropdown.style.display = 'block';
+    sembolFiltreDropdown.querySelectorAll('.sembol-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const params = filtreBaseParams();
+        params.set('sembol', el.dataset.kod);
+        window.location.search = params.toString();
+      });
+    });
+  }
+
+  sembolFiltreInput.addEventListener('input', function () {
+    const q = this.value.trim().toUpperCase();
+    const eslesen = SEMBOL_FILTRE_LISTE.filter(s => s.toUpperCase().includes(q));
+    sembolFiltreSonucGoster(eslesen);
+  });
+  sembolFiltreInput.addEventListener('focus', function () {
+    sembolFiltreSonucGoster(SEMBOL_FILTRE_LISTE);
+  });
+  document.addEventListener('click', function (e) {
+    if (!sembolFiltreInput.contains(e.target) && !sembolFiltreDropdown.contains(e.target)) {
+      sembolFiltreDropdown.style.display = 'none';
+    }
+  });
+}
+
+// Sembol Autocomplete (Yeni İşlem Ekle formu)
 const sembolInput = document.getElementById('sembol-input');
 const sembolDd = document.getElementById('sembol-dropdown');
 const fiyatInput = document.getElementById('fiyat-input');
