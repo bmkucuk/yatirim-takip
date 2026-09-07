@@ -67,7 +67,7 @@
 
       <!-- Fiyat -->
       <div class="form-group" style="flex:1;min-width:120px">
-        <label>Fiyat (₺)</label>
+        <label id="fiyat-label">Fiyat (₺)</label>
         <input type="number" name="fiyat" id="fiyat-input" step="any" min="0" placeholder="2.50" required>
         <div id="son-fiyat-badge" style="font-size:0.72rem;color:var(--text2);margin-top:0.2rem;min-height:1rem"></div>
       </div>
@@ -195,7 +195,6 @@ function tarihBasDegisti(deger) {
         autocomplete="off"
         style="width:130px;background:var(--card2);border:1px solid var(--border);color:var(--text);
                padding:4px 10px;border-radius:14px;font-size:0.78rem">
-      <div id="sembol-filtre-dropdown" class="sembol-dropdown"></div>
     </div>
     {% if filtre %}
     <a href="?{% if hesap_filtre %}hesap={{ hesap_filtre }}&{% endif %}{% if alissat_filtre %}alissat={{ alissat_filtre }}&{% endif %}{% if tur_filtre %}tur={{ tur_filtre }}&{% endif %}{% if tarih_bas %}tarih_bas={{ tarih_bas }}&{% endif %}{% if tarih_bit %}tarih_bit={{ tarih_bit }}{% endif %}"
@@ -208,13 +207,19 @@ function tarihBasDegisti(deger) {
 
 <!-- İşlemler Tablosu -->
 {% if islemler %}
-{% set alis_toplam = islemler | selectattr('alissat', 'equalto', 'Alış') | sum(attribute='tutar') %}
-{% set satis_toplam = islemler | selectattr('alissat', 'equalto', 'Satış') | sum(attribute='tutar') %}
+{% set try_islemler = islemler | rejectattr('tur', 'equalto', 'ABD') | list %}
+{% set usd_islemler = islemler | selectattr('tur', 'equalto', 'ABD') | list %}
+{% set try_alis = try_islemler | selectattr('alissat', 'equalto', 'Alış') | sum(attribute='tutar') %}
+{% set try_satis = try_islemler | selectattr('alissat', 'equalto', 'Satış') | sum(attribute='tutar') %}
+{% set usd_alis = usd_islemler | selectattr('alissat', 'equalto', 'Alış') | sum(attribute='tutar') %}
+{% set usd_satis = usd_islemler | selectattr('alissat', 'equalto', 'Satış') | sum(attribute='tutar') %}
 {% if alissat_filtre %}
-  {% set ozet_tutar = alis_toplam + satis_toplam %}
+  {% set try_ozet = try_alis + try_satis %}
+  {% set usd_ozet = usd_alis + usd_satis %}
   {% set ozet_etiket = "Toplam" %}
 {% else %}
-  {% set ozet_tutar = alis_toplam - satis_toplam %}
+  {% set try_ozet = try_alis - try_satis %}
+  {% set usd_ozet = usd_alis - usd_satis %}
   {% set ozet_etiket = "Net (Alış − Satış)" %}
 {% endif %}
 <div class="table-wrap">
@@ -243,8 +248,8 @@ function tarihBasDegisti(deger) {
     <td>{{ i.hesap or '—' }}</td>
     <td>{{ i.araciKurum or '—' }}</td>
     <td>{{ "{:,.0f}".format(i.adet).replace(",",".") }}</td>
-    <td>{{ "{:.6f}".format(i.fiyat).rstrip('0').rstrip('.') | replace(".", ",") }}</td>
-    <td>{{ "{:,.2f}".format(i.tutar).replace(",","X").replace(".",",").replace("X",".") }} ₺</td>
+    <td>{{ "{:.6f}".format(i.fiyat).rstrip('0').rstrip('.') | replace(".", ",") }} {{ "$" if i.tur=="ABD" else "₺" }}</td>
+    <td>{{ "{:,.2f}".format(i.tutar).replace(",","X").replace(".",",").replace("X",".") }} {{ "$" if i.tur=="ABD" else "₺" }}</td>
     <td style="display:flex;gap:0.4rem">
       <button class="btn-edit"
         onclick="duzenleBas({{ i.id }}, '{{ i.sembol }}', '{{ i.tur }}', '{{ i.alissat }}',
@@ -260,8 +265,14 @@ function tarihBasDegisti(deger) {
   <tfoot>
     <tr style="border-top:2px solid var(--border)">
       <td colspan="8" style="text-align:right;font-weight:700;color:var(--text2)">{{ ozet_etiket }}:</td>
-      <td class="{{ 'pos' if ozet_tutar >= 0 else 'neg' }}" style="font-weight:700">
-        {{ "{:,.2f}".format(ozet_tutar).replace(",","X").replace(".",",").replace("X",".") }} ₺
+      <td style="font-weight:700">
+        {% if try_islemler %}
+        <span class="{{ 'pos' if try_ozet >= 0 else 'neg' }}">{{ "{:,.2f}".format(try_ozet).replace(",","X").replace(".",",").replace("X",".") }} ₺</span>
+        {% endif %}
+        {% if try_islemler and usd_islemler %}<br>{% endif %}
+        {% if usd_islemler %}
+        <span class="{{ 'pos' if usd_ozet >= 0 else 'neg' }}">{{ "{:,.2f}".format(usd_ozet).replace(",","X").replace(".",",").replace("X",".") }} $</span>
+        {% endif %}
       </td>
       <td></td>
     </tr>
@@ -330,7 +341,7 @@ function tarihBasDegisti(deger) {
           <input type="number" name="adet" id="edit-adet" step="any" min="0" required>
         </div>
         <div class="form-group">
-          <label>Fiyat (₺)</label>
+          <label id="edit-fiyat-label">Fiyat (₺)</label>
           <input type="number" name="fiyat" id="edit-fiyat" step="any" min="0" required>
         </div>
         <div class="form-group form-group-action">
@@ -349,9 +360,24 @@ document.querySelector('input[name="tarih"]').value = new Date().toISOString().s
 // Filtre çubuğundaki sembol arama kutusu (kategoriye göre daralan liste)
 const SEMBOL_FILTRE_LISTE = {{ aktif_semboller | tojson }};
 const sembolFiltreInput = document.getElementById('sembol-filtre-input');
-const sembolFiltreDropdown = document.getElementById('sembol-filtre-dropdown');
+let sembolFiltreDropdown = null;
 
 if (sembolFiltreInput) {
+  // Kayan filtre çubuğu overflow-x:auto olduğu için içine gömülü bir dropdown
+  // alt kısımdan kesiliyordu — bunun yerine body'ye ekleyip konumunu JS ile hesaplıyoruz.
+  sembolFiltreDropdown = document.createElement('div');
+  sembolFiltreDropdown.id = 'sembol-filtre-dropdown';
+  sembolFiltreDropdown.className = 'sembol-dropdown';
+  sembolFiltreDropdown.style.position = 'fixed';
+  document.body.appendChild(sembolFiltreDropdown);
+
+  function sembolFiltrePozisyonAyarla() {
+    const rect = sembolFiltreInput.getBoundingClientRect();
+    sembolFiltreDropdown.style.left = rect.left + 'px';
+    sembolFiltreDropdown.style.top = (rect.bottom + 4) + 'px';
+    sembolFiltreDropdown.style.minWidth = Math.max(rect.width, 140) + 'px';
+  }
+
   function filtreBaseParams() {
     const params = new URLSearchParams();
     {% if hesap_filtre %}params.set('hesap', {{ hesap_filtre|tojson }});{% endif %}
@@ -364,6 +390,7 @@ if (sembolFiltreInput) {
 
   function sembolFiltreSonucGoster(liste) {
     if (!liste.length) { sembolFiltreDropdown.style.display = 'none'; return; }
+    sembolFiltrePozisyonAyarla();
     sembolFiltreDropdown.innerHTML = liste.map(s =>
       `<div class="sembol-item" data-kod="${s}"><strong>${s}</strong></div>`
     ).join('');
@@ -385,6 +412,9 @@ if (sembolFiltreInput) {
   sembolFiltreInput.addEventListener('focus', function () {
     sembolFiltreSonucGoster(SEMBOL_FILTRE_LISTE);
   });
+  window.addEventListener('scroll', function () {
+    if (sembolFiltreDropdown.style.display === 'block') sembolFiltrePozisyonAyarla();
+  }, true);
   document.addEventListener('click', function (e) {
     if (!sembolFiltreInput.contains(e.target) && !sembolFiltreDropdown.contains(e.target)) {
       sembolFiltreDropdown.style.display = 'none';
@@ -443,6 +473,7 @@ sembolInput.addEventListener('input', function() {
             sembolInput.value = el.dataset.kod;
             secilenPiyasa = el.dataset.piyasa;
             turHidden.value = secilenPiyasa;
+            document.getElementById('fiyat-label').textContent = secilenPiyasa === 'ABD' ? 'Fiyat ($)' : 'Fiyat (₺)';
             document.getElementById('sembol-ad').textContent = el.dataset.ad || '';
             sembolDd.style.display = 'none';
             sonFiyatGetir(el.dataset.kod, secilenPiyasa);
@@ -481,6 +512,7 @@ function duzenleBas(id, sembol, tur, alissat, hesap, araciKurum, tarih, adet, fi
   document.getElementById('edit-tarih').value = tarih;
   document.getElementById('edit-adet').value = adet;
   document.getElementById('edit-fiyat').value = fiyat;
+  document.getElementById('edit-fiyat-label').textContent = tur === 'ABD' ? 'Fiyat ($)' : 'Fiyat (₺)';
   document.getElementById('duzenle-modal').style.display = 'flex';
 }
 function modalKapat() {
