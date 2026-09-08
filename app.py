@@ -156,6 +156,17 @@ def init_db():
         CREATE TABLE IF NOT EXISTS fon_vergi_durumu (
             fon_kod TEXT PRIMARY KEY
         );
+        CREATE TABLE IF NOT EXISTS fiyat_takip_ekstra (
+            user_id INTEGER NOT NULL,
+            sembol TEXT NOT NULL,
+            tur TEXT NOT NULL,
+            PRIMARY KEY (user_id, sembol)
+        );
+        CREATE TABLE IF NOT EXISTS fiyat_takip_gizli (
+            user_id INTEGER NOT NULL,
+            sembol TEXT NOT NULL,
+            PRIMARY KEY (user_id, sembol)
+        );
         """)
     # İlk kurulumda vergisiz fon listesini varsayılan setle doldur (tablo boşsa).
     with get_db() as conn:
@@ -208,6 +219,23 @@ def fon_vergisiz_kodlari():
     with get_db() as conn:
         rows = conn.execute("SELECT fon_kod FROM fon_vergi_durumu").fetchall()
     return {r["fon_kod"] for r in rows}
+
+
+def fiyatlar_takip_sembolleri(user_id):
+    """Fiyatlar sayfasında takip edilecek sembolleri döner: işlem geçmişindeki
+    semboller + manuel eklenenler, manuel gizlenenler hariç. {sembol: tur} döner."""
+    with get_db() as conn:
+        islem_rows = conn.execute(
+            "SELECT DISTINCT sembol, tur FROM islemler WHERE user_id=?", (user_id,)).fetchall()
+        ekstra_rows = conn.execute(
+            "SELECT sembol, tur FROM fiyat_takip_ekstra WHERE user_id=?", (user_id,)).fetchall()
+        gizli_rows = conn.execute(
+            "SELECT sembol FROM fiyat_takip_gizli WHERE user_id=?", (user_id,)).fetchall()
+    tur_map = {r["sembol"]: r["tur"] for r in islem_rows}
+    for r in ekstra_rows:
+        tur_map.setdefault(r["sembol"], r["tur"])
+    gizli = {r["sembol"] for r in gizli_rows}
+    return {s: t for s, t in tur_map.items() if s not in gizli}
 
 # Fon detay bilgileri (Alış/Satış Valörü, Risk Değeri, Valör atlama saati) — statik,
 # KAP'ın resmi "Genel Bilgiler" sayfasındaki "Alım Satım Saatleri" ve "Risk Değeri"
@@ -1214,14 +1242,11 @@ def fiyatlar():
     user_id = session["user_id"]
 
     with get_db() as conn:
-        # Tüm sembolleri tur bilgisiyle al
-        islem_rows = conn.execute(
-            "SELECT DISTINCT sembol, tur FROM islemler WHERE user_id=?", (user_id,)).fetchall()
         logs = conn.execute(
             "SELECT * FROM price_fetch_log ORDER BY id DESC LIMIT 4").fetchall()
 
-    # Türe göre grupla
-    tur_map = {r["sembol"]: r["tur"] for r in islem_rows}
+    # Türe göre grupla (işlem geçmişi + manuel eklenenler, manuel gizlenenler hariç)
+    tur_map = fiyatlar_takip_sembolleri(user_id)
     fon_sembolleri  = sorted([s for s,t in tur_map.items() if t == "FON"])
     bist_sembolleri = sorted([s for s,t in tur_map.items() if t == "BIST"])
     abd_sembolleri  = sorted([s for s,t in tur_map.items() if t == "ABD"])
@@ -1247,11 +1272,65 @@ def fiyatlar():
     abd_semboller, abd_tablo   = pivot_yap(abd_sembolleri)
     tum_semboller = fon_sembolleri + bist_sembolleri + abd_sembolleri
 
+    with get_db() as conn:
+        gizli_kod_rows = conn.execute(
+            "SELECT sembol FROM fiyat_takip_gizli WHERE user_id=? ORDER BY sembol", (user_id,)).fetchall()
+        ekstra_rows = conn.execute(
+            "SELECT sembol, tur FROM fiyat_takip_ekstra WHERE user_id=? ORDER BY sembol", (user_id,)).fetchall()
+        islem_tur_rows = conn.execute(
+            "SELECT DISTINCT sembol, tur FROM islemler WHERE user_id=?", (user_id,)).fetchall()
+    islem_tur_map = {r["sembol"]: r["tur"] for r in islem_tur_rows}
+    gizli_semboller = [{"sembol": r["sembol"], "tur": islem_tur_map.get(r["sembol"], "?")} for r in gizli_kod_rows]
+
     return render_template("fiyatlar.html",
         fon_semboller=fon_semboller, fon_tablo=fon_tablo,
         bist_semboller=bist_semboller, bist_tablo=bist_tablo,
         abd_semboller=abd_semboller, abd_tablo=abd_tablo,
-        tum_semboller=tum_semboller, logs=logs)
+        tum_semboller=tum_semboller, logs=logs,
+        gizli_semboller=gizli_semboller, ekstra_semboller=ekstra_rows)
+
+
+@app.route("/fiyatlar/takip-ekle", methods=["POST"])
+@login_required
+def fiyatlar_takip_ekle():
+    """Fiyatlar sayfasına, işlem yapılmamış bir sembolü manuel olarak (sadece
+    fiyat takibi için) ekler."""
+    user_id = session["user_id"]
+    sembol = (request.form.get("sembol") or "").strip().upper()
+    tur = (request.form.get("tur") or "").strip().upper()
+    if not sembol or tur not in ("FON", "BIST", "ABD"):
+        flash("Sembol ve tür gerekli.", "error")
+        return redirect(url_for("fiyatlar"))
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO fiyat_takip_ekstra (user_id, sembol, tur) VALUES (?,?,?)
+            ON CONFLICT(user_id, sembol) DO UPDATE SET tur=excluded.tur
+        """, (user_id, sembol, tur))
+        # aynı sembol daha önce gizlenmişse gizlilikten çıkar
+        conn.execute("DELETE FROM fiyat_takip_gizli WHERE user_id=? AND sembol=?", (user_id, sembol))
+    flash(f"{sembol} takibe eklendi.", "success")
+    return redirect(url_for("fiyatlar"))
+
+
+@app.route("/fiyatlar/takip-kaldir", methods=["POST"])
+@login_required
+def fiyatlar_takip_kaldir():
+    """Bir sembolü Fiyatlar sayfasından kaldırır. İşlem geçmişinde olan bir
+    sembolse gizli listesine eklenir (geçmiş silinmez, sadece bu sayfada
+    gösterilmez/güncellenmez); sadece manuel eklenmişse doğrudan silinir."""
+    user_id = session["user_id"]
+    sembol = (request.form.get("sembol") or "").strip().upper()
+    if not sembol:
+        return redirect(url_for("fiyatlar"))
+    with get_db() as conn:
+        conn.execute("DELETE FROM fiyat_takip_ekstra WHERE user_id=? AND sembol=?", (user_id, sembol))
+        var_mi_islemde = conn.execute(
+            "SELECT 1 FROM islemler WHERE user_id=? AND sembol=? LIMIT 1", (user_id, sembol)).fetchone()
+        if var_mi_islemde:
+            conn.execute("INSERT OR IGNORE INTO fiyat_takip_gizli (user_id, sembol) VALUES (?,?)",
+                         (user_id, sembol))
+    flash(f"{sembol} bu sayfadan kaldırıldı.", "success")
+    return redirect(url_for("fiyatlar"))
 
 @app.route("/fiyat-ekle", methods=["POST"])
 @login_required
@@ -1274,8 +1353,8 @@ def fiyat_guncelle():
     import requests as req
     from price_fetcher import fetch_fon_fiyatlari
 
-    with get_db() as conn:
-        tum = conn.execute("SELECT DISTINCT sembol, tur FROM islemler").fetchall()
+    tur_map_islem = fiyatlar_takip_sembolleri(session["user_id"])
+    tum = [{"sembol": s, "tur": t} for s, t in tur_map_islem.items()]
 
     fon_sembolleri  = [r["sembol"] for r in tum if r["tur"] == "FON"]
     bist_sembolleri = [r["sembol"] for r in tum if r["tur"] == "BIST"]

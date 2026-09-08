@@ -80,6 +80,62 @@
   </form>
 </div>
 
+<!-- Takip Edilen Fonlar / Semboller -->
+<div class="card form-card">
+  <h3>🎯 Takip Edilen Semboller</h3>
+  <p class="card-desc">
+    Bu sayfada işlem geçmişindeki semboller otomatik listelenir. İşlem yapmadan sadece
+    fiyatını merak ettiğin bir sembolü buradan ekleyebilir, artık takip etmek istemediğin
+    (ör. eskiden işlem yaptığın ama artık ilgilenmediğin) bir sembolü buradan kaldırabilirsin.
+  </p>
+  <form method="POST" action="{{ url_for('fiyatlar_takip_ekle') }}" class="form-row" style="margin-bottom:0.75rem">
+    <div class="form-group">
+      <label>Sembol</label>
+      <input type="text" name="sembol" placeholder="ör. QQQ" style="text-transform:uppercase" required>
+    </div>
+    <div class="form-group">
+      <label>Tür</label>
+      <select name="tur">
+        <option value="FON">Yatırım Fonu (TEFAS)</option>
+        <option value="BIST">BİST Hissesi</option>
+        <option value="ABD">ABD Hissesi</option>
+      </select>
+    </div>
+    <div class="form-group form-group-action">
+      <label>&nbsp;</label>
+      <button type="submit" class="btn-secondary">+ Takibe Ekle</button>
+    </div>
+  </form>
+
+  {% if ekstra_semboller or gizli_semboller %}
+  <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
+    {% if ekstra_semboller %}
+    <div>
+      <div style="font-size:0.78rem;color:var(--text2);font-weight:600;margin-bottom:0.3rem">Manuel eklenenler</div>
+      {% for e in ekstra_semboller %}
+      <form method="POST" action="{{ url_for('fiyatlar_takip_kaldir') }}" style="display:inline-block;margin:0 6px 6px 0">
+        <input type="hidden" name="sembol" value="{{ e.sembol }}">
+        <button type="submit" class="filter-btn filter-btn-sm" title="Takipten kaldır">{{ e.sembol }} ({{ e.tur }}) ✕</button>
+      </form>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if gizli_semboller %}
+    <div>
+      <div style="font-size:0.78rem;color:var(--text2);font-weight:600;margin-bottom:0.3rem">Gizlenenler (işlem geçmişinde var, sayfada gösterilmiyor)</div>
+      {% for g in gizli_semboller %}
+      <form method="POST" action="{{ url_for('fiyatlar_takip_ekle') }}" style="display:inline-block;margin:0 6px 6px 0">
+        <input type="hidden" name="sembol" value="{{ g.sembol }}">
+        <input type="hidden" name="tur" value="{{ g.tur }}">
+        <button type="submit" class="filter-btn filter-btn-sm" title="Tekrar göster">{{ g.sembol }} ↩ Geri Getir</button>
+      </form>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
 <!-- Sekmeli Fiyat Tabloları -->
 {% if fon_semboller or bist_semboller or abd_semboller %}
 <div class="tab-menu">
@@ -96,7 +152,13 @@
     <thead>
       <tr>
         <th>Tarih</th>
-        {% for s in semboller %}<th>{{ s }}</th>{% endfor %}
+        {% for s in semboller %}
+        <th>
+          {{ s }}
+          <button type="button" onclick="sembolKaldir('{{ s }}')" title="Bu sayfadan kaldır"
+            style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:0.7rem;margin-left:3px;padding:0">✕</button>
+        </th>
+        {% endfor %}
       </tr>
     </thead>
     <tbody>
@@ -150,5 +212,17 @@ function sekmeAc(id, btn) {
 // İlk sekmeyi aç
 const ilk = document.querySelector('.tab-btn');
 if (ilk) ilk.click();
+
+function sembolKaldir(sembol) {
+  if (!confirm(sembol + ' bu sayfadan kaldırılsın mı? (İşlem geçmişin silinmez, sadece bu sayfada gösterilmez/güncellenmez.)')) return;
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = "{{ url_for('fiyatlar_takip_kaldir') }}";
+  const input = document.createElement('input');
+  input.type = 'hidden'; input.name = 'sembol'; input.value = sembol;
+  form.appendChild(input);
+  document.body.appendChild(form);
+  form.submit();
+}
 </script>
 {% endblock %}
