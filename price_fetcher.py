@@ -254,12 +254,18 @@ def fetch_hisse_toplu(semboller, tur_map=None):
 def fetch_hisse_fiyatlari(semboller, tur_map=None):
     """Yahoo Finance direkt HTTP ile BIST ve ABD hisse fiyatları.
     tur_map: {sembol: tur} — tur bilgisi varsa BIST için .IS ekle, ABD için ekleme.
+    Yahoo, art arda hızlı isteklerde bazı sembolleri sessizce reddedebiliyor (429/boş yanıt);
+    bunu azaltmak için istekler arasına kısa bekleme koyuyoruz ve bir kez retry deniyoruz.
+    Döner: (results, kaynak_etiketi, basarisiz_semboller)
     """
     if not semboller:
-        return {}, "yok"
+        return {}, "yok", []
     import requests as req
     results = {}
-    for sembol in semboller:
+    basarisiz = []
+    for i, sembol in enumerate(semboller):
+        if i > 0:
+            time.sleep(0.6)  # Yahoo'yu art arda hızlı istekle boğmayalım
         tur = (tur_map or {}).get(sembol, "")
         if tur == "BIST":
             yahoo_sembol = f"{sembol}.IS" if not sembol.endswith(".IS") else sembol
@@ -268,29 +274,37 @@ def fetch_hisse_fiyatlari(semboller, tur_map=None):
         else:
             # tur bilinmiyorsa eski mantık
             yahoo_sembol = f"{sembol}.IS" if not sembol.endswith(".IS") and len(sembol) <= 6 and sembol.isalpha() else sembol
-        try:
-            r = req.get(
-                f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_sembol}"
-                f"?interval=1d&range=30d",
-                headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
-                timeout=10
-            )
-            if r.status_code == 200:
-                data = r.json()
-                result = data["chart"]["result"][0]
-                timestamps = result.get("timestamp", [])
-                closes = result["indicators"]["quote"][0]["close"]
-                # Tüm günleri kaydet
-                for ts, c in zip(timestamps, closes):
-                    if c is not None:
-                        from datetime import datetime as _dt
-                        tarih = _dt.utcfromtimestamp(ts).strftime("%Y-%m-%d")
-                        if sembol not in results:
-                            results[sembol] = {}
-                        results[sembol][tarih] = round(float(c), 4)
-        except Exception:
-            pass
-    return results, "Yahoo-Finance" if results else None
+
+        basarili_mi = False
+        for deneme in range(2):  # 1 orijinal + 1 retry
+            if deneme > 0:
+                time.sleep(2)
+            try:
+                r = req.get(
+                    f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_sembol}"
+                    f"?interval=1d&range=30d",
+                    headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+                    timeout=10
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    result = data["chart"]["result"][0]
+                    timestamps = result.get("timestamp", [])
+                    closes = result["indicators"]["quote"][0]["close"]
+                    for ts, c in zip(timestamps, closes):
+                        if c is not None:
+                            from datetime import datetime as _dt
+                            tarih = _dt.utcfromtimestamp(ts).strftime("%Y-%m-%d")
+                            if sembol not in results:
+                                results[sembol] = {}
+                            results[sembol][tarih] = round(float(c), 4)
+                    basarili_mi = True
+                    break
+            except Exception:
+                pass
+        if not basarili_mi:
+            basarisiz.append(sembol)
+    return results, ("Yahoo-Finance" if results else None), basarisiz
 
 def fetch_hisse_detay_toplu(semboller):
     """Yahoo v7/finance/quote ile toplu anlık fiyat + günlük değişim (%) + şirket adı — tek istekte.
@@ -679,7 +693,7 @@ def fetch_all_prices(fon_sembolleri, hisse_sembolleri, tur_map=None):
         else:
             errors.append(f"Fon alınamadı:{','.join(fon_sembolleri)}")
     if hisse_sembolleri:
-        hisse_prices, hisse_method = fetch_hisse_fiyatlari(hisse_sembolleri, tur_map=tur_map)
+        hisse_prices, hisse_method, hisse_basarisiz = fetch_hisse_fiyatlari(hisse_sembolleri, tur_map=tur_map)
         for s, gun_dict in hisse_prices.items():
             for tarih, fiyat in gun_dict.items():
                 prices.append((s, tarih, fiyat))
@@ -687,6 +701,8 @@ def fetch_all_prices(fon_sembolleri, hisse_sembolleri, tur_map=None):
             methods.append(f"Hisse:{hisse_method}")
         else:
             errors.append(f"Hisse alınamadı:{','.join(hisse_sembolleri)}")
+        if hisse_basarisiz:
+            errors.append(f"Bazı hisseler çekilemedi:{','.join(hisse_basarisiz)}")
     return {
         "prices": prices,
         "method": " | ".join(methods) if methods else "başarısız",

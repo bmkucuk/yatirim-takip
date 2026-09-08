@@ -2552,7 +2552,8 @@ def fiyat_guncelle_manuel():
             """, (sembol, tarih, fiyat))
         basarili += 1
 
-    return jsonify({"ok": True, "guncellenen": basarili, "kaynak": sonuc.get("method","?")})
+    return jsonify({"ok": True, "guncellenen": basarili, "kaynak": sonuc.get("method","?"),
+                     "hatalar": sonuc.get("errors","")})
 
 
 @app.route("/cron/guncelle")
@@ -3578,7 +3579,7 @@ def kiyaslama_portfoy_duzenle():
             return prices.get(sembol)
         else:
             tur_map = {sembol: piyasa}
-            prices, _ = _yahoo([sembol], tur_map=tur_map)
+            prices, _, _ = _yahoo([sembol], tur_map=tur_map)
             gun_dict = prices.get(sembol, {})
             return gun_dict.get(tarih) or (list(gun_dict.values())[-1] if gun_dict else None)
 
@@ -3651,7 +3652,7 @@ def kiyaslama_kalem_ekle():
             return prices.get(sembol)
         else:
             tur_map = {sembol: piyasa}
-            prices, _ = _yahoo([sembol], tur_map=tur_map)
+            prices, _, _ = _yahoo([sembol], tur_map=tur_map)
             gun_dict = prices.get(sembol, {})
             return gun_dict.get(tarih) or (list(gun_dict.values())[-1] if gun_dict else None)
 

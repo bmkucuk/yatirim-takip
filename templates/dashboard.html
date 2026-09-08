@@ -464,9 +464,9 @@ async function fiyatlariGuncelle() {
     const r = await fetch('/api/fiyat-guncelle-manuel', { method: 'POST' });
     const d = await r.json();
     if (d.ok) {
-      sonuc.textContent = `✅ ${d.guncellenen} fiyat güncellendi`;
-      sonuc.style.color = 'var(--accent)';
-      setTimeout(() => location.reload(), 1200);
+      sonuc.textContent = `✅ ${d.guncellenen} fiyat güncellendi` + (d.hatalar ? ` — ⚠️ ${d.hatalar}` : '');
+      sonuc.style.color = d.hatalar ? '#f0ad4e' : 'var(--accent)';
+      setTimeout(() => location.reload(), d.hatalar ? 2500 : 1200);
     } else {
       sonuc.textContent = '⚠️ Hata oluştu';
       sonuc.style.color = '#f87171';
