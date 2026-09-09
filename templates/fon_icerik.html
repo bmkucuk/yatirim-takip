@@ -117,8 +117,8 @@
           <td><strong>{{ s.fon_kod }}</strong> <span style="color:var(--text2);font-size:0.78rem">{{ s.ad_gosterim }}</span></td>
           <td>
             <input type="text" inputmode="decimal" class="ghc-adet-input" data-fon="{{ s.fon_kod }}"
-                   value="{{ ('%g' % s.adet) if s.adet else '' }}" placeholder="0"
-                   style="width:90px;background:var(--card2);border:1px solid var(--border);color:var(--text);
+                   value="{{ (('%.4f' % s.adet).rstrip('0').rstrip('.')) if s.adet else '' }}" placeholder="0"
+                   style="width:110px;background:var(--card2);border:1px solid var(--border);color:var(--text);
                           padding:5px 8px;border-radius:6px;font-size:0.85rem">
           </td>
           <td class="ghc-son-fiyat">{{ "{:.4f}".format(s.son_fiyat).rstrip('0').rstrip('.') if s.son_fiyat else "—" }}</td>

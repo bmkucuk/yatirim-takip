@@ -2737,14 +2737,13 @@ def fon_icerik():
             "SELECT fon_kod, adet FROM fon_icerik_adet WHERE user_id=?", (user_id,)
         ).fetchall()
     adet_map = {r["fon_kod"]: r["adet"] for r in adet_rows}
-    # Fon İçerik'te hiç elle girilmemiş fonlar için İşlemler sayfasındaki gerçek
-    # net adedi otomatik doldur (örn. THF: gerçekten elde tutuluyor ama bu
-    # sayfada hiç manuel adet kaydedilmemişti). Elle kaydedilmiş bir değer varsa
-    # (0 dahil) ona dokunulmaz.
+    # İşlemler'deki gerçek net adet HER ZAMAN öncelikli — elle kaydedilmiş eski/yanlış
+    # bir değer varsa bile üzerine yazar. Manuel kayıt sadece İşlemler'de hiç kaydı
+    # olmayan (varsayımsal) fonlar için yedek olarak kalır.
     try:
         for p in hesapla_portfoy(user_id, "Hepsi"):
-            if p["tur"] == "FON" and p["sembol"] not in adet_map and p.get("kalan_adet"):
-                adet_map[p["sembol"]] = p["kalan_adet"]
+            if p["tur"] == "FON" and p.get("kalan_adet"):
+                adet_map[p["sembol"]] = round(p["kalan_adet"], 4)
     except Exception:
         pass
     hesaplayici = fon_icerik_getiri_hesaplayici_olustur(veri, adet_map)
@@ -3150,13 +3149,18 @@ def fon_adi_formatla(ad, kod):
     return f"{ad} ({kod})"
 
 
+_FON_ADI_GERESIZ_EK_RE = re.compile(r"\s*\(HİSSE SENEDİ YOĞUN FON\)\s*$", re.IGNORECASE)
+
+
 def fon_adi_kod_tekrarsiz(ad, kod):
     """Kart başlığında 'KOD — İsim' gösterimi için, ismin başındaki/sonundaki
-    kod tekrarını temizler (örn. 'TLY Portföyü (TLY)' -> 'Portföyü')."""
+    kod tekrarını ve uzun '(HİSSE SENEDİ YOĞUN FON)' ekini temizler
+    (örn. 'TLY Portföyü (TLY)' -> 'Portföyü')."""
     ad = (ad or "").strip()
     kod_u = kod.upper()
     if ad.upper().endswith(f"({kod_u})"):
         ad = ad[: -(len(kod) + 2)].strip()
+    ad = _FON_ADI_GERESIZ_EK_RE.sub("", ad).strip()
     if ad.upper().startswith(kod_u):
         kalan = ad[len(kod):]
         if not kalan or kalan[0] in "-: —–":

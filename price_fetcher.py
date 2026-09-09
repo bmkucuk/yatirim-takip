@@ -126,7 +126,7 @@ def fon_getiri_hesapla(fon_kodu):
     "getiri_6ay", "getiri_1yil", "getiri_yilbasi"} veya fon bulunamazsa None.
     """
     bugun = son_is_gunu()
-    son = _tefas_nokta_fiyat(fon_kodu, bugun, pencere_gun=6)
+    son = _tefas_nokta_fiyat(fon_kodu, bugun, pencere_gun=10, deneme=3)
     if son is None:
         return None
     son_fiyat = son
