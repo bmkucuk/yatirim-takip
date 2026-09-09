@@ -217,6 +217,22 @@ def kap_fon_oid_bul(fon_kodu):
     return None, None, " | ".join(debug)
 
 
+def _kap_tarih_anahtari(publish_date_str):
+    """KAP'ın 'GG.AA.YYYY SS:DD:SS' biçimli publishDate'ini doğru kronolojik
+    sıralama için (YYYY, AA, GG, SS, DD, SS) tuple'ına çevirir. Düz metin
+    sıralaması GG öne geldiği için yanlış sonuç veriyordu (örn. '02.09.2026'
+    metin olarak '15.07.2026'dan küçük görünüyor, oysa Eylül Temmuz'dan sonra).
+    Ayrıştırılamazsa en eski kabul edilsin diye boş tuple döner."""
+    try:
+        tarih_kismi, saat_kismi = (publish_date_str.split(" ", 1) + [""])[:2]
+        gun, ay, yil = tarih_kismi.split(".")
+        saat_parcalari = saat_kismi.split(":") if saat_kismi else []
+        saat_parcalari += ["0"] * (3 - len(saat_parcalari))
+        return (int(yil), int(ay), int(gun), int(saat_parcalari[0]), int(saat_parcalari[1]), int(saat_parcalari[2]))
+    except Exception:
+        return (0, 0, 0, 0, 0, 0)
+
+
 def kap_son_portfoy_raporu_bul(fund_oid, gun_araligi=120, konu_metni="portföy dağılım raporu"):
     """Verilen fon OID'si için KAP'ın fon-bazlı filtre uç noktasıyla en son
     bildirimi bulur (varsayılan: Portföy Dağılım Raporu; `konu_metni` ile
@@ -240,7 +256,7 @@ def kap_son_portfoy_raporu_bul(fund_oid, gun_araligi=120, konu_metni="portföy d
         ]
         if not kayitlar:
             return None, None
-        kayitlar.sort(key=lambda d: d.get("publishDate", ""), reverse=True)
+        kayitlar.sort(key=lambda d: _kap_tarih_anahtari(d.get("publishDate", "")), reverse=True)
         en_son = kayitlar[0]
         return en_son.get("disclosureIndex"), en_son.get("publishDate")
     except Exception:

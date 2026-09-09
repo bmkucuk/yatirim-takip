@@ -52,6 +52,12 @@
         <span>Varlık Dağılımı</span>
         <b>Hisse %{{ "%.1f"|format(fon.bilgi.hisse_agirlik_toplam) }} · Diğer %{{ "%.1f"|format(fon.bilgi.diger_varlik_toplam) }}</b>
       </div>
+      {% if fon.bilgi.kap_donem %}
+      <div class="fon-mini-satir">
+        <span>KAP Raporu</span>
+        <b>{{ fon.bilgi.kap_donem }}</b>
+      </div>
+      {% endif %}
     </div>
     <div class="fon-mini-bilgi fon-getiri-bilgi">
       <div class="fon-mini-satir">

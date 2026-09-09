@@ -355,13 +355,13 @@ def fon_tum_kompozisyonlari_getir():
     birlesik = {k: dict(v) for k, v in FON_ICERIK.items()}
     with get_db() as conn:
         satirlar = conn.execute(
-            "SELECT fon_kod, fon_ad, hisse_kod, agirlik FROM fon_kompozisyon ORDER BY fon_kod, agirlik DESC"
+            "SELECT fon_kod, fon_ad, hisse_kod, agirlik, donem FROM fon_kompozisyon ORDER BY fon_kod, agirlik DESC"
         ).fetchall()
     db_fonlar = {}
     for s in satirlar:
         fk = s["fon_kod"]
         if fk not in db_fonlar:
-            db_fonlar[fk] = {"ad": _fon_adi_tamamla(fk, s["fon_ad"]), "hisseler": []}
+            db_fonlar[fk] = {"ad": _fon_adi_tamamla(fk, s["fon_ad"]), "hisseler": [], "donem": s["donem"]}
         db_fonlar[fk]["hisseler"].append((s["hisse_kod"], s["agirlik"]))
     birlesik.update(db_fonlar)
     silinenler = fon_silinenleri_getir()
@@ -471,6 +471,7 @@ def fon_icerik_hesapla():
                 "getiri_3ay": getiri.get("getiri_3ay"),
                 "getiri_6ay": getiri.get("getiri_6ay"),
                 "getiri_1yil": getiri.get("getiri_1yil"),
+                "kap_donem": fon.get("donem"),
             },
         }
 
