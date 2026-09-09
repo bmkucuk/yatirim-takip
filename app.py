@@ -2737,6 +2737,16 @@ def fon_icerik():
             "SELECT fon_kod, adet FROM fon_icerik_adet WHERE user_id=?", (user_id,)
         ).fetchall()
     adet_map = {r["fon_kod"]: r["adet"] for r in adet_rows}
+    # Fon İçerik'te hiç elle girilmemiş fonlar için İşlemler sayfasındaki gerçek
+    # net adedi otomatik doldur (örn. THF: gerçekten elde tutuluyor ama bu
+    # sayfada hiç manuel adet kaydedilmemişti). Elle kaydedilmiş bir değer varsa
+    # (0 dahil) ona dokunulmaz.
+    try:
+        for p in hesapla_portfoy(user_id, "Hepsi"):
+            if p["tur"] == "FON" and p["sembol"] not in adet_map and p.get("kalan_adet"):
+                adet_map[p["sembol"]] = p["kalan_adet"]
+    except Exception:
+        pass
     hesaplayici = fon_icerik_getiri_hesaplayici_olustur(veri, adet_map)
     return render_template("fon_icerik.html", fonlar=veri, hesaplayici=hesaplayici)
 
