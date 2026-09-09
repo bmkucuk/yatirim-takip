@@ -5,6 +5,10 @@
 <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
   <h2>🔍 Fon İçerik Analizi</h2>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input id="yeni-fon-kodu" type="text" placeholder="Fon kodu (örn. TLY)" maxlength="6" style="width:150px;padding:7px 10px;font-size:0.9rem;text-transform:uppercase" onkeydown="if(event.key==='Enter'){event.preventDefault();fonKapIleEkle();}">
+    <button id="kap-ekle-btn" class="btn-primary" style="padding:8px 14px;font-size:0.9rem" onclick="fonKapIleEkle()">
+      🔎 KAP'tan Getir
+    </button>
     <input id="yeni-fon-pdf" type="file" accept="application/pdf" style="display:none" onchange="fonPdfSecildi()">
     <button id="pdf-yukle-btn" class="btn-primary" style="padding:8px 14px;font-size:0.9rem" onclick="document.getElementById('yeni-fon-pdf').click()">
       📎 PDF Yükle
@@ -384,6 +388,38 @@ async function fonPdfSecildi() {
   } finally {
     btn.disabled = false;
     dosyaInput.value = '';
+  }
+}
+
+async function fonKapIleEkle() {
+  const kutuInput = document.getElementById('yeni-fon-kodu');
+  const fonKodu = kutuInput.value.trim().toUpperCase();
+  if (!fonKodu) { kutuInput.focus(); return; }
+  const durum = document.getElementById('fon-ekle-durum');
+  const btn = document.getElementById('kap-ekle-btn');
+  durum.style.display = 'block';
+  durum.style.color = 'var(--text2)';
+  durum.textContent = `⏳ ${fonKodu} için KAP'tan son Portföy Dağılım Raporu aranıyor...`;
+  btn.disabled = true;
+  try {
+    const formData = new FormData();
+    formData.append('fon_kodu', fonKodu);
+    const r = await fetch("{{ url_for('fon_icerik_kap_ile_ekle') }}", { method: 'POST', body: formData });
+    const data = await r.json();
+    if (!data.basarili) {
+      durum.style.color = 'var(--neg)';
+      durum.textContent = `❌ ${data.hata || 'Bilinmeyen hata'}`;
+    } else {
+      durum.style.color = 'var(--pos)';
+      durum.textContent = `✅ ${data.fon_kodu} eklendi — doğrulandı (hesaplanan %${data.hesaplanan_toplam} = KAP %${data.kap_toplam}). Sayfa yenileniyor...`;
+      setTimeout(() => location.reload(), 1500);
+    }
+  } catch (e) {
+    durum.style.color = 'var(--neg)';
+    durum.textContent = '❌ İstek başarısız: ' + e;
+  } finally {
+    btn.disabled = false;
+    kutuInput.value = '';
   }
 }
 

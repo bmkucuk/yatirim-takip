@@ -3308,6 +3308,62 @@ def fon_icerik_pdf_yukle():
     })
 
 
+@app.route("/fon-icerik/kap-ile-ekle", methods=["POST"])
+@login_required
+def fon_icerik_kap_ile_ekle():
+    """Sadece fon kodu girilerek fon ekleme: KAP'ta en son Portföy Dağılım
+    Raporu'nu otomatik bulur, PDF'ini indirir ve ayrıştırır — elle PDF indirip
+    yüklemeye gerek kalmaz. Bulunamazsa/doğrulanamazsa kullanıcıya PDF Yükle
+    yolunu önerir."""
+    fon_kodu = (request.form.get("fon_kodu") or "").strip().upper()
+    if not fon_kodu:
+        return jsonify({"basarili": False, "hata": "Fon kodu boş olamaz."}), 400
+
+    try:
+        sonuc = kap_client.kap_fon_kompozisyon_getir(fon_kodu)
+    except Exception as e:
+        return jsonify({"basarili": False, "hata": f"KAP sorgusu başarısız: {e}"}), 200
+
+    if not sonuc.get("basarili"):
+        hata = sonuc.get("hata", "Bilinmeyen hata.")
+        return jsonify({"basarili": False, "hata": f"{hata} PDF'i elle indirip 'PDF Yükle' ile deneyebilirsin."}), 200
+
+    if not sonuc.get("dogrulandi"):
+        return jsonify({
+            "basarili": False,
+            "hata": f"Ayrıştırma güvenilir çıkmadı (hesaplanan %{sonuc.get('hesaplanan_toplam')}, "
+                    f"KAP'ın kendi toplamı %{sonuc.get('kap_toplam') if sonuc.get('kap_toplam') is not None else '—'}). "
+                    f"PDF'i elle indirip 'PDF Yükle' ile deneyebilirsin.",
+        }), 200
+
+    hisseler = sonuc["hisseler"]
+    if fon_kodu in FON_ADI_BILINEN:
+        kap_unvan = FON_ADI_BILINEN[fon_kodu]
+    else:
+        kap_unvan = sonuc.get("fon_adi")
+    fon_adi = fon_adi_formatla(kap_unvan, fon_kodu)
+
+    with get_db() as conn:
+        conn.execute("DELETE FROM fon_kompozisyon WHERE fon_kod = ?", (fon_kodu,))
+        conn.execute("DELETE FROM fon_silinen WHERE fon_kod = ?", (fon_kodu,))
+        for kod, agirlik in hisseler:
+            conn.execute(
+                "INSERT INTO fon_kompozisyon (fon_kod, fon_ad, hisse_kod, agirlik, donem) "
+                "VALUES (?,?,?,?,?)",
+                (fon_kodu, fon_adi, kod, agirlik, sonuc.get("donem")),
+            )
+
+    guncel = fon_icerik_hesapla()
+    return jsonify({
+        "basarili": True,
+        "fon_kodu": fon_kodu,
+        "kap_toplam": sonuc.get("kap_toplam"),
+        "hesaplanan_toplam": sonuc.get("hesaplanan_toplam"),
+        "dogrulandi": sonuc.get("dogrulandi"),
+        "fonlar": guncel,
+    })
+
+
 @app.route("/kiyaslama/kalem-sira-kaydet", methods=["POST"])
 @login_required
 def kiyaslama_kalem_sira_kaydet():
