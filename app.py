@@ -410,6 +410,17 @@ def fon_getiri_yenile(fon_kod, max_yas_saat=6):
     except Exception:
         veri = None
     if not veri:
+        # TEFAS'tan bu fon için veri gelmedi (kod uyuşmazlığı, TEFAS'a hiç
+        # dağıtılmıyor olması vb.). Denemenin zaman damgasını yine de kaydet —
+        # aksi halde bu fon her tıklamada baştan sona (7 istek, ~1.5 dk) tekrar
+        # denenir ve tüm butonun süresini şişirir. Bir sonraki normal tazeleme
+        # döngüsünde (max_yas_saat sonra) tekrar denenecek.
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO fon_getiri_cache (fon_kod, guncelleme_tarihi) VALUES (?, datetime('now')) "
+                "ON CONFLICT(fon_kod) DO UPDATE SET guncelleme_tarihi=excluded.guncelleme_tarihi",
+                (fon_kod,),
+            )
         return
     with get_db() as conn:
         conn.execute(
@@ -3175,9 +3186,22 @@ def fon_icerik_getiri_yenile_route():
     fon 7 ayrı istek gerektirdiği için (Hafta/1Ay/3Ay/6Ay/1Yıl/Yılbaşı/Son Fiyat),
     ~6 fon bile en az 7-8 dakika sürer ve tek isteği bloke eder. Bu yüzden burada
     ZORLA değil, normal bayatlama eşiğiyle (4 saat) çağrılır — zaten güncel fonlar
-    anında atlanır, sadece gerçekten bayat olanlar TEFAS'a gider."""
+    anında atlanır, sadece gerçekten bayat olanlar TEFAS'a gider.
+    Sıralama: en eski/hiç güncellenmemiş fon EN BAŞA alınır — bağlantı zaman
+    aşımına uğrarsa (mobil ağ, uzun süren istek) en çok ihtiyacı olan fon zaten
+    işlenmiş olur; sürekli aynı fonun (örn. hep en sonda kalan) hiç sırası
+    gelmemesi engellenir."""
+    fon_kodlari = list(fon_tum_kompozisyonlari_getir())
+    with get_db() as conn:
+        zaman_satirlari = conn.execute(
+            "SELECT fon_kod, guncelleme_tarihi FROM fon_getiri_cache"
+        ).fetchall()
+    guncelleme_map = {r["fon_kod"]: r["guncelleme_tarihi"] for r in zaman_satirlari}
+    # Hiç kaydı olmayanlar (None) en eski kabul edilip en başa gelsin diye "" kullanılır.
+    fon_kodlari.sort(key=lambda k: guncelleme_map.get(k) or "")
+
     guncellenen = 0
-    for fon_kod in fon_tum_kompozisyonlari_getir():
+    for fon_kod in fon_kodlari:
         try:
             fon_getiri_yenile(fon_kod, max_yas_saat=4)
             guncellenen += 1
