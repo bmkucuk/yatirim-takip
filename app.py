@@ -135,10 +135,12 @@ def init_db():
         CREATE TABLE IF NOT EXISTS fon_getiri_cache (
             fon_kod TEXT PRIMARY KEY,
             son_fiyat REAL,
+            getiri_hafta REAL,
             getiri_1ay REAL,
             getiri_3ay REAL,
             getiri_6ay REAL,
             getiri_1yil REAL,
+            getiri_yilbasi REAL,
             guncelleme_tarihi TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS piyasa_kart_sira (
@@ -189,6 +191,14 @@ def init_db():
         pass
     try:
         conn.execute("ALTER TABLE kiyaslama_global_tarih ADD COLUMN toplam_para REAL DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE fon_getiri_cache ADD COLUMN getiri_hafta REAL")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE fon_getiri_cache ADD COLUMN getiri_yilbasi REAL")
     except Exception:
         pass
 
@@ -374,8 +384,8 @@ def fon_getiri_cache_getir():
     """DB'deki getiri cache'ini okur (ağa gitmez, hızlı). Sayfa yüklenirken bu kullanılır."""
     with get_db() as conn:
         satirlar = conn.execute(
-            "SELECT fon_kod, getiri_1ay, getiri_3ay, getiri_6ay, getiri_1yil, guncelleme_tarihi "
-            "FROM fon_getiri_cache"
+            "SELECT fon_kod, getiri_hafta, getiri_1ay, getiri_3ay, getiri_6ay, getiri_1yil, "
+            "getiri_yilbasi, guncelleme_tarihi FROM fon_getiri_cache"
         ).fetchall()
     return {s["fon_kod"]: dict(s) for s in satirlar}
 
@@ -403,13 +413,13 @@ def fon_getiri_yenile(fon_kod, max_yas_saat=6):
         return
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO fon_getiri_cache (fon_kod, son_fiyat, getiri_1ay, getiri_3ay, getiri_6ay, getiri_1yil, guncelleme_tarihi) "
-            "VALUES (?,?,?,?,?,?, datetime('now')) "
+            "INSERT INTO fon_getiri_cache (fon_kod, son_fiyat, getiri_hafta, getiri_1ay, getiri_3ay, getiri_6ay, getiri_1yil, getiri_yilbasi, guncelleme_tarihi) "
+            "VALUES (?,?,?,?,?,?,?,?, datetime('now')) "
             "ON CONFLICT(fon_kod) DO UPDATE SET "
-            "son_fiyat=excluded.son_fiyat, getiri_1ay=excluded.getiri_1ay, getiri_3ay=excluded.getiri_3ay, "
-            "getiri_6ay=excluded.getiri_6ay, getiri_1yil=excluded.getiri_1yil, guncelleme_tarihi=excluded.guncelleme_tarihi",
-            (fon_kod, veri.get("son_fiyat"), veri.get("getiri_1ay"), veri.get("getiri_3ay"),
-             veri.get("getiri_6ay"), veri.get("getiri_1yil")),
+            "son_fiyat=excluded.son_fiyat, getiri_hafta=excluded.getiri_hafta, getiri_1ay=excluded.getiri_1ay, getiri_3ay=excluded.getiri_3ay, "
+            "getiri_6ay=excluded.getiri_6ay, getiri_1yil=excluded.getiri_1yil, getiri_yilbasi=excluded.getiri_yilbasi, guncelleme_tarihi=excluded.guncelleme_tarihi",
+            (fon_kod, veri.get("son_fiyat"), veri.get("getiri_hafta"), veri.get("getiri_1ay"), veri.get("getiri_3ay"),
+             veri.get("getiri_6ay"), veri.get("getiri_1yil"), veri.get("getiri_yilbasi")),
         )
 
 
@@ -471,6 +481,8 @@ def fon_icerik_hesapla():
                 "getiri_3ay": getiri.get("getiri_3ay"),
                 "getiri_6ay": getiri.get("getiri_6ay"),
                 "getiri_1yil": getiri.get("getiri_1yil"),
+                "getiri_hafta": getiri.get("getiri_hafta"),
+                "getiri_yilbasi": getiri.get("getiri_yilbasi"),
                 "kap_donem": fon.get("donem"),
             },
         }

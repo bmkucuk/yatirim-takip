@@ -117,12 +117,13 @@ def _tefas_nokta_fiyat(fon_kodu, hedef_tarih, pencere_gun=4, timeout=8, deneme=2
 
 
 def fon_getiri_hesapla(fon_kodu):
-    """Fonun TEFAS'taki güncel fiyatına göre son 1/3/6 ay ve 1 yıllık getirisini
-    hesaplar (fon-detayli-analiz sayfasındaki 'Getiri Bilgisi' paneliyle aynı mantık).
+    """Fonun TEFAS'taki güncel fiyatına göre son 1 hafta/1/3/6 ay, 1 yıl ve
+    yılbaşından bugüne getirisini hesaplar (fon-detayli-analiz sayfasındaki
+    'Getiri Bilgisi' paneliyle aynı mantık).
     Her nokta ayrı, küçük pencereli, hızlı bir sorgu ile çekilir — toplam istek
-    sayısı sabit (5) ve her biri kısa timeout'lu, bu yüzden yavaş/kilitleyici değildir.
-    Döner: {"son_fiyat", "son_tarih", "getiri_1ay", "getiri_3ay", "getiri_6ay", "getiri_1yil"}
-    veya fon bulunamazsa None.
+    sayısı sabit (7) ve her biri kısa timeout'lu, bu yüzden yavaş/kilitleyici değildir.
+    Döner: {"son_fiyat", "son_tarih", "getiri_hafta", "getiri_1ay", "getiri_3ay",
+    "getiri_6ay", "getiri_1yil", "getiri_yilbasi"} veya fon bulunamazsa None.
     """
     bugun = son_is_gunu()
     son = _tefas_nokta_fiyat(fon_kodu, bugun, pencere_gun=6)
@@ -131,10 +132,17 @@ def fon_getiri_hesapla(fon_kodu):
     son_fiyat = son
 
     sonuc = {"son_fiyat": son_fiyat, "son_tarih": str(bugun)}
-    pencereler = {"getiri_1ay": 30, "getiri_3ay": 90, "getiri_6ay": 180, "getiri_1yil": 365}
+    pencereler = {
+        "getiri_hafta": 7, "getiri_1ay": 30, "getiri_3ay": 90,
+        "getiri_6ay": 180, "getiri_1yil": 365,
+    }
     for etiket, gun in pencereler.items():
         eski_fiyat = _tefas_nokta_fiyat(fon_kodu, bugun - timedelta(days=gun))
         sonuc[etiket] = round((son_fiyat / eski_fiyat - 1) * 100, 2) if eski_fiyat else None
+
+    yilbasi_tarihi = date(bugun.year, 1, 1)
+    eski_fiyat_yb = _tefas_nokta_fiyat(fon_kodu, yilbasi_tarihi)
+    sonuc["getiri_yilbasi"] = round((son_fiyat / eski_fiyat_yb - 1) * 100, 2) if eski_fiyat_yb else None
     return sonuc
 
 

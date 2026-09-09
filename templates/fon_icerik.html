@@ -16,6 +16,9 @@
     <button id="guncelle-btn" class="btn-primary" style="padding:8px 20px;font-size:0.9rem" onclick="fonIcerikGuncelle()">
       🔄 Fiyat Güncelle
     </button>
+    <a href="{{ url_for('fon_icerik_getiri_yenile_route') }}" class="btn-primary" style="padding:8px 14px;font-size:0.9rem;text-decoration:none;display:inline-flex;align-items:center">
+      📈 TEFAS Getirilerini Tazele
+    </a>
   </div>
 </div>
 
@@ -61,6 +64,10 @@
     </div>
     <div class="fon-mini-bilgi fon-getiri-bilgi">
       <div class="fon-mini-satir">
+        <span>1 Hafta</span>
+        <b class="fon-getiri-hafta {{ 'pos' if (fon.bilgi.getiri_hafta or 0) >= 0 else 'neg' }}">{{ "%+.2f"|format(fon.bilgi.getiri_hafta) + '%' if fon.bilgi.getiri_hafta is not none else '—' }}</b>
+      </div>
+      <div class="fon-mini-satir">
         <span>1 Ay</span>
         <b class="fon-getiri-1ay {{ 'pos' if (fon.bilgi.getiri_1ay or 0) >= 0 else 'neg' }}">{{ "%+.2f"|format(fon.bilgi.getiri_1ay) + '%' if fon.bilgi.getiri_1ay is not none else '—' }}</b>
       </div>
@@ -75,6 +82,10 @@
       <div class="fon-mini-satir">
         <span>1 Yıl</span>
         <b class="fon-getiri-1yil {{ 'pos' if (fon.bilgi.getiri_1yil or 0) >= 0 else 'neg' }}">{{ "%+.2f"|format(fon.bilgi.getiri_1yil) + '%' if fon.bilgi.getiri_1yil is not none else '—' }}</b>
+      </div>
+      <div class="fon-mini-satir">
+        <span>Yılbaşından Bugüne</span>
+        <b class="fon-getiri-yilbasi {{ 'pos' if (fon.bilgi.getiri_yilbasi or 0) >= 0 else 'neg' }}">{{ "%+.2f"|format(fon.bilgi.getiri_yilbasi) + '%' if fon.bilgi.getiri_yilbasi is not none else '—' }}</b>
       </div>
     </div>
   </div>
