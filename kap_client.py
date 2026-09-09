@@ -160,75 +160,88 @@ def kap_fon_kodu_ile_rapor_bul(fon_kodu, toplam_gun=45, pencere_gun=3, konu_metn
     return None, None, debug
 
 
+# KAP'ın fon-özel bildirim filtresi (kap.org.tr'nin kendi fon detay sayfasının
+# kullandığı GET uç noktası): /tr/api/disclosure/filter/FILTERYFBF/{fundOid}/{subjectOid}/{gün}
+# Tarih aralığı sınırı yok, sunucu tarafında filtrelenir, 2000 kayıt limitine
+# çarpmaz. subjectOid'ler KAP'ın sabit bildirim-konusu ID'leridir.
+KAP_FON_KONU_OID = {
+    "portföy dağılım raporu": "8aca490d502e34b801502e380044002b",
+    "yatırımcı bilgi formu": "8aca490d51153da6015115455c5f00b9",
+    "izahname": "8aca490d502dd03b01502deb982000e2",
+}
+
+# Fon kodu -> OID araması için taranacak KAP fon grupları (en yaygın önce).
+_KAP_FON_GRUPLARI = ["YF", "EYF", "BYF", "OKS", "YYF", "VFF", "KFF", "GMF", "GSF", "PFF", "TEYF"]
+_FON_LISTESI_CACHE = {}
+
+
+def _kap_fon_listesi_getir(grup, durum):
+    """GET /tr/api/fund/criteria/{grup}/{durum} — durum: 'Y' (aktif) / 'T' (tasfiye).
+    Süreç ömrü boyunca grup+durum başına önbelleklenir."""
+    cache_key = f"{grup}-{durum}"
+    if cache_key in _FON_LISTESI_CACHE:
+        return _FON_LISTESI_CACHE[cache_key]
+    r = requests.get(
+        f"{KAP_BASE}/tr/api/fund/criteria/{grup}/{durum}",
+        headers=KAP_HEADERS, timeout=15
+    )
+    r.raise_for_status()
+    data = r.json()
+    satirlar = data if isinstance(data, list) else []
+    _FON_LISTESI_CACHE[cache_key] = satirlar
+    return satirlar
+
+
 def kap_fon_oid_bul(fon_kodu):
-    """Fon koduna (örn. 'PBR') karşılık gelen KAP mkkMemberOid'sini bulur.
-    Fonlar KAP'ta şirketlerden farklı bir üyelik tipinde olabileceği için birkaç
-    olası uç noktayı sırayla dener. Bulamazsa, hata ayıklama için denenen her
-    uç noktanın durum kodunu/gövdesini de döndürür.
+    """Fon koduna (örn. 'TLY') karşılık gelen KAP fundOid'sini bulur. KAP'ın
+    fon grup listelerini (aktif önce, sonra tasfiye edilmiş) tarayarak fonCode
+    eşleşmesi arar — en yaygın grup olan YF (Yatırım Fonları) ilk denenir.
+    Döner: (oid, unvan, debug_str)
     """
     kod = fon_kodu.strip().upper()
-    denemeler = [
-        f"{KAP_BASE}/tr/api/member/filter/{kod}",
-        f"{KAP_BASE}/tr/api/fund/filter/{kod}",
-        f"{KAP_BASE}/tr/api/fon/filter/{kod}",
-        f"{KAP_BASE}/tr/api/member-fund/filter/{kod}",
-    ]
     debug = []
-    for url in denemeler:
-        try:
-            r = requests.get(url, headers=KAP_HEADERS, timeout=10)
-            debug.append(f"{url} -> {r.status_code}: {r.text[:200]}")
-            if r.status_code != 200:
+    for grup in _KAP_FON_GRUPLARI:
+        for durum in ("Y", "T"):
+            try:
+                satirlar = _kap_fon_listesi_getir(grup, durum)
+            except Exception as e:
+                debug.append(f"{grup}/{durum} istisna: {e}")
                 continue
-            data = r.json()
-            if isinstance(data, list):
-                if not data:
-                    continue
-                data = data[0]
-            if not isinstance(data, dict):
-                continue
-            oid = data.get("mkkMemberOid") or data.get("kapMemberOid")
-            unvan = data.get("title") or data.get("kapMemberTitle")
-            if oid:
-                return oid, unvan, None
-        except Exception as e:
-            debug.append(f"{url} -> İSTİSNA: {e}")
+            for s in satirlar:
+                if (s.get("fundCode") or "").strip().upper() == kod:
+                    oid = s.get("fundOid")
+                    unvan = s.get("fundName")
+                    if oid:
+                        return oid, unvan, None
+            debug.append(f"{grup}/{durum}: {len(satirlar)} fon tarandı, '{kod}' yok")
     return None, None, " | ".join(debug)
 
 
-def kap_son_portfoy_raporu_bul(mkk_member_oid, gun_araligi=75, konu_metni="portföy dağılım raporu"):
-    """Verilen fon OID'si için son bildirimi bulur (varsayılan: Portföy Dağılım
-    Raporu, ama `konu_metni` ile başka bildirim türleri de aranabilir — örn.
-    'yatırımcı bilgi formu'). mkkMemberOidList ile filtrelendiği için KAP'ın
-    2000 kayıt/istek limitine çarpma riski yok — bu yüzden `gun_araligi` çok
-    büyük (yıllar) verilebilir, tek istekte taranır.
+def kap_son_portfoy_raporu_bul(fund_oid, gun_araligi=120, konu_metni="portföy dağılım raporu"):
+    """Verilen fon OID'si için KAP'ın fon-bazlı filtre uç noktasıyla en son
+    bildirimi bulur (varsayılan: Portföy Dağılım Raporu; `konu_metni` ile
+    'yatırımcı bilgi formu' gibi başka türler de aranabilir).
     Döner: (disclosureIndex, publishDate) veya (None, None)
     """
-    konu_metni = konu_metni.lower()
-    bugun = date.today()
-    baslangic = bugun - timedelta(days=gun_araligi)
-    body = {
-        "fromDate": baslangic.isoformat(),
-        "toDate": bugun.isoformat(),
-        "mkkMemberOidList": [mkk_member_oid],
-        "subjectList": [],
-    }
+    subject_oid = KAP_FON_KONU_OID.get(konu_metni.strip().lower())
+    if not subject_oid:
+        return None, None
+    url = f"{KAP_BASE}/tr/api/disclosure/filter/FILTERYFBF/{fund_oid}/{subject_oid}/{gun_araligi}"
     try:
-        r = requests.post(
-            f"{KAP_BASE}/tr/api/disclosure/members/byCriteria",
-            json=body, headers=KAP_HEADERS, timeout=15
-        )
+        r = requests.get(url, headers=KAP_HEADERS, timeout=15)
         if r.status_code != 200:
             return None, None
-        sonuclar = r.json()
-        raporlar = [
-            d for d in sonuclar
-            if konu_metni in (d.get("subject") or "").lower()
-        ]
-        if not raporlar:
+        data = r.json()
+        if not isinstance(data, list) or not data:
             return None, None
-        raporlar.sort(key=lambda d: d.get("publishDate", ""), reverse=True)
-        en_son = raporlar[0]
+        kayitlar = [
+            item.get("disclosureBasic") for item in data
+            if isinstance(item, dict) and item.get("disclosureBasic")
+        ]
+        if not kayitlar:
+            return None, None
+        kayitlar.sort(key=lambda d: d.get("publishDate", ""), reverse=True)
+        en_son = kayitlar[0]
         return en_son.get("disclosureIndex"), en_son.get("publishDate")
     except Exception:
         return None, None
@@ -568,19 +581,19 @@ def kap_fon_kompozisyon_getir(fon_kodu):
     olmazsa OID bulup fon-bazlı arama yapar.
     Döner: dict {basarili, hata, fon_adi, donem, hisseler, kap_toplam, hesaplanan_toplam}
     """
-    disclosure_index, publish_date, debug1 = kap_fon_kodu_ile_rapor_bul(fon_kodu)
-    fon_adi = None
+    oid, fon_adi, debug_oid = kap_fon_oid_bul(fon_kodu)
+    if not oid:
+        hata = f"'{fon_kodu}' KAP fon listelerinde bulunamadı."
+        if debug_oid:
+            hata += f" [DEBUG: {debug_oid}]"
+        return {"basarili": False, "hata": hata}
 
+    disclosure_index, publish_date = kap_son_portfoy_raporu_bul(oid)
     if not disclosure_index:
-        oid, fon_adi, debug2 = kap_fon_oid_bul(fon_kodu)
-        if oid:
-            disclosure_index, publish_date = kap_son_portfoy_raporu_bul(oid)
-        if not disclosure_index:
-            hata = f"'{fon_kodu}' için son günlerde Portföy Dağılım Raporu bulunamadı."
-            detaylar = " || ".join(d for d in [debug1, debug2 if oid is None else None] if d)
-            if detaylar:
-                hata += f" [DEBUG: {detaylar}]"
-            return {"basarili": False, "hata": hata}
+        return {
+            "basarili": False,
+            "hata": f"'{fon_kodu}' (OID bulundu: {oid}) için son 120 günde Portföy Dağılım Raporu bulunamadı.",
+        }
 
     time.sleep(0.3)
     obj_id = kap_pdf_obj_id_bul(disclosure_index)
