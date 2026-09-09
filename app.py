@@ -3171,16 +3171,19 @@ def fon_adi_kod_tekrarsiz(ad, kod):
 @app.route("/fon-icerik/getiri-yenile")
 @login_required
 def fon_icerik_getiri_yenile_route():
-    """/cron/guncelle?force_getiri=1 ile aynı işi yapar ama CRON_KEY gerektirmez —
-    zaten giriş yapmış kullanıcı tek tıkla TEFAS getiri cache'ini tazeleyebilir."""
+    """TEFAS getiri cache'ini tazeler — ama TEFAS dakikada 6 istekle sınırlı ve her
+    fon 7 ayrı istek gerektirdiği için (Hafta/1Ay/3Ay/6Ay/1Yıl/Yılbaşı/Son Fiyat),
+    ~6 fon bile en az 7-8 dakika sürer ve tek isteği bloke eder. Bu yüzden burada
+    ZORLA değil, normal bayatlama eşiğiyle (4 saat) çağrılır — zaten güncel fonlar
+    anında atlanır, sadece gerçekten bayat olanlar TEFAS'a gider."""
     guncellenen = 0
     for fon_kod in fon_tum_kompozisyonlari_getir():
         try:
-            fon_getiri_yenile(fon_kod, max_yas_saat=0)
+            fon_getiri_yenile(fon_kod, max_yas_saat=4)
             guncellenen += 1
         except Exception:
             pass
-    flash(f"✅ TEFAS getiri verisi tazelendi ({guncellenen} fon kontrol edildi).", "success")
+    flash(f"✅ TEFAS getiri verisi kontrol edildi ({guncellenen} fon; sadece bayat olanlar yeniden çekildi).", "success")
     return redirect(url_for("fon_icerik"))
 
 
