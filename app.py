@@ -1043,6 +1043,65 @@ def dashboard_tarihte_deger():
     return jsonify({"basarili": True, **sonuc})
 
 
+@app.route("/dashboard/donem-getiri")
+@login_required
+def dashboard_donem_getiri():
+    """Iki tarih arasindaki toplam getiriyi (yeni yatirimlar/cekimler haric,
+    gercek deger artisi) hesaplar."""
+    user_id = session["user_id"]
+    hesap_filtre = request.args.get("hesap", "Hepsi")
+    t1_str = (request.args.get("tarih1") or "").strip()
+    t2_str = (request.args.get("tarih2") or "").strip()
+    try:
+        t1 = datetime.strptime(t1_str, "%Y-%m-%d")
+        t2 = datetime.strptime(t2_str, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"basarili": False, "hata": "Geçersiz tarih (YYYY-AA-GG)."}), 400
+    if t1 > t2:
+        return jsonify({"basarili": False, "hata": "Başlangıç tarihi bitiş tarihinden sonra olamaz."}), 400
+
+    sonuc1 = portfoy_deger_tarihte(user_id, hesap_filtre, t1_str)
+    sonuc2 = portfoy_deger_tarihte(user_id, hesap_filtre, t2_str)
+
+    # Aradaki yeni yatirim/cekim, deger1'de zaten sayilan t1 gunu haric, t1'den
+    # sonraki gunden t2'ye kadar (dahil) hesaplanir.
+    ara_bas = (t1 + timedelta(days=1)).strftime("%Y-%m-%d")
+    kur2 = sonuc2.get("kur") or get_usd_try() or 0
+
+    def net_yatirim_tl(tur_filtre):
+        if ara_bas > t2_str:
+            return 0.0
+        if hesap_filtre == "Hepsi":
+            net = net_yatirim_araligi(user_id, tur_filtre, ara_bas, t2_str)
+        else:
+            with get_db() as conn:
+                row = conn.execute("""
+                    SELECT SUM(CASE WHEN alissat='Alış' THEN tutar ELSE -tutar END) as net
+                    FROM islemler
+                    WHERE user_id=? AND tur=? AND hesap=? AND tarih>=? AND tarih<=?
+                """, (user_id, tur_filtre, hesap_filtre, ara_bas, t2_str)).fetchone()
+            net = row["net"] or 0.0
+        return net * kur2 if tur_filtre == "ABD" else net
+
+    net_yatirim_toplam = net_yatirim_tl("FON") + net_yatirim_tl("BIST") + net_yatirim_tl("ABD")
+
+    fark_tl = sonuc2["toplam_tl"] - sonuc1["toplam_tl"]
+    getiri_tl = fark_tl - net_yatirim_toplam
+    getiri_yuzde = (getiri_tl / sonuc1["toplam_tl"] * 100) if sonuc1["toplam_tl"] > 0 else None
+
+    fiyat_eksik = sorted(set(sonuc1.get("fiyat_eksik", []) + sonuc2.get("fiyat_eksik", [])))
+
+    return jsonify({
+        "basarili": True,
+        "tarih1": t1_str, "tarih2": t2_str,
+        "deger1": sonuc1["toplam_tl"], "deger2": sonuc2["toplam_tl"],
+        "net_yatirim": round(net_yatirim_toplam, 2),
+        "getiri_tl": round(getiri_tl, 2),
+        "getiri_yuzde": round(getiri_yuzde, 2) if getiri_yuzde is not None else None,
+        "fiyat_eksik": fiyat_eksik,
+    })
+
+
 @app.route("/dashboard")
 @login_required
 def dashboard():

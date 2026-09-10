@@ -36,9 +36,59 @@
            font-size:0.8rem;font-weight:700;cursor:pointer">Hesapla</button>
   <span id="tgd-sonuc" style="font-size:0.95rem;font-weight:700"></span>
   <span id="tgd-detay" style="font-size:0.75rem;color:var(--text2);width:100%"></span>
+
+  <div style="width:100%;border-top:1px solid var(--border);margin:6px 0"></div>
+
+  <span style="font-size:0.85rem;color:var(--text2)">📆 İki tarih arasındaki toplam getiri:</span>
+  <input type="date" id="dg-tarih1" style="background:var(--card2);border:1px solid var(--border);
+         color:var(--text);padding:5px 10px;border-radius:6px;font-size:0.85rem">
+  <span style="font-size:0.85rem;color:var(--text2)">→</span>
+  <input type="date" id="dg-tarih2" style="background:var(--card2);border:1px solid var(--border);
+         color:var(--text);padding:5px 10px;border-radius:6px;font-size:0.85rem">
+  <button onclick="donemGetiriHesapla()"
+    style="background:var(--accent);color:#000;border:none;padding:5px 14px;border-radius:20px;
+           font-size:0.8rem;font-weight:700;cursor:pointer">Hesapla</button>
+  <span id="dg-sonuc" style="font-size:0.95rem;font-weight:700"></span>
+  <span id="dg-detay" style="font-size:0.75rem;color:var(--text2);width:100%"></span>
 </div>
 
 <script>
+async function donemGetiriHesapla() {
+  const t1 = document.getElementById('dg-tarih1').value;
+  const t2 = document.getElementById('dg-tarih2').value;
+  const sonucEl = document.getElementById('dg-sonuc');
+  const detayEl = document.getElementById('dg-detay');
+  if (!t1 || !t2) { sonucEl.textContent = 'Lütfen iki tarih seçin.'; sonucEl.className=''; return; }
+  sonucEl.textContent = 'Hesaplanıyor...';
+  sonucEl.className = '';
+  detayEl.textContent = '';
+  try {
+    const hesap = new URLSearchParams(window.location.search).get('hesap') || 'Hepsi';
+    const r = await fetch(`{{ url_for('dashboard_donem_getiri') }}?tarih1=${t1}&tarih2=${t2}&hesap=${encodeURIComponent(hesap)}`);
+    const data = await r.json();
+    if (!data.basarili) { sonucEl.textContent = '❌ ' + (data.hata || 'Hata'); sonucEl.className=''; return; }
+    const tl = (n) => Math.abs(n).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const isaret = data.getiri_tl >= 0 ? '▲' : '▼';
+    sonucEl.className = data.getiri_tl >= 0 ? 'pos' : 'neg';
+    let metin = `${isaret} ${tl(data.getiri_tl)} ₺`;
+    if (data.getiri_yuzde !== null) {
+      metin += ` (%${tl(data.getiri_yuzde).replace(/\.00$/, '')})`;
+    }
+    sonucEl.textContent = metin;
+    let detayMetin = `${data.tarih1}: ${tl(data.deger1)} ₺ → ${data.tarih2}: ${tl(data.deger2)} ₺`;
+    if (data.net_yatirim) {
+      detayMetin += ` · aradaki net yatırım hariç tutuldu: ${tl(data.net_yatirim)} ₺`;
+    }
+    if (data.fiyat_eksik && data.fiyat_eksik.length) {
+      detayMetin += ` (⚠️ fiyat verisi eksik: ${data.fiyat_eksik.join(', ')})`;
+    }
+    detayEl.textContent = detayMetin;
+  } catch (e) {
+    sonucEl.textContent = '❌ Hesaplanamadı';
+    sonucEl.className = '';
+  }
+}
+
 async function tarihteDegerHesapla() {
   const tarih = document.getElementById('tgd-tarih').value;
   const sonucEl = document.getElementById('tgd-sonuc');
