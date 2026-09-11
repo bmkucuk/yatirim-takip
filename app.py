@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from functools import wraps
-import sqlite3, os, hashlib, secrets, re
+import sqlite3, os, hashlib, secrets, re, json
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from price_fetcher import fetch_all_prices, fetch_fon_icerik_fiyatlari, fon_getiri_hesapla, fetch_piyasa_verileri, fetch_milliyet_altin, fetch_milliyet_fiyatlar, fetch_altin_s1_milliyet, fetch_altin_s1_doviz, fetch_altin_s1, fetch_fon_aralik
 import kap_client
+try:
+    import anthropic
+except ImportError:
+    anthropic = None
 
 app = Flask(__name__)
 app.json.sort_keys = False  # tojson/jsonify sözlük sırasını korusun (Fon İçerik kart sıralaması buna dayanıyor)
@@ -13,6 +17,10 @@ app.jinja_env.policies["json.dumps_kwargs"] = {"sort_keys": False}  # Jinja'nın
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 DB_PATH = os.environ.get("DB_PATH", "/data/yatirim.db")
+
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+ASISTAN_MODEL = "claude-sonnet-5"
+asistan_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if (anthropic and ANTHROPIC_API_KEY) else None
 
 def get_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -4143,3 +4151,503 @@ def sembol_guncelle():
     t.start()
     flash("⏳ Sembol listesi arka planda güncelleniyor (1-2 dakika).", "success")
     return redirect(url_for("ayarlar"))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# AI Asistan — Claude tool-use ile doğal dilde işlem yapma
+# ══════════════════════════════════════════════════════════════════════════
+# Silme/geri alınamaz işlemler için önce kullanıcı onayı istenir; bu isimler
+# ASISTAN_TOOLS'daki tool isimleriyle birebir eşleşmeli.
+ASISTAN_YIKICI_ARACLAR = {"islem_sil", "hesap_sil", "arac_sil"}
+
+ASISTAN_TOOLS = [
+    {
+        "name": "portfoy_ozeti",
+        "description": "Kullanıcının portföy özetini getirir: Yatırım Fonları / Borsa TR / Borsa ABD toplam değeri, ana para, kar/zarar ve nakit bakiyeleri (TL üzerinden). Belirli bir hesaba göre filtrelenebilir.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "hesap": {"type": "string", "description": "Sadece bu hesaba göre hesapla (örn. 'Ana Hesap'). Verilmezse tüm hesaplar birlikte."}
+            },
+        },
+    },
+    {
+        "name": "islem_listele",
+        "description": "Kullanıcının alım/satım işlem geçmişini listeler; sembol, tür, hesap veya tarih aralığına göre filtrelenebilir. Sonuçlar en yeniden en eskiye sıralıdır.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sembol": {"type": "string", "description": "Örn. 'TLY', 'THYAO'"},
+                "tur": {"type": "string", "enum": ["FON", "BIST", "ABD"]},
+                "hesap": {"type": "string"},
+                "tarih_bas": {"type": "string", "description": "YYYY-MM-DD"},
+                "tarih_bit": {"type": "string", "description": "YYYY-MM-DD"},
+                "limit": {"type": "integer", "description": "Kaç kayıt dönsün, varsayılan 20"},
+            },
+        },
+    },
+    {
+        "name": "fiyat_getir",
+        "description": "Bir sembolün bilinen en güncel fiyatını (fiyat geçmişi tablosundan) getirir.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"sembol": {"type": "string"}},
+            "required": ["sembol"],
+        },
+    },
+    {
+        "name": "nakit_bakiye_getir",
+        "description": "Kullanıcının USD ve TRY nakit bakiyelerini getirir.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "islem_ekle",
+        "description": "Yeni bir alım veya satım işlemi ekler (fon ya da hisse senedi). Geri alınabilir — istenirse sonradan silinebilir, bu yüzden onay gerektirmez.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sembol": {"type": "string"},
+                "tur": {"type": "string", "enum": ["FON", "BIST", "ABD"], "description": "FON=yatırım fonu, BIST=Türk hissesi, ABD=Amerikan hissesi"},
+                "alissat": {"type": "string", "enum": ["Alış", "Satış"]},
+                "adet": {"type": "number"},
+                "fiyat": {"type": "number", "description": "Birim fiyat (adet başına)"},
+                "tarih": {"type": "string", "description": "YYYY-MM-DD, verilmezse bugün"},
+                "hesap": {"type": "string", "description": "Kullanıcının hesaplarından biri, verilmezse boş bırakılır"},
+                "araci_kurum": {"type": "string"},
+            },
+            "required": ["sembol", "tur", "alissat", "adet", "fiyat"],
+        },
+    },
+    {
+        "name": "islem_duzenle",
+        "description": "Var olan bir işlemi düzenler. Sadece değiştirilecek alanları gönder, gönderilmeyenler olduğu gibi kalır.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "islem_id": {"type": "integer"},
+                "sembol": {"type": "string"},
+                "tur": {"type": "string", "enum": ["FON", "BIST", "ABD"]},
+                "alissat": {"type": "string", "enum": ["Alış", "Satış"]},
+                "adet": {"type": "number"},
+                "fiyat": {"type": "number"},
+                "tarih": {"type": "string", "description": "YYYY-MM-DD"},
+                "hesap": {"type": "string"},
+                "araci_kurum": {"type": "string"},
+            },
+            "required": ["islem_id"],
+        },
+    },
+    {
+        "name": "islem_sil",
+        "description": "Bir işlemi kalıcı olarak siler. GERİ ALINAMAZ — mutlaka önce kullanıcıya hangi işlemin silineceğini açıkla ve onay bekle.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"islem_id": {"type": "integer"}},
+            "required": ["islem_id"],
+        },
+    },
+    {
+        "name": "fiyat_gir",
+        "description": "Bir sembol için belirli bir tarihte manuel fiyat girer/günceller.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sembol": {"type": "string"},
+                "fiyat": {"type": "number"},
+                "tarih": {"type": "string", "description": "YYYY-MM-DD, verilmezse bugün"},
+            },
+            "required": ["sembol", "fiyat"],
+        },
+    },
+    {
+        "name": "nakit_guncelle",
+        "description": "USD veya TRY nakit bakiyesini yeni bir değere ayarlar (mevcut değerin üzerine yazar).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "para_birimi": {"type": "string", "enum": ["USD", "TRY"]},
+                "tutar": {"type": "number"},
+            },
+            "required": ["para_birimi", "tutar"],
+        },
+    },
+    {
+        "name": "hesap_ekle",
+        "description": "Yeni bir portföy hesabı ekler (örn. 'Ana Hesap', 'Emeklilik').",
+        "input_schema": {
+            "type": "object",
+            "properties": {"ad": {"type": "string"}},
+            "required": ["ad"],
+        },
+    },
+    {
+        "name": "hesap_sil",
+        "description": "Bir hesabı siler. GERİ ALINAMAZ — önce onay bekle.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"ad": {"type": "string"}},
+            "required": ["ad"],
+        },
+    },
+    {
+        "name": "arac_ekle",
+        "description": "Yeni bir aracı kurum ekler.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"ad": {"type": "string"}},
+            "required": ["ad"],
+        },
+    },
+    {
+        "name": "arac_sil",
+        "description": "Bir aracı kurumu siler. GERİ ALINAMAZ — önce onay bekle.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"ad": {"type": "string"}},
+            "required": ["ad"],
+        },
+    },
+]
+
+
+def asistan_sistem_prompt(user_id):
+    with get_db() as conn:
+        hesaplar = [r["ad"] for r in conn.execute("SELECT ad FROM hesaplar WHERE user_id=?", (user_id,)).fetchall()]
+        aracilar = [r["ad"] for r in conn.execute("SELECT ad FROM aracilar WHERE user_id=?", (user_id,)).fetchall()]
+        semboller = conn.execute(
+            "SELECT DISTINCT sembol, tur FROM islemler WHERE user_id=? ORDER BY tur, sembol", (user_id,)
+        ).fetchall()
+    sembol_ozet = ", ".join(f"{r['sembol']} ({r['tur']})" for r in semboller) or "henüz işlem yok"
+    return f"""Sen Yatırım Takip uygulamasının içine gömülü bir asistansın. Kullanıcının portföyüyle ilgili
+sorularını cevaplar ve verdiğin araçlarla onun adına işlem yaparsın (işlem ekleme/düzenleme/silme,
+fiyat girme, nakit güncelleme, hesap/aracı kurum yönetimi).
+
+Bugünün tarihi: {bugun().isoformat()} (Europe/Istanbul).
+Kullanıcının hesapları: {", ".join(hesaplar) or "yok"}.
+Kullanıcının aracı kurumları: {", ".join(aracilar) or "yok"}.
+Kullanıcının işlem geçmişindeki semboller: {sembol_ozet}.
+
+Kurallar:
+- Kısa, net ve samimi Türkçe konuş. Gereksiz uzatma.
+- Rakamları kullanıcının yazdığı gibi yorumla (virgül ondalık ayracı olabilir), TL/USD para birimini net anla.
+- Tarih belirtilmezse bugünü kullan. Tarihleri YYYY-MM-DD formatında araçlara gönder.
+- "tur" alanı için FON=yatırım fonu, BIST=Türk hissesi/BİST, ABD=Amerikan hissesi.
+- Bir istek belirsizse (örn. hangi hesap, hangi işlem) önce kısaca sor, tahmin etme.
+- islem_sil, hesap_sil, arac_sil GERİ ALINAMAZ işlemlerdir — bunları çağırmadan önce ne yapacağını
+  kullanıcıya özetle; sistem zaten ayrıca bir onay adımı gösterecek, sen sadece net bir açıklama yap.
+- Bir seferde genelde tek bir araç çağır; birden fazla adım gerekiyorsa sırayla ilerle.
+- İşlem yaptıktan sonra kullanıcıya ne yaptığını kısaca özetle (sembol, adet, tutar gibi)."""
+
+
+def asistan_aciklama(tool_adi, girdi, user_id):
+    """Yıkıcı bir araç çağrısı için kullanıcıya gösterilecek insan-okunur açıklama üretir."""
+    try:
+        if tool_adi == "islem_sil":
+            with get_db() as conn:
+                row = conn.execute(
+                    "SELECT * FROM islemler WHERE id=? AND user_id=?", (girdi.get("islem_id"), user_id)
+                ).fetchone()
+            if row:
+                return (f"{row['sembol']} sembolündeki {row['tarih']} tarihli, {row['adet']} adet "
+                        f"{row['alissat']} işlemi ({row['tutar']} {row['para_birimi'] or 'TRY'}) kalıcı olarak silinecek.")
+            return f"#{girdi.get('islem_id')} numaralı işlem silinecek."
+        if tool_adi == "hesap_sil":
+            return f"'{girdi.get('ad')}' adlı hesap silinecek."
+        if tool_adi == "arac_sil":
+            return f"'{girdi.get('ad')}' adlı aracı kurum silinecek."
+    except Exception:
+        pass
+    return f"{tool_adi} işlemi ({json.dumps(girdi, ensure_ascii=False)}) uygulanacak."
+
+
+def execute_asistan_tool(tool_adi, girdi, user_id):
+    """Bir asistan aracını gerçekten çalıştırır. Tüm sorgular user_id ile sınırlıdır."""
+    if tool_adi == "portfoy_ozeti":
+        hesap_filtre = girdi.get("hesap") or "Hepsi"
+        portfoy = hesapla_portfoy(user_id, hesap_filtre)
+        usd_try = get_usd_try()
+
+        def s(lst, k):
+            return sum(p[k] for p in lst if p.get(k) is not None)
+
+        fon = [p for p in portfoy if p["tur"] == "FON"]
+        bist = [p for p in portfoy if p["tur"] == "BIST"]
+        abd = [p for p in portfoy if p["tur"] == "ABD"]
+        fon_deger = s(fon, "mevcut_deger")
+        bist_deger = s(bist, "mevcut_deger")
+        abd_deger_usd = s(abd, "mevcut_deger")
+        abd_deger_tl = abd_deger_usd * usd_try if usd_try else 0
+        fon_ana = toplam_net_yatirim(user_id, "FON", hesap_filtre)
+        bist_ana = toplam_net_yatirim(user_id, "BIST", hesap_filtre)
+        abd_ana_usd = toplam_net_yatirim(user_id, "ABD", hesap_filtre)
+        with get_db() as conn:
+            nakit_rows = conn.execute(
+                "SELECT para_birimi, tutar FROM nakit_bakiye WHERE user_id=?", (user_id,)
+            ).fetchall()
+        nakit = {r["para_birimi"]: r["tutar"] for r in nakit_rows}
+        nakit_usd_tl = nakit.get("USD", 0) * usd_try if usd_try else 0
+        genel_toplam = fon_deger + bist_deger + abd_deger_tl + nakit.get("TRY", 0) + nakit_usd_tl
+        return {
+            "hesap_filtre": hesap_filtre,
+            "usd_try_kuru": usd_try,
+            "fon": {
+                "deger_tl": round(fon_deger, 2), "ana_para_tl": round(fon_ana, 2),
+                "kar_tl": round(fon_deger - fon_ana, 2),
+                "pozisyonlar": [{"sembol": p["sembol"], "adet": round(p["kalan_adet"], 4),
+                                  "mevcut_deger_tl": round(p["mevcut_deger"], 2)} for p in fon],
+            },
+            "bist": {"deger_tl": round(bist_deger, 2), "ana_para_tl": round(bist_ana, 2),
+                     "kar_tl": round(bist_deger - bist_ana, 2)},
+            "abd": {"deger_usd": round(abd_deger_usd, 2), "deger_tl": round(abd_deger_tl, 2),
+                    "ana_para_usd": round(abd_ana_usd, 2), "kar_usd": round(abd_deger_usd - abd_ana_usd, 2)},
+            "nakit": {"USD": nakit.get("USD", 0), "TRY": nakit.get("TRY", 0)},
+            "genel_toplam_tl": round(genel_toplam, 2),
+        }
+
+    if tool_adi == "islem_listele":
+        conditions = ["user_id=?"]
+        params = [user_id]
+        if girdi.get("sembol"):
+            conditions.append("sembol=?")
+            params.append(girdi["sembol"].strip().upper())
+        if girdi.get("tur"):
+            conditions.append("tur=?")
+            params.append(girdi["tur"])
+        if girdi.get("hesap"):
+            conditions.append("hesap=?")
+            params.append(girdi["hesap"])
+        if girdi.get("tarih_bas"):
+            conditions.append("tarih>=?")
+            params.append(girdi["tarih_bas"])
+        if girdi.get("tarih_bit"):
+            conditions.append("tarih<=?")
+            params.append(girdi["tarih_bit"])
+        limit = int(girdi.get("limit") or 20)
+        where = " AND ".join(conditions)
+        with get_db() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM islemler WHERE {where} ORDER BY tarih DESC LIMIT ?", params + [limit]
+            ).fetchall()
+        return {"islemler": [dict(r) for r in rows]}
+
+    if tool_adi == "fiyat_getir":
+        sembol = girdi["sembol"].strip().upper()
+        fiyat = get_son_fiyat(sembol)
+        if fiyat is None:
+            return {"bulunamadi": True, "sembol": sembol}
+        return {"sembol": sembol, "fiyat": fiyat}
+
+    if tool_adi == "nakit_bakiye_getir":
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT para_birimi, tutar FROM nakit_bakiye WHERE user_id=?", (user_id,)
+            ).fetchall()
+        return {r["para_birimi"]: r["tutar"] for r in rows} or {"USD": 0, "TRY": 0}
+
+    if tool_adi == "islem_ekle":
+        sembol = girdi["sembol"].strip().upper()
+        tur = girdi["tur"]
+        alissat = girdi["alissat"]
+        adet = float(girdi["adet"])
+        fiyat = float(girdi["fiyat"])
+        tarih = girdi.get("tarih") or bugun().isoformat()
+        hesap = girdi.get("hesap") or ""
+        araci_kurum = girdi.get("araci_kurum") or ""
+        tutar = adet * fiyat
+        with get_db() as conn:
+            cur = conn.execute("""
+                INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+            """, (user_id, sembol, tur, hesap, araci_kurum, alissat, adet, fiyat, tutar, tarih))
+            islem_id = cur.lastrowid
+            conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
+                         (sembol, tarih, fiyat))
+        return {"eklendi": True, "islem_id": islem_id, "sembol": sembol, "tur": tur,
+                "alissat": alissat, "adet": adet, "fiyat": fiyat, "tutar": tutar, "tarih": tarih}
+
+    if tool_adi == "islem_duzenle":
+        islem_id = girdi["islem_id"]
+        with get_db() as conn:
+            mevcut = conn.execute(
+                "SELECT * FROM islemler WHERE id=? AND user_id=?", (islem_id, user_id)
+            ).fetchone()
+        if not mevcut:
+            return {"hata": f"#{islem_id} numaralı işlem bulunamadı."}
+        sembol = (girdi.get("sembol") or mevcut["sembol"]).strip().upper()
+        tur = girdi.get("tur") or mevcut["tur"]
+        alissat = girdi.get("alissat") or mevcut["alissat"]
+        adet = float(girdi["adet"]) if girdi.get("adet") is not None else mevcut["adet"]
+        fiyat = float(girdi["fiyat"]) if girdi.get("fiyat") is not None else mevcut["fiyat"]
+        tarih = girdi.get("tarih") or mevcut["tarih"]
+        hesap = girdi.get("hesap") if girdi.get("hesap") is not None else mevcut["hesap"]
+        araci_kurum = girdi.get("araci_kurum") if girdi.get("araci_kurum") is not None else mevcut["araciKurum"]
+        tutar = adet * fiyat
+        with get_db() as conn:
+            conn.execute("""
+                UPDATE islemler SET sembol=?,tur=?,hesap=?,araciKurum=?,alissat=?,
+                adet=?,fiyat=?,tutar=?,tarih=? WHERE id=? AND user_id=?
+            """, (sembol, tur, hesap, araci_kurum, alissat, adet, fiyat, tutar, tarih, islem_id, user_id))
+            conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
+                         (sembol, tarih, fiyat))
+        return {"guncellendi": True, "islem_id": islem_id, "sembol": sembol, "alissat": alissat,
+                "adet": adet, "fiyat": fiyat, "tutar": tutar, "tarih": tarih}
+
+    if tool_adi == "islem_sil":
+        islem_id = girdi["islem_id"]
+        with get_db() as conn:
+            row = conn.execute("SELECT * FROM islemler WHERE id=? AND user_id=?", (islem_id, user_id)).fetchone()
+            if not row:
+                return {"hata": f"#{islem_id} numaralı işlem bulunamadı."}
+            conn.execute("DELETE FROM islemler WHERE id=? AND user_id=?", (islem_id, user_id))
+        return {"silindi": True, "islem_id": islem_id, "sembol": row["sembol"]}
+
+    if tool_adi == "fiyat_gir":
+        sembol = girdi["sembol"].strip().upper()
+        fiyat = float(girdi["fiyat"])
+        tarih = girdi.get("tarih") or bugun().isoformat()
+        with get_db() as conn:
+            conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
+                         (sembol, tarih, fiyat))
+        return {"guncellendi": True, "sembol": sembol, "fiyat": fiyat, "tarih": tarih}
+
+    if tool_adi == "nakit_guncelle":
+        pb = girdi["para_birimi"]
+        tutar = float(girdi["tutar"])
+        with get_db() as conn:
+            conn.execute("""
+                INSERT INTO nakit_bakiye (user_id, para_birimi, tutar) VALUES (?,?,?)
+                ON CONFLICT(user_id, para_birimi) DO UPDATE SET tutar=excluded.tutar
+            """, (user_id, pb, tutar))
+        return {"guncellendi": True, "para_birimi": pb, "tutar": tutar}
+
+    if tool_adi == "hesap_ekle":
+        ad = girdi["ad"].strip()
+        with get_db() as conn:
+            conn.execute("INSERT INTO hesaplar (user_id,ad) VALUES (?,?)", (user_id, ad))
+        return {"eklendi": True, "ad": ad}
+
+    if tool_adi == "hesap_sil":
+        ad = girdi["ad"].strip()
+        with get_db() as conn:
+            conn.execute("DELETE FROM hesaplar WHERE ad=? AND user_id=?", (ad, user_id))
+        return {"silindi": True, "ad": ad}
+
+    if tool_adi == "arac_ekle":
+        ad = girdi["ad"].strip()
+        with get_db() as conn:
+            conn.execute("INSERT INTO aracilar (user_id,ad) VALUES (?,?)", (user_id, ad))
+        return {"eklendi": True, "ad": ad}
+
+    if tool_adi == "arac_sil":
+        ad = girdi["ad"].strip()
+        with get_db() as conn:
+            conn.execute("DELETE FROM aracilar WHERE ad=? AND user_id=?", (ad, user_id))
+        return {"silindi": True, "ad": ad}
+
+    return {"hata": f"Bilinmeyen araç: {tool_adi}"}
+
+
+def _content_bloklari(mesaj):
+    """Anthropic SDK response.content bloklarını JSON'a yazılabilir sözlüklere çevirir."""
+    return [b.model_dump() for b in mesaj]
+
+
+def asistan_dongu(messages, user_id, adim=0):
+    if adim >= 6:
+        return {"tip": "cevap", "mesaj": "Bu istek için çok fazla adım gerekti, biraz daha basit ifade eder misin?", "gecmis": messages}
+
+    yanit = asistan_client.messages.create(
+        model=ASISTAN_MODEL, max_tokens=1500,
+        system=asistan_sistem_prompt(user_id),
+        messages=messages, tools=ASISTAN_TOOLS,
+    )
+
+    if yanit.stop_reason != "tool_use":
+        metin = "".join(b.text for b in yanit.content if b.type == "text")
+        messages.append({"role": "assistant", "content": _content_bloklari(yanit.content)})
+        return {"tip": "cevap", "mesaj": metin, "gecmis": messages}
+
+    asistan_mesaji = {"role": "assistant", "content": _content_bloklari(yanit.content)}
+    tool_bloklari = [b for b in yanit.content if b.type == "tool_use"]
+    normal = [b for b in tool_bloklari if b.name not in ASISTAN_YIKICI_ARACLAR]
+    yikici = [b for b in tool_bloklari if b.name in ASISTAN_YIKICI_ARACLAR]
+
+    hazir_sonuclar = {}
+    for b in normal:
+        try:
+            hazir_sonuclar[b.id] = execute_asistan_tool(b.name, b.input, user_id)
+        except Exception as e:
+            hazir_sonuclar[b.id] = {"hata": str(e)}
+
+    if yikici:
+        messages.append(asistan_mesaji)
+        onay_bekleyen = [{
+            "tool_use_id": b.id, "name": b.name, "input": b.input,
+            "aciklama": asistan_aciklama(b.name, b.input, user_id),
+        } for b in yikici]
+        return {"tip": "onay_gerekli", "onay_bekleyen": onay_bekleyen,
+                "hazir_sonuclar": hazir_sonuclar, "gecmis": messages}
+
+    tool_result_content = [
+        {"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(hazir_sonuclar[b.id], ensure_ascii=False)}
+        for b in tool_bloklari
+    ]
+    messages.append(asistan_mesaji)
+    messages.append({"role": "user", "content": tool_result_content})
+    return asistan_dongu(messages, user_id, adim + 1)
+
+
+def asistan_dongu_devam(messages, user_id, hazir_sonuclar, onay_bekleyen, onaylandi, adim=0):
+    tool_result_content = [
+        {"type": "tool_result", "tool_use_id": tid, "content": json.dumps(sonuc, ensure_ascii=False)}
+        for tid, sonuc in hazir_sonuclar.items()
+    ]
+    for ob in onay_bekleyen:
+        if onaylandi:
+            try:
+                sonuc = execute_asistan_tool(ob["name"], ob["input"], user_id)
+            except Exception as e:
+                sonuc = {"hata": str(e)}
+        else:
+            sonuc = {"iptal_edildi": True, "mesaj": "Kullanıcı bu işlemi onaylamadı."}
+        tool_result_content.append({
+            "type": "tool_result", "tool_use_id": ob["tool_use_id"],
+            "content": json.dumps(sonuc, ensure_ascii=False),
+        })
+    messages.append({"role": "user", "content": tool_result_content})
+    return asistan_dongu(messages, user_id, adim)
+
+
+@app.route("/api/asistan", methods=["POST"])
+@login_required
+def api_asistan():
+    if not asistan_client:
+        return jsonify({"tip": "hata", "mesaj": "Asistan için ANTHROPIC_API_KEY tanımlı değil."}), 500
+    data = request.get_json(force=True) or {}
+    mesaj = (data.get("mesaj") or "").strip()
+    gecmis = data.get("gecmis") or []
+    if not mesaj:
+        return jsonify({"tip": "hata", "mesaj": "Boş mesaj."}), 400
+    gecmis.append({"role": "user", "content": mesaj})
+    try:
+        sonuc = asistan_dongu(gecmis, session["user_id"])
+    except Exception as e:
+        return jsonify({"tip": "hata", "mesaj": f"Asistan hatası: {e}"}), 500
+    return jsonify(sonuc)
+
+
+@app.route("/api/asistan/onayla", methods=["POST"])
+@login_required
+def api_asistan_onayla():
+    if not asistan_client:
+        return jsonify({"tip": "hata", "mesaj": "Asistan için ANTHROPIC_API_KEY tanımlı değil."}), 500
+    data = request.get_json(force=True) or {}
+    gecmis = data.get("gecmis") or []
+    hazir_sonuclar = data.get("hazir_sonuclar") or {}
+    onay_bekleyen = data.get("onay_bekleyen") or []
+    onaylandi = bool(data.get("onaylandi"))
+    try:
+        sonuc = asistan_dongu_devam(gecmis, session["user_id"], hazir_sonuclar, onay_bekleyen, onaylandi)
+    except Exception as e:
+        return jsonify({"tip": "hata", "mesaj": f"Asistan hatası: {e}"}), 500
+    return jsonify(sonuc)

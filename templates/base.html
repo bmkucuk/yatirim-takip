@@ -18,6 +18,45 @@
 .bmk-logo:hover::before{background:rgba(8,12,20,.55)}
 @keyframes bmk-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .nav-brand{position:relative;z-index:5}
+
+/* ── AI Asistan widget ── */
+#asistanToggle{position:fixed;right:22px;bottom:22px;width:56px;height:56px;border-radius:50%;
+  background:var(--accent);color:#000;border:none;font-size:24px;cursor:pointer;z-index:9990;
+  box-shadow:0 4px 16px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;}
+#asistanToggle:hover{background:var(--accent2);}
+#asistanPanel{position:fixed;right:22px;bottom:90px;width:360px;max-width:calc(100vw - 32px);
+  height:min(520px, calc(100vh - 140px));background:var(--card);border:1px solid var(--border);
+  border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.45);display:flex;flex-direction:column;
+  overflow:hidden;z-index:9991;}
+#asistanPanel[hidden]{display:none;}
+.asistan-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+  background:var(--card2);border-bottom:1px solid var(--border);color:var(--text);font-weight:600;font-size:.9rem;}
+.asistan-header button{background:none;border:none;color:var(--text2);font-size:1.1rem;cursor:pointer;line-height:1;}
+.asistan-header button:hover{color:var(--text);}
+#asistanMesajlar{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;}
+.asistan-balon{max-width:88%;padding:8px 11px;border-radius:10px;font-size:.86rem;line-height:1.4;white-space:normal;word-wrap:break-word;}
+.asistan-balon-kullanici{align-self:flex-end;background:var(--accent);color:#000;}
+.asistan-balon-asistan{align-self:flex-start;background:var(--card2);color:var(--text);border:1px solid var(--border);}
+.asistan-balon-hata{align-self:flex-start;background:rgba(207,34,46,.12);color:var(--neg,#cf222e);border:1px solid rgba(207,34,46,.35);}
+.asistan-balon-onay{align-self:flex-start;background:var(--card2);color:var(--text);border:1px solid var(--accent);width:88%;}
+.asistan-onay-metin{margin-bottom:8px;}
+.asistan-onay-butonlar{display:flex;gap:8px;}
+.asistan-onay-butonlar button{flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);
+  cursor:pointer;font-size:.82rem;font-weight:600;}
+.asistan-btn-onayla{background:var(--accent);color:#000;border-color:var(--accent);}
+.asistan-btn-onayla:hover{background:var(--accent2);}
+.asistan-btn-iptal{background:transparent;color:var(--text);}
+.asistan-btn-iptal:hover{border-color:var(--accent);color:var(--accent);}
+.asistan-onay-butonlar button:disabled{opacity:.5;cursor:default;}
+#asistanForm{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);background:var(--card);}
+#asistanInput{flex:1;resize:none;background:var(--card2);border:1px solid var(--border);color:var(--text);
+  border-radius:8px;padding:8px 10px;font-size:.86rem;font-family:inherit;}
+#asistanInput:focus{outline:none;border-color:var(--accent);}
+#asistanGonder{background:var(--accent);color:#000;border:none;border-radius:8px;padding:0 14px;
+  font-weight:600;cursor:pointer;}
+#asistanGonder:hover{background:var(--accent2);}
+#asistanGonder:disabled,#asistanInput:disabled{opacity:.6;cursor:default;}
+@media (max-width:480px){ #asistanPanel{right:16px;left:16px;width:auto;bottom:84px;} #asistanToggle{right:16px;bottom:16px;} }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
@@ -84,6 +123,24 @@
 <main class="main-content">
 {% block content %}{% endblock %}
 </main>
+
+{% if session.user_id %}
+<button id="asistanToggle" title="Asistan">💬</button>
+<div id="asistanPanel" hidden>
+  <div class="asistan-header">
+    <span>🤖 Asistan</span>
+    <button type="button" id="asistanKapat" title="Kapat">✕</button>
+  </div>
+  <div id="asistanMesajlar">
+    <div class="asistan-balon asistan-balon-asistan">Merhaba! Portföyünle ilgili soru sorabilir ya da "TLY'den 100 adet aldım, 5 TL'den" gibi işlem ekletebilirsin.</div>
+  </div>
+  <form id="asistanForm">
+    <textarea id="asistanInput" rows="1" placeholder="Bir şey yaz..." autocomplete="off"></textarea>
+    <button type="submit" id="asistanGonder">Gönder</button>
+  </form>
+</div>
+<script src="{{ url_for('static', filename='js/asistan.js') }}"></script>
+{% endif %}
 
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 <script>
