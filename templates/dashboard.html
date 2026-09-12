@@ -233,7 +233,15 @@ async function tarihteDegerHesapla() {
   <tbody>
   {% for p in pozisyonlar %}
   <tr>
-    <td><strong>{{ p.sembol }}</strong></td>
+    <td>
+      {% if p.tur == 'BIST' %}
+      <a href="https://www.tradingview.com/symbols/BIST-{{ p.sembol }}/" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text2)"><strong>{{ p.sembol }}</strong></a>
+      {% elif p.tur == 'ABD' %}
+      <a href="https://www.tradingview.com/symbols/{{ p.sembol }}/" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text2)"><strong>{{ p.sembol }}</strong></a>
+      {% else %}
+      <strong>{{ p.sembol }}</strong>
+      {% endif %}
+    </td>
     <td>{{ "{:.4f}".format(p.son_fiyat).rstrip('0').rstrip('.') | replace(".",",") }} {{ para }}</td>
     <td>{{ "{:,.0f}".format(p.kalan_adet).replace(",",".") }}</td>
     <td>{{ "{:,.2f}".format(p.alis_maliyet).replace(",","X").replace(".",",").replace("X",".") }} {{ para }}</td>

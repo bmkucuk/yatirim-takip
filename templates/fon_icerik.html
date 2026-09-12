@@ -486,8 +486,9 @@ function fonSatirHtml(s) {
   const degisim = s.degisim !== null && s.degisim !== undefined ? (s.degisim >= 0 ? '+' : '') + s.degisim.toFixed(2) + '%' : '—';
   const katki = s.katki !== null && s.katki !== undefined ? (s.katki >= 0 ? '+' : '') + s.katki.toFixed(3) + '%' : '—';
   const isim = (s.isim || '').replace(/"/g, '&quot;');
+  const tvUrl = `https://www.tradingview.com/symbols/BIST-${encodeURIComponent(s.kod)}/`;
   return `<tr>
-    <td><span class="hisse-kod" data-isim="${isim}">${s.kod}</span></td>
+    <td><a class="hisse-kod" data-isim="${isim}" href="${tvUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text2)">${s.kod}</a></td>
     <td>${s.agirlik.toFixed(2)}%</td>
     <td>${fiyat}</td>
     <td class="${pozNeg(s.degisim)}">${degisim}</td>
