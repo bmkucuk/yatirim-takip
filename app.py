@@ -568,6 +568,24 @@ def get_son_fiyat(sembol):
         """, (sembol,)).fetchone()
     return row["fiyat"] if row else None
 
+def get_son_iki_fiyat(sembol):
+    """Son iki FARKLI tarihli fiyat kaydini (en son ve bir onceki) dondurur.
+    'Bir onceki' burada takvimde dun degil, fiyat_gecmisi'ndeki bir onceki
+    KAYITLI tarihtir — boylece hafta sonu/henuz o gunku fiyat cekilmemisken
+    (orn. ABD borsasi kapanmadan/cron calismadan once) gunluk getiri 0
+    gorunmez, en son iki islem gunu arasindaki gercek degisim gosterilir."""
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT fiyat, tarih FROM fiyat_gecmisi
+            WHERE sembol=?
+            ORDER BY tarih DESC LIMIT 2
+        """, (sembol,)).fetchall()
+    son_fiyat = rows[0]["fiyat"] if len(rows) > 0 else None
+    son_tarih = rows[0]["tarih"] if len(rows) > 0 else None
+    onceki_fiyat = rows[1]["fiyat"] if len(rows) > 1 else None
+    onceki_tarih = rows[1]["tarih"] if len(rows) > 1 else None
+    return son_fiyat, son_tarih, onceki_fiyat, onceki_tarih
+
 def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
     """Her sembol için portföy pozisyonunu hesapla.
     Sıfırlama mantığı: pozisyon 0'a düşünce maliyet sıfırlanır,
@@ -656,7 +674,7 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
         kalan_adet = p["alis_adet"] - p["satis_adet"]
         if kalan_adet <= 0:
             continue
-        son_fiyat = get_son_fiyat(sembol)
+        son_fiyat, son_fiyat_tarihi, onceki_fiyat, _ = get_son_iki_fiyat(sembol)
         if not son_fiyat:
             continue
 
@@ -666,7 +684,15 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
         maliyet = p["kalan_maliyet"]
         kar_zarar = mevcut_deger - maliyet
 
-        dun_fiyat = get_fiyat(sembol, dun_str)
+        # Gunun fiyati henuz gelmediyse (son kayitli tarih dunden eskiyse,
+        # yani bugun icin fiyat_gecmisi'ne henuz yazilmadiysa) fiyat_gecmisi'ndeki
+        # bir onceki kayitli fiyatla karsilastir; boylece piyasa/cron henuz
+        # guncellenmemisken gunluk getiri 0 degil, en son gerceklesen degisim
+        # olarak gorunur.
+        if son_fiyat_tarihi and son_fiyat_tarihi < bugun_str:
+            dun_fiyat = onceki_fiyat
+        else:
+            dun_fiyat = get_fiyat(sembol, dun_str)
         # Yatırım fonlarında T+1 valör: bugün alınan adet için henüz günlük getiri başlamamıştır.
         # Ama bugünden ÖNCE elde olan adet için günlük getiri normal şekilde hesaplanmalı.
         if tur == "FON":
