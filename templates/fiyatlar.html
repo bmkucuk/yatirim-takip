@@ -164,7 +164,11 @@
     <tbody>
     {% for satir in tablo %}
     <tr>
-      <td><strong class="tr-tarih">{{ satir.tarih }}</strong></td>
+      <td>
+        <strong class="tr-tarih">{{ satir.tarih }}</strong>
+        <button type="button" onclick="satirSil('{{ satir.tarih }}', '{{ semboller|join(',') }}')" title="Bu tarihi tamamen sil"
+          style="background:none;border:none;color:var(--neg);cursor:pointer;font-size:0.8rem;margin-left:6px;padding:0;vertical-align:middle">🗑️</button>
+      </td>
       {% for s in semboller %}
       <td>
         {% if satir[s] is not none %}
@@ -221,6 +225,21 @@ function sembolKaldir(sembol) {
   const input = document.createElement('input');
   input.type = 'hidden'; input.name = 'sembol'; input.value = sembol;
   form.appendChild(input);
+  document.body.appendChild(form);
+  form.submit();
+}
+
+function satirSil(tarih, semboller) {
+  if (!confirm(tarih + ' tarihli tüm fiyat kayıtları silinsin mi? (Bu işlem geri alınamaz.)')) return;
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = "{{ url_for('fiyatlar_tarih_sil') }}";
+  const t = document.createElement('input');
+  t.type = 'hidden'; t.name = 'tarih'; t.value = tarih;
+  form.appendChild(t);
+  const s = document.createElement('input');
+  s.type = 'hidden'; s.name = 'semboller'; s.value = semboller;
+  form.appendChild(s);
   document.body.appendChild(form);
   form.submit();
 }

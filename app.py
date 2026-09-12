@@ -1458,6 +1458,28 @@ def fiyatlar_takip_kaldir():
     flash(f"{sembol} bu sayfadan kaldırıldı.", "success")
     return redirect(url_for("fiyatlar"))
 
+@app.route("/fiyatlar/tarih-sil", methods=["POST"])
+@login_required
+def fiyatlar_tarih_sil():
+    """Fiyat Geçmişi tablosunda bir tarih satırını komple siler — o tarihteki
+    o sekmenin (Yatırım Fonları/BIST/ABD) tüm sembollerine ait fiyat_gecmisi
+    kayıtlarını kaldırır."""
+    tarih = (request.form.get("tarih") or "").strip()
+    semboller_str = request.form.get("semboller", "")
+    semboller = [s.strip().upper() for s in semboller_str.split(",") if s.strip()]
+    if not tarih or not semboller:
+        flash("Geçersiz istek: tarih veya sembol eksik.", "error")
+        return redirect(url_for("fiyatlar"))
+    with get_db() as conn:
+        placeholders = ",".join("?" for _ in semboller)
+        cur = conn.execute(
+            f"DELETE FROM fiyat_gecmisi WHERE tarih=? AND sembol IN ({placeholders})",
+            (tarih, *semboller)
+        )
+        silinen = cur.rowcount
+    flash(f"🗑️ {tarih} tarihli {silinen} fiyat kaydı silindi.", "success")
+    return redirect(url_for("fiyatlar"))
+
 @app.route("/fiyat-ekle", methods=["POST"])
 @login_required
 def fiyat_ekle():
