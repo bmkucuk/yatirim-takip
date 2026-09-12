@@ -2729,6 +2729,46 @@ def cron_guncelle():
     return f"OK: {basarili} fiyat güncellendi. {sonuc.get('method')}. Fon getiri: {getiri_guncellenen} fon kontrol edildi.", 200
 
 
+@app.route("/cron/abd-guncelle")
+def cron_abd_guncelle():
+    """Sadece Borsa USA (ABD) hisse fiyatlarini gunceller. Hafta ici her gece
+    saat 01:00'de (Europe/Istanbul) GitHub Actions'taki zamanlanmis is akisi
+    bu endpoint'i cagirir — boylece ABD borsasi kapanisindan hemen sonra
+    fiyatlar cekilmis olur ve dashboard'daki gunluk getiri 0 gorunmez.
+    CRON_KEY env var ile korunur."""
+    import os
+    key = request.args.get("key", "")
+    if key != os.environ.get("CRON_KEY", ""):
+        return "yetkisiz", 403
+
+    with get_db() as conn:
+        tum = conn.execute("SELECT DISTINCT sembol, tur FROM islemler WHERE tur='ABD'").fetchall()
+
+    abd_sembolleri = [r["sembol"] for r in tum]
+    tur_map = {r["sembol"]: r["tur"] for r in tum}
+
+    sonuc = fetch_all_prices([], abd_sembolleri, tur_map=tur_map)
+
+    basarili = 0
+    for sembol, tarih, fiyat in sonuc.get("prices", []):
+        with get_db() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO fiyat_gecmisi (sembol, tarih, fiyat)
+                VALUES (?,?,?)
+            """, (sembol, tarih, fiyat))
+        basarili += 1
+
+    simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO price_fetch_log (tarih, sonuc, detay)
+            VALUES (?,?,?)
+        """, (simdi, sonuc.get("method", "?"),
+              f"{basarili} ABD hissesi güncellendi (gece cron). {sonuc.get('errors', '')}"))
+
+    return f"OK: {basarili} ABD hissesi güncellendi. {sonuc.get('method')}", 200
+
+
 @app.route("/fiyatlar/gecmis-yukle")
 @login_required
 def fiyatlar_gecmis_yukle():
