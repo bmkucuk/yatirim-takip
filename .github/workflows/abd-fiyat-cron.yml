@@ -1,0 +1,16 @@
+name: ABD Borsa Fiyat Guncelleme
+
+on:
+  schedule:
+    # 22:00 UTC Pazartesi-Cuma = 01:00 (Europe/Istanbul, UTC+3) Sali-Cumartesi sabahi
+    # yani her hafta ici kapanisin hemen ardindan
+    - cron: "0 22 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  guncelle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ABD fiyatlarini cek
+        run: |
+          curl -sf "https://yatirim-takip-murat.fly.dev/cron/abd-guncelle?key=${{ secrets.CRON_KEY }}"
