@@ -748,6 +748,7 @@ def hesapla_portfoy(user_id, hesap_filtre="Hepsi"):
             "abd_vergi": tur == "ABD",
             "gunluk_tl": gunluk_tl,
             "gunluk_yuzde": gunluk_yuzde,
+            "son_fiyat_tarihi": son_fiyat_tarihi,
             "hafta_tl": hafta_tl, "hafta_pct": hafta_pct,
             "ay_tl": ay_tl, "ay_pct": ay_pct,
             "uc_ay_tl": uc_ay_tl, "uc_ay_pct": uc_ay_pct,
@@ -1155,6 +1156,13 @@ def dashboard():
     bist_portfoy = [p for p in portfoy if p["tur"] == "BIST"]
     abd_portfoy  = [p for p in portfoy if p["tur"] == "ABD"]
 
+    def en_guncel_tarih(pozisyonlar):
+        tarihler = [p["son_fiyat_tarihi"] for p in pozisyonlar if p.get("son_fiyat_tarihi")]
+        return max(tarihler) if tarihler else None
+
+    fon_gunluk_tarihi = en_guncel_tarih(fon_portfoy)
+    abd_gunluk_tarihi = en_guncel_tarih(abd_portfoy)
+
     usd_try = get_usd_try()
 
     for p in abd_portfoy:
@@ -1218,6 +1226,7 @@ def dashboard():
         abd_gunluk_tl=abd_gunluk_tl,
         hesaplar=hesaplar, hesap_filtre=hesap_filtre,
         fon_aylik=fon_aylik, abd_aylik=abd_aylik, son_fiyat_tarihi=son_fiyat_tarihi, son_log=son_log,
+        fon_gunluk_tarihi=fon_gunluk_tarihi, abd_gunluk_tarihi=abd_gunluk_tarihi,
     )
 
 # ── İşlemler ────────────────────────────────────────────────────────────────

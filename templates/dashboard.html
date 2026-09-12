@@ -148,7 +148,7 @@ async function tarihteDegerHesapla() {
   </div>
 </div>
 
-{% macro bolum_ozet(deger, kar, gunluk, para, deger_tl, kar_tl, gunluk_tl=none, baslik=none) %}
+{% macro bolum_ozet(deger, kar, gunluk, para, deger_tl, kar_tl, gunluk_tl=none, baslik=none, gunluk_tarih=none) %}
 {% if baslik %}
 <div style="font-size:0.78rem;color:var(--text2);font-weight:600;margin-bottom:0.35rem">{{ baslik }} özeti</div>
 {% endif %}
@@ -165,7 +165,9 @@ async function tarihteDegerHesapla() {
     {% endif %}
   </div>
   <div class="summary-card" style="padding:0.6rem 1rem;text-align:center">
-    <div class="card-label" style="font-size:0.72rem">Günlük Getiri</div>
+    <div class="card-label" style="font-size:0.72rem">Günlük Getiri
+      {%- if gunluk_tarih %} <span style="font-weight:400;opacity:0.75">({{ gunluk_tarih[8:10] }}.{{ gunluk_tarih[5:7] }}.{{ gunluk_tarih[0:4] }})</span>{% endif -%}
+    </div>
     <div class="card-value {{ 'pos' if gunluk >= 0 else 'neg' }}" style="font-size:1rem">
       {{ ("▲ " if gunluk>=0 else "▼ ") }}{{ "{:,.2f}".format(gunluk|abs).replace(",",".") }} {{ para }}
     </div>
@@ -283,7 +285,7 @@ async function tarihteDegerHesapla() {
 
 <!-- Yatırım Fonları -->
 {% if fon_portfoy %}
-{{ bolum_ozet(fon_deger, fon_kar, fon_portfoy|sum(attribute='gunluk_tl'), "₺", none, none, baslik="📊 Yatırım Fonları") }}
+{{ bolum_ozet(fon_deger, fon_kar, fon_portfoy|sum(attribute='gunluk_tl'), "₺", none, none, baslik="📊 Yatırım Fonları", gunluk_tarih=fon_gunluk_tarihi) }}
 {% endif %}
 {{ portfoy_tablosu(fon_portfoy, "₺", "📊 Yatırım Fonları", "var(--accent)") }}
 
@@ -295,7 +297,7 @@ async function tarihteDegerHesapla() {
 
 <!-- ABD -->
 {% if abd_portfoy %}
-{{ bolum_ozet(abd_deger_usd, abd_kar_usd, abd_portfoy|sum(attribute='gunluk_tl'), "$", abd_deger_tl, abd_kar_tl, gunluk_tl=abd_gunluk_tl, baslik="🇺🇸 Borsa USA") }}
+{{ bolum_ozet(abd_deger_usd, abd_kar_usd, abd_portfoy|sum(attribute='gunluk_tl'), "$", abd_deger_tl, abd_kar_tl, gunluk_tl=abd_gunluk_tl, baslik="🇺🇸 Borsa USA", gunluk_tarih=abd_gunluk_tarihi) }}
 {% endif %}
 {{ portfoy_tablosu(abd_portfoy, "$", "🇺🇸 Borsa USA", "#58a6ff") }}
 
