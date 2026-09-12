@@ -36,7 +36,7 @@
 {% for fon_kod, fon in fonlar.items() %}
   <div class="card fon-karti-ozet" data-fon="{{ fon_kod }}" draggable="true" tabindex="0">
     <div class="fon-ozet-ust">
-      <div class="fon-ozet-ad" title="{{ fon_kod }} — {{ fon.ad }}">{{ fon_kod }} — {{ fon.ad_gosterim }}</div>
+      <div class="fon-ozet-ad" title="{{ fon_kod }} — {{ fon.ad }}"><a href="https://fintables.com/fonlar/{{ fon_kod }}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text2)">{{ fon_kod }}</a> — {{ fon.ad_gosterim }}</div>
       <button class="fon-sil-btn" title="Fonu sil" onclick="fonSil('{{ fon_kod }}')">🗑</button>
     </div>
     <div class="fon-ozet-alt">
@@ -523,7 +523,8 @@ function fonDetayAc(fonKod) {
   const fon = FON_VERI[fonKod];
   if (!fon) return;
   aktifFonKod = fonKod;
-  document.getElementById('fon-modal-baslik').textContent = fonKod + ' — ' + fon.ad_gosterim;
+  document.getElementById('fon-modal-baslik').innerHTML =
+    `<a href="https://fintables.com/fonlar/${encodeURIComponent(fonKod)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text2)">${fonKod}</a> — ${(fon.ad_gosterim || '').replace(/</g,'&lt;')}`;
   const toplamEl = document.getElementById('fon-modal-toplam');
   toplamEl.textContent = (fon.toplam_katki >= 0 ? '+' : '') + fon.toplam_katki.toFixed(2) + '%';
   toplamEl.className = fon.toplam_katki >= 0 ? 'pos' : 'neg';
