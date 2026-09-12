@@ -31,6 +31,15 @@
     }
   });
 
+  // Yazdıkça büyüyen kutu: tek satırla başlar, ~5-6 satıra kadar genişler,
+  // sonrasında kendi içinde kaydırır — sabit büyük kutunun boşuna yer
+  // kaplamasını önler ama uzun mesajı görmek için kaydırmayı da azaltır.
+  function inputBoyutlandir() {
+    inputEl.style.height = "auto";
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 132) + "px";
+  }
+  inputEl.addEventListener("input", inputBoyutlandir);
+
   function balonEkle(rol, html) {
     const div = document.createElement("div");
     div.className = "asistan-balon asistan-balon-" + rol;
@@ -105,6 +114,7 @@
     if (!mesaj) return;
     balonEkle("kullanici", kacir(mesaj));
     inputEl.value = "";
+    inputBoyutlandir();
     kilitle(true);
     fetch("/api/asistan", {
       method: "POST",
