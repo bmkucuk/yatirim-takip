@@ -662,8 +662,12 @@ def fetch_piyasa_verileri_tradingview():
 
 def fetch_piyasa_verileri():
     """'Piyasalar' sekmesi için altın/gümüş/döviz/endeks verilerini çeker.
-    Öncelik sırası: TradingView (scanner API, resmi değil) → Yahoo Finance (v8 chart)
-    → uzmanpara.milliyet.com.tr. Her kalem kendi başarısız olduğu adımda bir sonraki
+    BIST100 ve ALTIN.S1 için TradingView (scanner API) birincil kaynak — bu ikisi
+    anonim TV feed'inde gecikmesiz/tutarlı çıktı. Diğer kalemler (ons altın/gümüş,
+    dolar, euro, gram altın, petrol, IAU) için Yahoo Finance / Milliyet birincil,
+    TradingView son çare: TV'nin girişsiz erişilen scanner'ı bu enstrümanlarda
+    gecikmeli/senteze dayalı veri döndürüyor ve TradingView.com'da görülen anlık
+    fiyatla birebir örtüşmüyor. Her kalem kendi başarısız olduğu adımda bir sonraki
     kaynağa düşer.
     Döner: {anahtar: {"fiyat","degisim","ad", ...}} —
     XAUSD, IAU, GRAMALTIN, XAGUSD, ALTINS1, BIST100, USD, EUR, PETROL, MAKAS.
@@ -689,35 +693,37 @@ def fetch_piyasa_verileri():
 
     piyasalar = {}
 
-    # XAUSD: TradingView → Yahoo (GC=F) → Milliyet Ons Altın
-    if "XAUSD" in tv:
-        piyasalar["XAUSD"] = tv["XAUSD"]
-    elif "XAUUSD" in ham:
+    # XAUSD: Yahoo (GC=F) → Milliyet Ons Altın → TradingView (son çare — anonim TV
+    # scanner'ı forex/emtia için TradingView'in kendi sitesinde gördüğün canlı fiyattan
+    # farklı, gecikmeli/senteze dayalı bir feed veriyor; bu yüzden burada en son sırada).
+    if "XAUUSD" in ham:
         piyasalar["XAUSD"] = {"fiyat": ham["XAUUSD"]["fiyat"], "degisim": ham["XAUUSD"]["degisim"], "ad": "Altın (Ons/USD)"}
     elif "ONS_ALTIN" in milliyet:
         piyasalar["XAUSD"] = {"fiyat": milliyet["ONS_ALTIN"]["satis"], "degisim": milliyet["ONS_ALTIN"]["degisim"], "ad": "Altın (Ons/USD)"}
+    elif "XAUSD" in tv:
+        piyasalar["XAUSD"] = tv["XAUSD"]
 
-    if "IAU" in tv:
-        piyasalar["IAU"] = tv["IAU"]
-    elif "IAU" in ham:
+    if "IAU" in ham:
         piyasalar["IAU"] = ham["IAU"]
+    elif "IAU" in tv:
+        piyasalar["IAU"] = tv["IAU"]
 
-    # XAGUSD: TradingView → Yahoo (SI=F) → Milliyet Gümüş Ons
-    if "XAGUSD" in tv:
-        piyasalar["XAGUSD"] = tv["XAGUSD"]
-    elif "XAGUSD" in ham:
+    # XAGUSD: Yahoo (SI=F) → Milliyet Gümüş Ons → TradingView
+    if "XAGUSD" in ham:
         piyasalar["XAGUSD"] = {"fiyat": ham["XAGUSD"]["fiyat"], "degisim": ham["XAGUSD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
     elif "GUMUS_ONS_USD" in milliyet:
         piyasalar["XAGUSD"] = {"fiyat": milliyet["GUMUS_ONS_USD"]["satis"], "degisim": milliyet["GUMUS_ONS_USD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
+    elif "XAGUSD" in tv:
+        piyasalar["XAGUSD"] = tv["XAGUSD"]
 
-    # Gram altın (TRY): TradingView (FX_IDC:XAUTRYG) → Milliyet satış fiyatı → Yahoo'dan hesapla
+    # Gram altın (TRY): Milliyet'in gerçek piyasa fiyatı (satış) → TradingView → Yahoo'dan hesapla
     gram_fiyat = gram_degisim = None
-    if "GRAMALTIN" in tv:
-        gram_fiyat = tv["GRAMALTIN"]["fiyat"]
-        gram_degisim = tv["GRAMALTIN"]["degisim"]
-    elif "GRAM_ALTIN" in milliyet:
+    if "GRAM_ALTIN" in milliyet:
         gram_fiyat = milliyet["GRAM_ALTIN"]["satis"]
         gram_degisim = milliyet["GRAM_ALTIN"]["degisim"]
+    elif "GRAMALTIN" in tv:
+        gram_fiyat = tv["GRAMALTIN"]["fiyat"]
+        gram_degisim = tv["GRAMALTIN"]["degisim"]
     elif "XAUUSD" in ham:
         usd_try, _ = _yahoo_chart_fiyat("USDTRY=X")
         if usd_try:
@@ -727,7 +733,8 @@ def fetch_piyasa_verileri():
     if gram_fiyat is not None:
         piyasalar["GRAMALTIN"] = {"fiyat": gram_fiyat, "degisim": gram_degisim, "ad": "Gram Altın"}
 
-    # ALTIN.S1 sertifikası: TradingView (BIST:ALTIN) → Milliyet BIST hisse sayfası → doviz.com.
+    # ALTIN.S1 sertifikası: TradingView (BIST:ALTIN) TUTARLI ÇIKTI (BIST enstrümanları
+    # anonim scanner'da gecikmesiz görünüyor) → Milliyet BIST hisse sayfası → doviz.com.
     # 1 lot = 0.01gr altın, dolayısıyla lot fiyatı x100 = gram karşılığı.
     if "ALTINS1" in tv:
         altin_s1 = {"fiyat": tv["ALTINS1"]["fiyat"], "degisim": tv["ALTINS1"]["degisim"]}
@@ -749,29 +756,29 @@ def fetch_piyasa_verileri():
                 "gram_altin": gram_fiyat,
             }
 
-    # BIST100 endeksi: TradingView (BIST:XU100) → Milliyet üst ticker çubuğu
+    # BIST100 endeksi: TradingView (BIST:XU100) — aynı sebeple burada da birincil kaynak.
     if "BIST100" in tv:
         piyasalar["BIST100"] = tv["BIST100"]
     elif "BIST100" in milliyet:
         piyasalar["BIST100"] = {"fiyat": milliyet["BIST100"]["deger"], "degisim": milliyet["BIST100"]["degisim"], "ad": "BIST 100"}
 
-    # Dolar/Euro: TradingView (FX_IDC) → Milliyet
-    if "USD" in tv:
-        piyasalar["USD"] = tv["USD"]
-    elif "USDTRY" in milliyet:
+    # Dolar/Euro: Milliyet → TradingView
+    if "USDTRY" in milliyet:
         piyasalar["USD"] = {"fiyat": milliyet["USDTRY"]["deger"], "degisim": milliyet["USDTRY"]["degisim"], "ad": "Dolar/TL"}
-    if "EUR" in tv:
-        piyasalar["EUR"] = tv["EUR"]
-    elif "EURTRY" in milliyet:
+    elif "USD" in tv:
+        piyasalar["USD"] = tv["USD"]
+    if "EURTRY" in milliyet:
         piyasalar["EUR"] = {"fiyat": milliyet["EURTRY"]["deger"], "degisim": milliyet["EURTRY"]["degisim"], "ad": "Euro/TL"}
+    elif "EUR" in tv:
+        piyasalar["EUR"] = tv["EUR"]
 
-    # Brent Petrol: TradingView (TVC:UKOIL) → Yahoo (BZ=F) → Milliyet
-    if "PETROL" in tv:
-        piyasalar["PETROL"] = tv["PETROL"]
-    elif "BRENT" in ham:
+    # Brent Petrol: Yahoo (BZ=F) → Milliyet → TradingView
+    if "BRENT" in ham:
         piyasalar["PETROL"] = {"fiyat": ham["BRENT"]["fiyat"], "degisim": ham["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
     elif "BRENT" in milliyet:
         piyasalar["PETROL"] = {"fiyat": milliyet["BRENT"]["deger"], "degisim": milliyet["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
+    elif "PETROL" in tv:
+        piyasalar["PETROL"] = tv["PETROL"]
 
     return piyasalar
 
