@@ -1,0 +1,15 @@
+name: Genel Fiyat Guncelleme (09:00)
+
+on:
+  schedule:
+    # 06:00 UTC = 09:00 (Europe/Istanbul, UTC+3, DST yok) Pazartesi-Cuma
+    - cron: "0 6 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  guncelle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tum fiyatlari guncelle (fon+BIST+ABD)
+        run: |
+          curl -sf "https://yatirim-takip-murat.fly.dev/cron/guncelle?key=${{ secrets.CRON_KEY }}"
