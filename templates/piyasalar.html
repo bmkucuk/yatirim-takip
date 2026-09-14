@@ -14,7 +14,7 @@
 {% else %}
 <div class="summary-grid" id="piyasa-kart-container">
   {% for kart in kartlar %}
-  <div class="summary-card piyasa-karti" data-kart="{{ kart.kod }}" draggable="true" tabindex="0">
+  <div class="summary-card piyasa-karti{{ ' piyasa-karti-tiklanabilir' if kart.tv_url else '' }}" data-kart="{{ kart.kod }}" data-tv="{{ kart.tv_url or '' }}" draggable="true" tabindex="0" {% if kart.tv_url %}title="TradingView'de grafiği aç"{% endif %}>
     <div class="card-label">{{ kart.ikon }} {{ kart.baslik }}</div>
     <div class="card-value {{ kart.renk or '' }}">
       {{ kart.deger_str }}
@@ -34,6 +34,19 @@
 .piyasa-karti {
   cursor: grab;
   transition: box-shadow 0.15s, opacity 0.15s;
+  position: relative;
+}
+.piyasa-karti-tiklanabilir::after {
+  content: "↗";
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  color: var(--text2);
+  font-size: 0.85rem;
+  opacity: 0.6;
+}
+.piyasa-karti-tiklanabilir:hover {
+  box-shadow: 0 0 0 1px var(--accent) inset;
 }
 .piyasa-karti:focus {
   outline: 2px solid var(--accent);
@@ -81,12 +94,24 @@ async function piyasaSiraKaydet() {
 }
 
 if (piyasaContainer) {
+  let piyasaSuruklemeOldu = false;
+
   piyasaContainer.addEventListener('dragstart', (e) => {
     const kart = e.target.closest('.piyasa-karti');
     if (!kart) return;
     piyasaSuruklenenKart = kart;
+    piyasaSuruklemeOldu = true;
     kart.classList.add('surukleniyor');
     e.dataTransfer.effectAllowed = 'move';
+  });
+
+  // Kart sürüklenmeden tıklanırsa TradingView grafiğini yeni sekmede aç.
+  piyasaContainer.addEventListener('click', (e) => {
+    if (piyasaSuruklemeOldu) { piyasaSuruklemeOldu = false; return; }
+    const kart = e.target.closest('.piyasa-karti');
+    if (!kart) return;
+    const tvUrl = kart.dataset.tv;
+    if (tvUrl) window.open(tvUrl, '_blank', 'noopener');
   });
 
   piyasaContainer.addEventListener('dragend', (e) => {
@@ -136,6 +161,12 @@ if (piyasaContainer) {
     piyasaSiraKaydet();
   });
 }
+
+// Sayfa geri/ileri tuşuyla tarayıcı önbelleğinden (bfcache) eski fiyatlarla
+// geri geliyorsa sunucudan taze veri çekmek için zorla yeniden yükle.
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) window.location.reload();
+});
 </script>
 
 {% endblock %}

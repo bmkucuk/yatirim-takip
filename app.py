@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, make_response
 from functools import wraps
 import sqlite3, os, hashlib, secrets, re, json
 from datetime import date, datetime, timedelta
@@ -1576,6 +1576,20 @@ PIYASA_KART_META = {
 }
 PIYASA_VARSAYILAN_SIRA = ["XAUSD", "IAU", "GRAMALTIN", "XAGUSD", "ALTINS1", "BIST100", "USD", "EUR", "PETROL", "MAKAS"]
 
+# Kart tıklandığında açılacak TradingView grafik sayfaları.
+PIYASA_TV_URL = {
+    "XAUSD":     "https://www.tradingview.com/symbols/XAUUSD/",
+    "IAU":       "https://www.tradingview.com/symbols/IAU/",
+    "GRAMALTIN": "https://www.tradingview.com/symbols/XAUTRYG/",
+    "XAGUSD":    "https://www.tradingview.com/symbols/XAGUSD/",
+    "ALTINS1":   "https://www.tradingview.com/symbols/BIST-ALTIN/",
+    "BIST100":   "https://www.tradingview.com/symbols/BIST-XU100/",
+    "USD":       "https://www.tradingview.com/symbols/USDTRY/",
+    "EUR":       "https://www.tradingview.com/symbols/EURTRY/",
+    "PETROL":    "https://www.tradingview.com/symbols/UKOIL/",
+    # MAKAS gerçek bir enstrüman değil (hesaplanan bir oran), TradingView linki yok.
+}
+
 
 def piyasa_kartlarini_olustur(veriler, user_id):
     """Fiyat verilerini kullanıcının kaydettiği sıraya göre kart listesine çevirir."""
@@ -1602,6 +1616,7 @@ def piyasa_kartlarini_olustur(veriler, user_id):
                 "degisim": None,
                 "renk": renk,
                 "alt_metin": f"₺{makas['gram_altin']:.2f} → ₺{makas['sertifika_gram']:.2f}".replace(".", ","),
+                "tv_url": None,
             })
             continue
         veri = veriler.get(kod)
@@ -1621,6 +1636,7 @@ def piyasa_kartlarini_olustur(veriler, user_id):
             "degisim": veri.get("degisim"),
             "renk": None,
             "alt_metin": None,
+            "tv_url": PIYASA_TV_URL.get(kod),
         })
     return kartlar
 
@@ -1630,7 +1646,11 @@ def piyasa_kartlarini_olustur(veriler, user_id):
 def piyasalar():
     veriler = fetch_piyasa_verileri()
     kartlar = piyasa_kartlarini_olustur(veriler, session["user_id"])
-    return render_template("piyasalar.html", veriler=veriler, kartlar=kartlar)
+    yanit = make_response(render_template("piyasalar.html", veriler=veriler, kartlar=kartlar))
+    # Bu sayfa her girişte taze veriyle gelsin — tarayıcı/bfcache eski fiyatları göstermesin.
+    yanit.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    yanit.headers["Pragma"] = "no-cache"
+    return yanit
 
 
 @app.route("/piyasalar/sira-kaydet", methods=["POST"])
