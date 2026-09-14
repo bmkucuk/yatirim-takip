@@ -662,12 +662,12 @@ def fetch_piyasa_verileri_tradingview():
 
 def fetch_piyasa_verileri():
     """'Piyasalar' sekmesi için altın/gümüş/döviz/endeks verilerini çeker.
-    BIST100 ve ALTIN.S1 için TradingView (scanner API) birincil kaynak — bu ikisi
-    anonim TV feed'inde gecikmesiz/tutarlı çıktı. Diğer kalemler (ons altın/gümüş,
-    dolar, euro, gram altın, petrol, IAU) için Yahoo Finance / Milliyet birincil,
-    TradingView son çare: TV'nin girişsiz erişilen scanner'ı bu enstrümanlarda
-    gecikmeli/senteze dayalı veri döndürüyor ve TradingView.com'da görülen anlık
-    fiyatla birebir örtüşmüyor. Her kalem kendi başarısız olduğu adımda bir sonraki
+    BIST100, ALTIN.S1, Dolar/TL, Euro/TL için TradingView (scanner API) birincil kaynak.
+    Ons Altın/Gümüş ve Brent Petrol için Milliyet birincil — Yahoo'nun bu üçündeki
+    sembolleri (GC=F/SI=F/BZ=F) VADELİ İŞLEM sözleşmesi, spot'tan yapısal olarak
+    sapabiliyor (doğrulandı: TradingView/Fintables karşılaştırması), bu yüzden Yahoo
+    artık sadece Milliyet başarısız olursa son çare. IAU (gerçek pay senedi, vade farkı
+    yok) için Yahoo birincil. Her kalem kendi başarısız olduğu adımda bir sonraki
     kaynağa düşer.
     Döner: {anahtar: {"fiyat","degisim","ad", ...}} —
     XAUSD, IAU, GRAMALTIN, XAGUSD, ALTINS1, BIST100, USD, EUR, PETROL, MAKAS.
@@ -693,23 +693,26 @@ def fetch_piyasa_verileri():
 
     piyasalar = {}
 
-    # XAUSD: Yahoo (GC=F) → Milliyet Ons Altın (TradingView'in anonim scanner'ı bu
-    # enstrümanda hiç veri vermiyor, bkz. _TV_KAYNAK notu — kaynak listesine yok)
-    if "XAUUSD" in ham:
-        piyasalar["XAUSD"] = {"fiyat": ham["XAUUSD"]["fiyat"], "degisim": ham["XAUUSD"]["degisim"], "ad": "Altın (Ons/USD)"}
-    elif "ONS_ALTIN" in milliyet:
+    # XAUSD: Milliyet Ons Altın ÖNCELİKLİ. Yahoo'nun "GC=F" sembolü COMEX ALTIN VADELİ
+    # İŞLEM sözleşmesi — spot XAUUSD değil, kendi risksiz faiz/vade farkından dolayı
+    # spot'tan yapısal olarak ~$30-40 sapabiliyor (TradingView ve Fintables'la
+    # karşılaştırmalı testle doğrulandı). Milliyet'in ONS_ALTIN değeri spot'a çok daha
+    # yakın çıktı, o yüzden Yahoo artık sadece Milliyet başarısız olursa devreye giriyor.
+    if "ONS_ALTIN" in milliyet:
         piyasalar["XAUSD"] = {"fiyat": milliyet["ONS_ALTIN"]["satis"], "degisim": milliyet["ONS_ALTIN"]["degisim"], "ad": "Altın (Ons/USD)"}
+    elif "XAUUSD" in ham:
+        piyasalar["XAUSD"] = {"fiyat": ham["XAUUSD"]["fiyat"], "degisim": ham["XAUUSD"]["degisim"], "ad": "Altın (Ons/USD)"}
 
     if "IAU" in ham:
         piyasalar["IAU"] = ham["IAU"]
     elif "IAU" in tv:
         piyasalar["IAU"] = tv["IAU"]
 
-    # XAGUSD: Yahoo (SI=F) → Milliyet Gümüş Ons
-    if "XAGUSD" in ham:
-        piyasalar["XAGUSD"] = {"fiyat": ham["XAGUSD"]["fiyat"], "degisim": ham["XAGUSD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
-    elif "GUMUS_ONS_USD" in milliyet:
+    # XAGUSD: aynı sebeple Milliyet öncelikli, Yahoo'nun "SI=F" vadeli sözleşmesi son çare.
+    if "GUMUS_ONS_USD" in milliyet:
         piyasalar["XAGUSD"] = {"fiyat": milliyet["GUMUS_ONS_USD"]["satis"], "degisim": milliyet["GUMUS_ONS_USD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
+    elif "XAGUSD" in ham:
+        piyasalar["XAGUSD"] = {"fiyat": ham["XAGUSD"]["fiyat"], "degisim": ham["XAGUSD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
 
     # Gram altın (TRY): Milliyet'in gerçek piyasa fiyatı (satış) → Yahoo'dan hesapla
     gram_fiyat = gram_degisim = None
@@ -764,12 +767,12 @@ def fetch_piyasa_verileri():
     elif "EUR" in tv:
         piyasalar["EUR"] = tv["EUR"]
 
-    # Brent Petrol: Yahoo (BZ=F) → Milliyet (TradingView'in anonim scanner'ı TVC:UKOIL
-    # için hiç veri vermiyor — kaynak listesine yok)
-    if "BRENT" in ham:
-        piyasalar["PETROL"] = {"fiyat": ham["BRENT"]["fiyat"], "degisim": ham["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
-    elif "BRENT" in milliyet:
+    # Brent Petrol: Milliyet öncelikli (aynı vadeli/spot sapma riski), Yahoo (BZ=F
+    # vadeli sözleşmesi) son çare.
+    if "BRENT" in milliyet:
         piyasalar["PETROL"] = {"fiyat": milliyet["BRENT"]["deger"], "degisim": milliyet["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
+    elif "BRENT" in ham:
+        piyasalar["PETROL"] = {"fiyat": ham["BRENT"]["fiyat"], "degisim": ham["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
 
     return piyasalar
 
