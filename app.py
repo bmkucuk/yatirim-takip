@@ -1711,6 +1711,31 @@ def piyasalar_tv_debug():
         except Exception as e:
             sonuc[screener] = {"tickerlar": tickerlar, "istek_hata": str(e)}
 
+    # Altın Ons (XAUSD) zinciri: Yahoo → Milliyet → TradingView, hangisinden geldiği net görülsün.
+    from price_fetcher import _yahoo_chart_fiyat, fetch_milliyet_altin, fetch_piyasa_verileri_tradingview
+    import time as _time
+    tv_xausd = None
+    try:
+        veriler_tv = fetch_piyasa_verileri_tradingview()
+        tv_xausd = veriler_tv.get("XAUSD")
+    except Exception as e:
+        tv_xausd = {"hata": str(e)}
+    try:
+        yahoo_fiyat, yahoo_degisim = _yahoo_chart_fiyat("GC=F")
+    except Exception as e:
+        yahoo_fiyat, yahoo_degisim = None, f"hata:{e}"
+    try:
+        milliyet_ons = fetch_milliyet_altin().get("ONS_ALTIN")
+    except Exception as e:
+        milliyet_ons = {"hata": str(e)}
+    sonuc["xausd_zincir"] = {
+        "sunucu_saati_utc": _time.strftime("%Y-%m-%d %H:%M:%S", _time.gmtime()),
+        "1_yahoo_GC=F": {"fiyat": yahoo_fiyat, "degisim": yahoo_degisim},
+        "2_milliyet_ONS_ALTIN": milliyet_ons,
+        "3_tradingview_XAUSD": tv_xausd,
+        "nihai_secilen": fetch_piyasa_verileri().get("XAUSD"),
+    }
+
     return jsonify(sonuc)
 
 
