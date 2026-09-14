@@ -1677,6 +1677,43 @@ def piyasalar_sira_kaydet():
     return jsonify({"basarili": True})
 
 
+@app.route("/piyasalar/tv-debug")
+def piyasalar_tv_debug():
+    """Geçici tanılama uç noktası: TradingView scanner API çağrılarının her screener
+    grubu için ham HTTP durumunu ve yanıtını tek tek görmek için (fiyatlar TradingView
+    sitesiyle tutmadığında hangi grubun başarısız olup Yahoo/Milliyet'e düştüğünü
+    bulmak amacıyla). CRON_KEY ile korunur (login gerektirmez, ben de kontrol
+    edebileyim diye)."""
+    key = request.args.get("key", "")
+    if key != os.environ.get("CRON_KEY", ""):
+        return "yetkisiz", 403
+
+    from price_fetcher import _TV_KAYNAK
+    import requests as _req
+    gruplar = {}
+    for kod, (screener, ticker, ad) in _TV_KAYNAK.items():
+        gruplar.setdefault(screener, []).append(ticker)
+
+    sonuc = {}
+    for screener, tickerlar in gruplar.items():
+        try:
+            r = _req.post(
+                f"https://scanner.tradingview.com/{screener}/scan",
+                json={"symbols": {"tickers": tickerlar, "query": {"types": []}}, "columns": ["close", "change"]},
+                headers={"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"},
+                timeout=8,
+            )
+            sonuc[screener] = {
+                "tickerlar": tickerlar,
+                "http_status": r.status_code,
+                "yanit_ilk_800": r.text[:800],
+            }
+        except Exception as e:
+            sonuc[screener] = {"tickerlar": tickerlar, "istek_hata": str(e)}
+
+    return jsonify(sonuc)
+
+
 @app.route("/piyasalar/debug")
 @login_required
 def piyasalar_debug():
