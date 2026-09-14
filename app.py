@@ -1691,6 +1691,11 @@ def piyasalar_debug():
     except Exception as e:
         bilgi["altin_s1_hata"] = str(e)
     try:
+        from price_fetcher import fetch_piyasa_verileri_tradingview
+        bilgi["tradingview_parsed"] = fetch_piyasa_verileri_tradingview()
+    except Exception as e:
+        bilgi["tradingview_hata"] = str(e)
+    try:
         bilgi["piyasalar_sonuc"] = fetch_piyasa_verileri()
     except Exception as e:
         bilgi["piyasalar_sonuc_hata"] = str(e)

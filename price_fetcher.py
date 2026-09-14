@@ -595,20 +595,83 @@ def fetch_altin_s1():
     return fetch_altin_s1_milliyet() or fetch_altin_s1_doviz()
 
 
+def _tv_scan_grup(screener, tickerlar):
+    """TradingView'in herkese açık (resmi olmayan) scanner API'sinden birden fazla
+    sembolü TEK istekte çeker (aynı screener grubu için). Bkz. scanner.tradingview.com —
+    sitenin kendi hisse/döviz tarama widget'larının kullandığı, kimlik doğrulaması
+    gerektirmeyen genel uç nokta. Döner: {ticker: (fiyat, degisim_yuzde)}.
+    """
+    sonuc = {}
+    try:
+        r = requests.post(
+            f"https://scanner.tradingview.com/{screener}/scan",
+            json={"symbols": {"tickers": tickerlar, "query": {"types": []}}, "columns": ["close", "change"]},
+            headers={"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"},
+            timeout=8,
+        )
+        if r.status_code != 200:
+            return sonuc
+        for satir in (r.json().get("data") or []):
+            d = satir.get("d") or []
+            if len(d) < 2 or d[0] is None:
+                continue
+            close = float(d[0])
+            degisim = round(float(d[1]), 2) if d[1] is not None else None
+            sonuc[satir["s"]] = (round(close, 4), degisim)
+    except Exception:
+        pass
+    return sonuc
+
+
+# kod -> (screener, "EXCHANGE:SEMBOL", görünen ad)
+_TV_KAYNAK = {
+    "XAUSD":     ("forex",   "FX_IDC:XAUUSD",  "Altın (Ons/USD)"),
+    "XAGUSD":    ("forex",   "FX_IDC:XAGUSD",  "Gümüş (Ons/USD)"),
+    "USD":       ("forex",   "FX_IDC:USDTRY",  "Dolar/TL"),
+    "EUR":       ("forex",   "FX_IDC:EURTRY",  "Euro/TL"),
+    "GRAMALTIN": ("forex",   "FX_IDC:XAUTRYG", "Gram Altın"),
+    "PETROL":    ("cfd",     "TVC:UKOIL",      "Brent Petrol (Varil/USD)"),
+    "IAU":       ("america", "AMEX:IAU",       "iShares Gold Trust (IAU)"),
+    "ALTINS1":   ("turkey",  "BIST:ALTIN",     "Darphane Altın Sertifikası (ALTIN.S1)"),
+    # BIST100 kasıtlı olarak yok: TradingView'in scanner API'si endeksleri desteklemiyor.
+}
+
+
+def fetch_piyasa_verileri_tradingview():
+    """Piyasalar kartlarını doğrudan TradingView'den çekmeye çalışır. Aynı screener
+    grubundaki semboller (ör. tüm forex çiftleri) tek istekte toplanır — kod başına
+    ayrı istek atılmaz. Eksik/başarısız kalemler sözlükte yer almaz; çağıran taraf
+    (fetch_piyasa_verileri) bunlar için Yahoo/Milliyet'e düşer.
+    Döner: {kod: {"fiyat","degisim","ad"}}.
+    """
+    gruplar = {}
+    for kod, (screener, ticker, ad) in _TV_KAYNAK.items():
+        gruplar.setdefault(screener, []).append((kod, ticker, ad))
+
+    sonuc = {}
+    for screener, kalemler in gruplar.items():
+        veriler = _tv_scan_grup(screener, [t for _, t, _ in kalemler])
+        for kod, ticker, ad in kalemler:
+            if ticker in veriler:
+                fiyat, degisim = veriler[ticker]
+                sonuc[kod] = {"fiyat": fiyat, "degisim": degisim, "ad": ad}
+    return sonuc
+
+
 def fetch_piyasa_verileri():
-    """'Piyasalar' sekmesi için altın/gümüş verilerini çeker.
-    Öncelik: uzmanpara.milliyet.com.tr (gerçek TR piyasa fiyatı, Gram Altın için en doğru kaynak).
-    IAU için Yahoo Finance (v8 chart) tek kaynak. ALTIN.S1 sertifikası için Milliyet'in
-    BIST hisse sayfası kullanılır (Yahoo'daki "ALTIN.IS" gerçek sertifika değil, eski/alakasız
-    bir fon sembolüne denk geliyor).
+    """'Piyasalar' sekmesi için altın/gümüş/döviz/endeks verilerini çeker.
+    Öncelik sırası: TradingView (scanner API, resmi değil) → Yahoo Finance (v8 chart)
+    → uzmanpara.milliyet.com.tr. Her kalem kendi başarısız olduğu adımda bir sonraki
+    kaynağa düşer; BIST100 endeksi ve ALTIN.S1'in Milliyet/doviz.com yedeği bu zincirin
+    dışında kalır (yukarıdaki notlara bakın).
     Döner: {anahtar: {"fiyat","degisim","ad", ...}} —
     XAUSD, IAU, GRAMALTIN, XAGUSD, ALTINS1, MAKAS.
     """
+    tv = fetch_piyasa_verileri_tradingview()
     milliyet = fetch_milliyet_altin()
 
-    # Ons Altın, Gümüş Ons ve Brent Petrol: Yahoo Finance ÖNCELİKLİ kaynak.
-    # Milliyet'in altin-fiyatlari sayfası bu üç veri için çok geç güncelleniyor,
-    # bu yüzden Milliyet artık sadece Yahoo başarısız olursa fallback olarak kullanılıyor.
+    # Ons Altın, Gümüş Ons ve Brent Petrol: TradingView başarısız olursa Yahoo Finance,
+    # o da olmazsa Milliyet'in altin-fiyatlari sayfası (en geç güncellenen, son çare).
     ham = {}
     fiyat, degisim = _yahoo_chart_fiyat("IAU")
     if fiyat is not None:
@@ -625,24 +688,33 @@ def fetch_piyasa_verileri():
 
     piyasalar = {}
 
-    # XAUSD: Yahoo (GC=F) öncelikli, Milliyet Ons Altın fallback
-    if "XAUUSD" in ham:
+    # XAUSD: TradingView → Yahoo (GC=F) → Milliyet Ons Altın
+    if "XAUSD" in tv:
+        piyasalar["XAUSD"] = tv["XAUSD"]
+    elif "XAUUSD" in ham:
         piyasalar["XAUSD"] = {"fiyat": ham["XAUUSD"]["fiyat"], "degisim": ham["XAUUSD"]["degisim"], "ad": "Altın (Ons/USD)"}
     elif "ONS_ALTIN" in milliyet:
         piyasalar["XAUSD"] = {"fiyat": milliyet["ONS_ALTIN"]["satis"], "degisim": milliyet["ONS_ALTIN"]["degisim"], "ad": "Altın (Ons/USD)"}
 
-    if "IAU" in ham:
+    if "IAU" in tv:
+        piyasalar["IAU"] = tv["IAU"]
+    elif "IAU" in ham:
         piyasalar["IAU"] = ham["IAU"]
 
-    # XAGUSD: Yahoo (SI=F) öncelikli, Milliyet Gümüş Ons fallback
-    if "XAGUSD" in ham:
+    # XAGUSD: TradingView → Yahoo (SI=F) → Milliyet Gümüş Ons
+    if "XAGUSD" in tv:
+        piyasalar["XAGUSD"] = tv["XAGUSD"]
+    elif "XAGUSD" in ham:
         piyasalar["XAGUSD"] = {"fiyat": ham["XAGUSD"]["fiyat"], "degisim": ham["XAGUSD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
     elif "GUMUS_ONS_USD" in milliyet:
         piyasalar["XAGUSD"] = {"fiyat": milliyet["GUMUS_ONS_USD"]["satis"], "degisim": milliyet["GUMUS_ONS_USD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
 
-    # Gram altın (TRY): Milliyet'in gerçek piyasa fiyatı (satış) öncelikli
+    # Gram altın (TRY): TradingView (FX_IDC:XAUTRYG) → Milliyet satış fiyatı → Yahoo'dan hesapla
     gram_fiyat = gram_degisim = None
-    if "GRAM_ALTIN" in milliyet:
+    if "GRAMALTIN" in tv:
+        gram_fiyat = tv["GRAMALTIN"]["fiyat"]
+        gram_degisim = tv["GRAMALTIN"]["degisim"]
+    elif "GRAM_ALTIN" in milliyet:
         gram_fiyat = milliyet["GRAM_ALTIN"]["satis"]
         gram_degisim = milliyet["GRAM_ALTIN"]["degisim"]
     elif "XAUUSD" in ham:
@@ -654,9 +726,12 @@ def fetch_piyasa_verileri():
     if gram_fiyat is not None:
         piyasalar["GRAMALTIN"] = {"fiyat": gram_fiyat, "degisim": gram_degisim, "ad": "Gram Altın"}
 
-    # ALTIN.S1 sertifikası: Milliyet'in BIST hisse sayfasından (Yahoo'daki ALTIN.IS güvenilmez).
+    # ALTIN.S1 sertifikası: TradingView (BIST:ALTIN) → Milliyet BIST hisse sayfası → doviz.com.
     # 1 lot = 0.01gr altın, dolayısıyla lot fiyatı x100 = gram karşılığı.
-    altin_s1 = fetch_altin_s1()
+    if "ALTINS1" in tv:
+        altin_s1 = {"fiyat": tv["ALTINS1"]["fiyat"], "degisim": tv["ALTINS1"]["degisim"]}
+    else:
+        altin_s1 = fetch_altin_s1()
     if altin_s1 and altin_s1.get("fiyat"):
         sertifika_gram = round(altin_s1["fiyat"] * 100, 2)
         piyasalar["ALTINS1"] = {
@@ -673,15 +748,24 @@ def fetch_piyasa_verileri():
                 "gram_altin": gram_fiyat,
             }
 
-    # Genel piyasa özet kartları: BIST100, Dolar, Euro, Brent Petrol (Milliyet üst ticker çubuğu)
+    # BIST100 endeksi: TradingView scanner endeksleri desteklemediği için Milliyet tek kaynak.
     if "BIST100" in milliyet:
         piyasalar["BIST100"] = {"fiyat": milliyet["BIST100"]["deger"], "degisim": milliyet["BIST100"]["degisim"], "ad": "BIST 100"}
-    if "USDTRY" in milliyet:
+
+    # Dolar/Euro: TradingView (FX_IDC) → Milliyet
+    if "USD" in tv:
+        piyasalar["USD"] = tv["USD"]
+    elif "USDTRY" in milliyet:
         piyasalar["USD"] = {"fiyat": milliyet["USDTRY"]["deger"], "degisim": milliyet["USDTRY"]["degisim"], "ad": "Dolar/TL"}
-    if "EURTRY" in milliyet:
+    if "EUR" in tv:
+        piyasalar["EUR"] = tv["EUR"]
+    elif "EURTRY" in milliyet:
         piyasalar["EUR"] = {"fiyat": milliyet["EURTRY"]["deger"], "degisim": milliyet["EURTRY"]["degisim"], "ad": "Euro/TL"}
-    # Brent Petrol: Yahoo (BZ=F) öncelikli, Milliyet fallback
-    if "BRENT" in ham:
+
+    # Brent Petrol: TradingView (TVC:UKOIL) → Yahoo (BZ=F) → Milliyet
+    if "PETROL" in tv:
+        piyasalar["PETROL"] = tv["PETROL"]
+    elif "BRENT" in ham:
         piyasalar["PETROL"] = {"fiyat": ham["BRENT"]["fiyat"], "degisim": ham["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
     elif "BRENT" in milliyet:
         piyasalar["PETROL"] = {"fiyat": milliyet["BRENT"]["deger"], "degisim": milliyet["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
