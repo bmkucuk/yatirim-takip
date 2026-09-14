@@ -625,17 +625,17 @@ def _tv_scan_grup(screener, tickerlar):
 
 # kod -> (screener, "EXCHANGE:SEMBOL", görünen ad)
 _TV_KAYNAK = {
-    "XAUSD":     ("forex",   "FX_IDC:XAUUSD",  "Altın (Ons/USD)"),
-    "XAGUSD":    ("forex",   "FX_IDC:XAGUSD",  "Gümüş (Ons/USD)"),
     "USD":       ("forex",   "FX_IDC:USDTRY",  "Dolar/TL"),
     "EUR":       ("forex",   "FX_IDC:EURTRY",  "Euro/TL"),
-    "GRAMALTIN": ("forex",   "FX_IDC:XAUTRYG", "Gram Altın"),
-    "PETROL":    ("cfd",     "TVC:UKOIL",      "Brent Petrol (Varil/USD)"),
     "IAU":       ("america", "AMEX:IAU",       "iShares Gold Trust (IAU)"),
     "ALTINS1":   ("turkey",  "BIST:ALTIN",     "Darphane Altın Sertifikası (ALTIN.S1)"),
     "BIST100":   ("turkey",  "BIST:XU100",     "BIST 100"),
+    # XAUSD/XAGUSD/GRAMALTIN/PETROL kasıtlı olarak yok: canlı debug ile doğrulandı —
+    # TradingView'in anonim scanner'ında "forex" ekranında FX_IDC:XAUUSD/XAGUSD/XAUTRYG,
+    # "cfd" ekranında TVC:UKOIL hiç veri döndürmüyor (totalCount 0/eksik). Bunlar için
+    # tek kaynak Yahoo/Milliyet.
     # Not: scanner API'nin tam "teknik analiz" (Recommend.* vb.) hesaplaması endekslerde
-    # çalışmıyor, ama burada sadece close/change çektiğimiz için XU100 sorunsuz gelmeli.
+    # çalışmıyor, ama burada sadece close/change çektiğimiz için XU100 sorunsuz geliyor.
 }
 
 
@@ -693,37 +693,29 @@ def fetch_piyasa_verileri():
 
     piyasalar = {}
 
-    # XAUSD: Yahoo (GC=F) → Milliyet Ons Altın → TradingView (son çare — anonim TV
-    # scanner'ı forex/emtia için TradingView'in kendi sitesinde gördüğün canlı fiyattan
-    # farklı, gecikmeli/senteze dayalı bir feed veriyor; bu yüzden burada en son sırada).
+    # XAUSD: Yahoo (GC=F) → Milliyet Ons Altın (TradingView'in anonim scanner'ı bu
+    # enstrümanda hiç veri vermiyor, bkz. _TV_KAYNAK notu — kaynak listesine yok)
     if "XAUUSD" in ham:
         piyasalar["XAUSD"] = {"fiyat": ham["XAUUSD"]["fiyat"], "degisim": ham["XAUUSD"]["degisim"], "ad": "Altın (Ons/USD)"}
     elif "ONS_ALTIN" in milliyet:
         piyasalar["XAUSD"] = {"fiyat": milliyet["ONS_ALTIN"]["satis"], "degisim": milliyet["ONS_ALTIN"]["degisim"], "ad": "Altın (Ons/USD)"}
-    elif "XAUSD" in tv:
-        piyasalar["XAUSD"] = tv["XAUSD"]
 
     if "IAU" in ham:
         piyasalar["IAU"] = ham["IAU"]
     elif "IAU" in tv:
         piyasalar["IAU"] = tv["IAU"]
 
-    # XAGUSD: Yahoo (SI=F) → Milliyet Gümüş Ons → TradingView
+    # XAGUSD: Yahoo (SI=F) → Milliyet Gümüş Ons
     if "XAGUSD" in ham:
         piyasalar["XAGUSD"] = {"fiyat": ham["XAGUSD"]["fiyat"], "degisim": ham["XAGUSD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
     elif "GUMUS_ONS_USD" in milliyet:
         piyasalar["XAGUSD"] = {"fiyat": milliyet["GUMUS_ONS_USD"]["satis"], "degisim": milliyet["GUMUS_ONS_USD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
-    elif "XAGUSD" in tv:
-        piyasalar["XAGUSD"] = tv["XAGUSD"]
 
-    # Gram altın (TRY): Milliyet'in gerçek piyasa fiyatı (satış) → TradingView → Yahoo'dan hesapla
+    # Gram altın (TRY): Milliyet'in gerçek piyasa fiyatı (satış) → Yahoo'dan hesapla
     gram_fiyat = gram_degisim = None
     if "GRAM_ALTIN" in milliyet:
         gram_fiyat = milliyet["GRAM_ALTIN"]["satis"]
         gram_degisim = milliyet["GRAM_ALTIN"]["degisim"]
-    elif "GRAMALTIN" in tv:
-        gram_fiyat = tv["GRAMALTIN"]["fiyat"]
-        gram_degisim = tv["GRAMALTIN"]["degisim"]
     elif "XAUUSD" in ham:
         usd_try, _ = _yahoo_chart_fiyat("USDTRY=X")
         if usd_try:
@@ -772,13 +764,12 @@ def fetch_piyasa_verileri():
     elif "EUR" in tv:
         piyasalar["EUR"] = tv["EUR"]
 
-    # Brent Petrol: Yahoo (BZ=F) → Milliyet → TradingView
+    # Brent Petrol: Yahoo (BZ=F) → Milliyet (TradingView'in anonim scanner'ı TVC:UKOIL
+    # için hiç veri vermiyor — kaynak listesine yok)
     if "BRENT" in ham:
         piyasalar["PETROL"] = {"fiyat": ham["BRENT"]["fiyat"], "degisim": ham["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
     elif "BRENT" in milliyet:
         piyasalar["PETROL"] = {"fiyat": milliyet["BRENT"]["deger"], "degisim": milliyet["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
-    elif "PETROL" in tv:
-        piyasalar["PETROL"] = tv["PETROL"]
 
     return piyasalar
 
