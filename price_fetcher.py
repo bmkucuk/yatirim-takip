@@ -630,10 +630,10 @@ _TV_KAYNAK = {
     "IAU":       ("america", "AMEX:IAU",       "iShares Gold Trust (IAU)"),
     "ALTINS1":   ("turkey",  "BIST:ALTIN",     "Darphane Altın Sertifikası (ALTIN.S1)"),
     "BIST100":   ("turkey",  "BIST:XU100",     "BIST 100"),
-    # XAUSD/XAGUSD/GRAMALTIN/PETROL kasıtlı olarak yok: canlı debug ile doğrulandı —
-    # TradingView'in anonim scanner'ında "forex" ekranında FX_IDC:XAUUSD/XAGUSD/XAUTRYG,
-    # "cfd" ekranında TVC:UKOIL hiç veri döndürmüyor (totalCount 0/eksik). Bunlar için
-    # tek kaynak Yahoo/Milliyet.
+    "PETROL":    ("futures", "ICEEUR:BRN1!",   "Brent Petrol (Varil/USD)"),
+    # XAUSD/XAGUSD/GRAMALTIN kasıtlı olarak yok: canlı debug ile doğrulandı —
+    # TradingView'in anonim scanner'ında "forex" ekranında FX_IDC:XAUUSD/XAGUSD/XAUTRYG
+    # hiç veri döndürmüyor (totalCount 0/eksik). Bunlar için tek kaynak Yahoo/Milliyet.
     # Not: scanner API'nin tam "teknik analiz" (Recommend.* vb.) hesaplaması endekslerde
     # çalışmıyor, ama burada sadece close/change çektiğimiz için XU100 sorunsuz geliyor.
 }
@@ -767,9 +767,11 @@ def fetch_piyasa_verileri():
     elif "EUR" in tv:
         piyasalar["EUR"] = tv["EUR"]
 
-    # Brent Petrol: Milliyet öncelikli (aynı vadeli/spot sapma riski), Yahoo (BZ=F
-    # vadeli sözleşmesi) son çare.
-    if "BRENT" in milliyet:
+    # Brent Petrol: TradingView (ICEEUR:BRN1! — ICE Brent Crude Futures, "Brent Petrol"
+    # denince herkesin kastettiği asıl referans) öncelikli → Milliyet → Yahoo (BZ=F) son çare.
+    if "PETROL" in tv:
+        piyasalar["PETROL"] = tv["PETROL"]
+    elif "BRENT" in milliyet:
         piyasalar["PETROL"] = {"fiyat": milliyet["BRENT"]["deger"], "degisim": milliyet["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}
     elif "BRENT" in ham:
         piyasalar["PETROL"] = {"fiyat": ham["BRENT"]["fiyat"], "degisim": ham["BRENT"]["degisim"], "ad": "Brent Petrol (Varil/USD)"}

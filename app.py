@@ -1586,7 +1586,7 @@ PIYASA_TV_URL = {
     "BIST100":   "https://www.tradingview.com/symbols/BIST-XU100/",
     "USD":       "https://www.tradingview.com/symbols/USDTRY/",
     "EUR":       "https://www.tradingview.com/symbols/EURTRY/",
-    "PETROL":    "https://www.tradingview.com/symbols/UKOIL/",
+    "PETROL":    "https://www.tradingview.com/symbols/ICEEUR-BRN1!/",
     # MAKAS gerçek bir enstrüman değil (hesaplanan bir oran), TradingView linki yok.
 }
 
