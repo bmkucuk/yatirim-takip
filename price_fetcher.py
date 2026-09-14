@@ -633,7 +633,9 @@ _TV_KAYNAK = {
     "PETROL":    ("cfd",     "TVC:UKOIL",      "Brent Petrol (Varil/USD)"),
     "IAU":       ("america", "AMEX:IAU",       "iShares Gold Trust (IAU)"),
     "ALTINS1":   ("turkey",  "BIST:ALTIN",     "Darphane Altın Sertifikası (ALTIN.S1)"),
-    # BIST100 kasıtlı olarak yok: TradingView'in scanner API'si endeksleri desteklemiyor.
+    "BIST100":   ("turkey",  "BIST:XU100",     "BIST 100"),
+    # Not: scanner API'nin tam "teknik analiz" (Recommend.* vb.) hesaplaması endekslerde
+    # çalışmıyor, ama burada sadece close/change çektiğimiz için XU100 sorunsuz gelmeli.
 }
 
 
@@ -662,10 +664,9 @@ def fetch_piyasa_verileri():
     """'Piyasalar' sekmesi için altın/gümüş/döviz/endeks verilerini çeker.
     Öncelik sırası: TradingView (scanner API, resmi değil) → Yahoo Finance (v8 chart)
     → uzmanpara.milliyet.com.tr. Her kalem kendi başarısız olduğu adımda bir sonraki
-    kaynağa düşer; BIST100 endeksi ve ALTIN.S1'in Milliyet/doviz.com yedeği bu zincirin
-    dışında kalır (yukarıdaki notlara bakın).
+    kaynağa düşer.
     Döner: {anahtar: {"fiyat","degisim","ad", ...}} —
-    XAUSD, IAU, GRAMALTIN, XAGUSD, ALTINS1, MAKAS.
+    XAUSD, IAU, GRAMALTIN, XAGUSD, ALTINS1, BIST100, USD, EUR, PETROL, MAKAS.
     """
     tv = fetch_piyasa_verileri_tradingview()
     milliyet = fetch_milliyet_altin()
@@ -748,8 +749,10 @@ def fetch_piyasa_verileri():
                 "gram_altin": gram_fiyat,
             }
 
-    # BIST100 endeksi: TradingView scanner endeksleri desteklemediği için Milliyet tek kaynak.
-    if "BIST100" in milliyet:
+    # BIST100 endeksi: TradingView (BIST:XU100) → Milliyet üst ticker çubuğu
+    if "BIST100" in tv:
+        piyasalar["BIST100"] = tv["BIST100"]
+    elif "BIST100" in milliyet:
         piyasalar["BIST100"] = {"fiyat": milliyet["BIST100"]["deger"], "degisim": milliyet["BIST100"]["degisim"], "ad": "BIST 100"}
 
     # Dolar/Euro: TradingView (FX_IDC) → Milliyet
