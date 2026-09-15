@@ -2829,22 +2829,28 @@ def cron_guncelle():
               f"{basarili} fiyat güncellendi (cron). {sonuc.get('errors','')}"))
 
     # Fon İçerik Analizi sayfasındaki TEFAS getiri cache'ini de tazele.
-    # TEFAS dakikada 6 istekle sınırlı olduğu için burada (günlük, unattended cron'da,
-    # kullanıcıyı bir düğmenin önünde bekletmeden) fon başına ~55 saniye aralıklarla yapılır.
+    # TEFAS dakikada 6 istekle sınırlı olduğu için fon başına ~55 saniye aralıklarla
+    # yapılıyor — birkaç fonda bile toplam süre kolayca birkaç dakikayı buluyor ve bu,
+    # cron-job.org'un HTTP zaman aşımını (görüldüğü üzere "Failed: timeout") aşıyor.
+    # Bu yüzden ayrı bir arka plan thread'inde çalıştırılıyor: cron-job.org hızlı bir
+    # 200 OK alıyor, TEFAS taraması ise Fly.io makinesinde arkaplanda devam ediyor.
     # ?force_getiri=1 ile tazelik (staleness) kontrolü atlanır, tüm fonlar sıfırdan çekilir.
     zorla = request.args.get("force_getiri") == "1"
-    getiri_guncellenen = 0
-    try:
-        for fon_kod in fon_tum_kompozisyonlari_getir():
-            try:
-                fon_getiri_yenile(fon_kod, max_yas_saat=(0 if zorla else 20))
-                getiri_guncellenen += 1
-            except Exception:
-                pass
-    except Exception:
-        pass
 
-    return f"OK: {basarili} fiyat güncellendi. {sonuc.get('method')}. Fon getiri: {getiri_guncellenen} fon kontrol edildi.", 200
+    def _arka_planda_getiri_tazele(zorla_flag):
+        try:
+            for fon_kod in fon_tum_kompozisyonlari_getir():
+                try:
+                    fon_getiri_yenile(fon_kod, max_yas_saat=(0 if zorla_flag else 20))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    import threading
+    threading.Thread(target=_arka_planda_getiri_tazele, args=(zorla,), daemon=True).start()
+
+    return f"OK: {basarili} fiyat güncellendi. {sonuc.get('method')}. Fon getiri taraması arka planda başladı.", 200
 
 
 @app.route("/cron/abd-guncelle")
