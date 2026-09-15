@@ -1,9 +1,13 @@
-name: Genel Fiyat Guncelleme (09:00)
+name: Genel Fiyat Guncelleme (09:00 hedef)
 
 on:
   schedule:
-    # 06:00 UTC = 09:00 (Europe/Istanbul, UTC+3, DST yok) Pazartesi-Cuma
-    - cron: "0 6 * * 1-5"
+    # 05:00 UTC = 08:00 (Europe/Istanbul, UTC+3, DST yok) Pazartesi-Cuma.
+    # GitHub Actions'ın "schedule" tetikleyicisi yoğunlukta genellikle geç calisiyor
+    # (resmi olarak garanti verilmiyor, gecikme sık sık 30-60+ dk'ya varabiliyor) —
+    # önceki 06:00 UTC (09:00 hedef) tetikleyici pratikte ~10:00'da calisiyordu.
+    # Saati bir öne alarak fiili çalışma saatinin 09:00'a düşmesi hedefleniyor.
+    - cron: "0 5 * * 1-5"
   workflow_dispatch:
 
 jobs:
