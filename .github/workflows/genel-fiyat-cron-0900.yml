@@ -1,9 +1,10 @@
 name: Genel Fiyat Guncelleme (09:00)
 
 on:
-  schedule:
-    # 06:00 UTC = 09:00 (Europe/Istanbul, UTC+3, DST yok) Pazartesi-Cuma
-    - cron: "0 6 * * 1-5"
+  # schedule tetikleyicisi pasif: GitHub Actions'ın "schedule" event'i bu repo için
+  # güvenilmez çıktı (bazı günler hiç tetiklenmedi, tetiklendiğinde de saatlerce
+  # gecikebiliyordu — bkz. proje notları). Asıl zamanlayıcı artık cron-job.org.
+  # Elle çalıştırmak için "workflow_dispatch" (Actions sekmesinden "Run workflow") kaldı.
   workflow_dispatch:
 
 jobs:

@@ -1,10 +1,10 @@
 name: ABD Borsa Fiyat Guncelleme
 
 on:
-  schedule:
-    # 22:00 UTC Pazartesi-Cuma = 01:00 (Europe/Istanbul, UTC+3) Sali-Cumartesi sabahi
-    # yani her hafta ici kapanisin hemen ardindan
-    - cron: "0 22 * * 1-5"
+  # schedule tetikleyicisi pasif: GitHub Actions'ın "schedule" event'i bu repo için
+  # güvenilmez çıktı (2 saate varan gecikmelerle tetiklendi — bkz. proje notları).
+  # Asıl zamanlayıcı artık cron-job.org. Elle çalıştırmak için "workflow_dispatch"
+  # (Actions sekmesinden "Run workflow") kaldı.
   workflow_dispatch:
 
 jobs:
