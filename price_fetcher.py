@@ -627,13 +627,17 @@ def _tv_scan_grup(screener, tickerlar):
 _TV_KAYNAK = {
     "USD":       ("forex",   "FX_IDC:USDTRY",  "Dolar/TL"),
     "EUR":       ("forex",   "FX_IDC:EURTRY",  "Euro/TL"),
+    "XAUSD":     ("cfd",     "OANDA:XAUUSD",   "Altın (Ons/USD)"),
+    "XAGUSD":    ("cfd",     "OANDA:XAGUSD",   "Gümüş (Ons/USD)"),
     "IAU":       ("america", "AMEX:IAU",       "iShares Gold Trust (IAU)"),
     "ALTINS1":   ("turkey",  "BIST:ALTIN",     "Darphane Altın Sertifikası (ALTIN.S1)"),
     "BIST100":   ("turkey",  "BIST:XU100",     "BIST 100"),
     "PETROL":    ("futures", "ICEEUR:BRN1!",   "Brent Petrol (Varil/USD)"),
-    # XAUSD/XAGUSD/GRAMALTIN kasıtlı olarak yok: canlı debug ile doğrulandı —
-    # TradingView'in anonim scanner'ında "forex" ekranında FX_IDC:XAUUSD/XAGUSD/XAUTRYG
-    # hiç veri döndürmüyor (totalCount 0/eksik). Bunlar için tek kaynak Yahoo/Milliyet.
+    # XAUSD/XAGUSD: ilk denemede "forex" ekranında FX_IDC:XAUUSD/XAGUSD boş dönmüştü.
+    # Kullanıcının kendi TradingView ekranında bu sembollerin "OANDA" borsası ve
+    # "Commodity · Cfd" kategorisinde olduğu görüldü — o yüzden "cfd" ekranında
+    # OANDA: önekiyle tekrar denendi. GRAMALTIN (XAUTRYG) için aynı netlikte bir
+    # borsa/kategori bilgisi yok, o yüzden kaynak listesine eklenmedi.
     # Not: scanner API'nin tam "teknik analiz" (Recommend.* vb.) hesaplaması endekslerde
     # çalışmıyor, ama burada sadece close/change çektiğimiz için XU100 sorunsuz geliyor.
 }
@@ -693,12 +697,13 @@ def fetch_piyasa_verileri():
 
     piyasalar = {}
 
-    # XAUSD: Milliyet Ons Altın ÖNCELİKLİ. Yahoo'nun "GC=F" sembolü COMEX ALTIN VADELİ
-    # İŞLEM sözleşmesi — spot XAUUSD değil, kendi risksiz faiz/vade farkından dolayı
-    # spot'tan yapısal olarak ~$30-40 sapabiliyor (TradingView ve Fintables'la
-    # karşılaştırmalı testle doğrulandı). Milliyet'in ONS_ALTIN değeri spot'a çok daha
-    # yakın çıktı, o yüzden Yahoo artık sadece Milliyet başarısız olursa devreye giriyor.
-    if "ONS_ALTIN" in milliyet:
+    # XAUSD: TradingView (OANDA:XAUUSD, cfd) ÖNCELİKLİ — Milliyet'in bu enstrümandaki
+    # yüzde değişim alanı bazen fiyattan bağımsız/yanlış çıkabiliyor (bkz. Gümüş'te
+    # görülen -0,09% vs gerçek +1,46% farkı). TradingView bulunamazsa Milliyet, o da
+    # olmazsa Yahoo'nun "GC=F" (COMEX vadeli — spot'tan ~$30-40 sapabilir) son çare.
+    if "XAUSD" in tv:
+        piyasalar["XAUSD"] = tv["XAUSD"]
+    elif "ONS_ALTIN" in milliyet:
         piyasalar["XAUSD"] = {"fiyat": milliyet["ONS_ALTIN"]["satis"], "degisim": milliyet["ONS_ALTIN"]["degisim"], "ad": "Altın (Ons/USD)"}
     elif "XAUUSD" in ham:
         piyasalar["XAUSD"] = {"fiyat": ham["XAUUSD"]["fiyat"], "degisim": ham["XAUUSD"]["degisim"], "ad": "Altın (Ons/USD)"}
@@ -708,8 +713,12 @@ def fetch_piyasa_verileri():
     elif "IAU" in tv:
         piyasalar["IAU"] = tv["IAU"]
 
-    # XAGUSD: aynı sebeple Milliyet öncelikli, Yahoo'nun "SI=F" vadeli sözleşmesi son çare.
-    if "GUMUS_ONS_USD" in milliyet:
+    # XAGUSD: TradingView (OANDA:XAGUSD, cfd) ÖNCELİKLİ — asıl sorunu tetikleyen kart.
+    # Milliyet'in "Gümüş Ons (Dolar)" satırındaki yüzde değişim yanlış/bayat geliyordu
+    # (fiyat doğruyken değişim tersti). Bulunamazsa Milliyet, o da olmazsa Yahoo (SI=F).
+    if "XAGUSD" in tv:
+        piyasalar["XAGUSD"] = tv["XAGUSD"]
+    elif "GUMUS_ONS_USD" in milliyet:
         piyasalar["XAGUSD"] = {"fiyat": milliyet["GUMUS_ONS_USD"]["satis"], "degisim": milliyet["GUMUS_ONS_USD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
     elif "XAGUSD" in ham:
         piyasalar["XAGUSD"] = {"fiyat": ham["XAGUSD"]["fiyat"], "degisim": ham["XAGUSD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
