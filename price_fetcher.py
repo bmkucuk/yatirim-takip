@@ -628,18 +628,21 @@ _TV_KAYNAK = {
     "USD":       ("forex",   "FX_IDC:USDTRY",  "Dolar/TL"),
     "EUR":       ("forex",   "FX_IDC:EURTRY",  "Euro/TL"),
     "XAUSD":     ("cfd",     "OANDA:XAUUSD",   "Altın (Ons/USD)"),
-    "XAGUSD":    ("cfd",     "OANDA:XAGUSD",   "Gümüş (Ons/USD)"),
+    "XAGUSD":    ("cfd",     "TVC:SILVER",     "Gümüş (Ons/USD)"),
     "GRAMALTIN": ("cfd",     "FX_IDC:XAUTRYG", "Gram Altın"),
     "IAU":       ("america", "AMEX:IAU",       "iShares Gold Trust (IAU)"),
     "ALTINS1":   ("turkey",  "BIST:ALTIN",     "Darphane Altın Sertifikası (ALTIN.S1)"),
     "BIST100":   ("turkey",  "BIST:XU100",     "BIST 100"),
     "PETROL":    ("futures", "ICEEUR:BRN1!",   "Brent Petrol (Varil/USD)"),
-    # XAUSD/XAGUSD: ilk denemede "forex" ekranında FX_IDC:XAUUSD/XAGUSD boş dönmüştü.
-    # Kullanıcının kendi TradingView ekranında bu sembollerin "OANDA" borsası ve
-    # "Commodity · Cfd" kategorisinde olduğu görüldü — o yüzden "cfd" ekranında
-    # OANDA: önekiyle tekrar denendi, çalıştı. GRAMALTIN (FX_IDC:XAUTRYG) için aynı
-    # netlikte ekran doğrulaması yok — XAUUSD/XAGUSD ile aynı mantıkla "cfd" ekranında
-    # deneniyor, ama Milliyet güvenilir fallback olarak kalıyor.
+    # XAUSD: "forex" ekranında FX_IDC:XAUUSD boş dönmüştü, "cfd" ekranında OANDA:XAUUSD
+    # ile çalıştı (canlı debug ile doğrulandı).
+    # XAGUSD: "cfd" ekranında OANDA:XAGUSD ise tutarsız çıktı — bazen çalışıp bazen
+    # totalCount'ta hiç görünmüyordu (canlı debug: istekte vardı, yanıtta yoktu).
+    # python-tradingview-ta kütüphanesinin kendi Exchange.CFD sabiti "TVC" olduğu için
+    # TVC:SILVER'a geçildi (TVC:GOLD/TVC:SILVER, TradingView'in resmi/kurumsal spot
+    # emtia sembolleri — OANDA: önekinden daha güvenilir olmalı).
+    # GRAMALTIN (FX_IDC:XAUTRYG) için aynı netlikte ekran doğrulaması yok — "cfd"
+    # ekranında deneniyor, Milliyet güvenilir fallback olarak kalıyor.
     # Not: scanner API'nin tam "teknik analiz" (Recommend.* vb.) hesaplaması endekslerde
     # çalışmıyor, ama burada sadece close/change çektiğimiz için XU100 sorunsuz geliyor.
 }
