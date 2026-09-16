@@ -715,15 +715,18 @@ def fetch_piyasa_verileri():
     elif "IAU" in tv:
         piyasalar["IAU"] = tv["IAU"]
 
-    # XAGUSD: TradingView (OANDA:XAGUSD, cfd) ÖNCELİKLİ — asıl sorunu tetikleyen kart.
-    # Milliyet'in "Gümüş Ons (Dolar)" satırındaki yüzde değişim yanlış/bayat geliyordu
-    # (fiyat doğruyken değişim tersti). Bulunamazsa Milliyet, o da olmazsa Yahoo (SI=F).
+    # XAGUSD: TradingView (OANDA:XAGUSD, cfd) ÖNCELİKLİ. TV ara sıra (kimliksiz/anonim
+    # scanner, garanti yok) başarısız olabiliyor — o zaman ARTIK MİLLİYET'E DEĞİL,
+    # doğrudan Yahoo'ya (SI=F) düşüyor: Milliyet'in "Gümüş Ons (Dolar)" yüzde değişim
+    # alanı güvenilmez çıktı (fiyat doğruyken değişim ters/yanlış geliyordu — TV
+    # başarısız olduğu her seferinde bu bozuk değer geri geliyordu). Milliyet artık
+    # sadece Yahoo da başarısız olursa son çare.
     if "XAGUSD" in tv:
         piyasalar["XAGUSD"] = tv["XAGUSD"]
-    elif "GUMUS_ONS_USD" in milliyet:
-        piyasalar["XAGUSD"] = {"fiyat": milliyet["GUMUS_ONS_USD"]["satis"], "degisim": milliyet["GUMUS_ONS_USD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
     elif "XAGUSD" in ham:
         piyasalar["XAGUSD"] = {"fiyat": ham["XAGUSD"]["fiyat"], "degisim": ham["XAGUSD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
+    elif "GUMUS_ONS_USD" in milliyet:
+        piyasalar["XAGUSD"] = {"fiyat": milliyet["GUMUS_ONS_USD"]["satis"], "degisim": milliyet["GUMUS_ONS_USD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
 
     # Gram altın (TRY): TradingView (FX_IDC:XAUTRYG) ÖNCELİKLİ → Milliyet'in gerçek
     # piyasa fiyatı (satış) → Yahoo'dan hesapla (son çare).
