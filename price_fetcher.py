@@ -629,6 +629,7 @@ _TV_KAYNAK = {
     "EUR":       ("forex",   "FX_IDC:EURTRY",  "Euro/TL"),
     "XAUSD":     ("cfd",     "OANDA:XAUUSD",   "Altın (Ons/USD)"),
     "XAGUSD":    ("cfd",     "OANDA:XAGUSD",   "Gümüş (Ons/USD)"),
+    "GRAMALTIN": ("cfd",     "FX_IDC:XAUTRYG", "Gram Altın"),
     "IAU":       ("america", "AMEX:IAU",       "iShares Gold Trust (IAU)"),
     "ALTINS1":   ("turkey",  "BIST:ALTIN",     "Darphane Altın Sertifikası (ALTIN.S1)"),
     "BIST100":   ("turkey",  "BIST:XU100",     "BIST 100"),
@@ -636,8 +637,9 @@ _TV_KAYNAK = {
     # XAUSD/XAGUSD: ilk denemede "forex" ekranında FX_IDC:XAUUSD/XAGUSD boş dönmüştü.
     # Kullanıcının kendi TradingView ekranında bu sembollerin "OANDA" borsası ve
     # "Commodity · Cfd" kategorisinde olduğu görüldü — o yüzden "cfd" ekranında
-    # OANDA: önekiyle tekrar denendi. GRAMALTIN (XAUTRYG) için aynı netlikte bir
-    # borsa/kategori bilgisi yok, o yüzden kaynak listesine eklenmedi.
+    # OANDA: önekiyle tekrar denendi, çalıştı. GRAMALTIN (FX_IDC:XAUTRYG) için aynı
+    # netlikte ekran doğrulaması yok — XAUUSD/XAGUSD ile aynı mantıkla "cfd" ekranında
+    # deneniyor, ama Milliyet güvenilir fallback olarak kalıyor.
     # Not: scanner API'nin tam "teknik analiz" (Recommend.* vb.) hesaplaması endekslerde
     # çalışmıyor, ama burada sadece close/change çektiğimiz için XU100 sorunsuz geliyor.
 }
@@ -723,9 +725,13 @@ def fetch_piyasa_verileri():
     elif "XAGUSD" in ham:
         piyasalar["XAGUSD"] = {"fiyat": ham["XAGUSD"]["fiyat"], "degisim": ham["XAGUSD"]["degisim"], "ad": "Gümüş (Ons/USD)"}
 
-    # Gram altın (TRY): Milliyet'in gerçek piyasa fiyatı (satış) → Yahoo'dan hesapla
+    # Gram altın (TRY): TradingView (FX_IDC:XAUTRYG) ÖNCELİKLİ → Milliyet'in gerçek
+    # piyasa fiyatı (satış) → Yahoo'dan hesapla (son çare).
     gram_fiyat = gram_degisim = None
-    if "GRAM_ALTIN" in milliyet:
+    if "GRAMALTIN" in tv:
+        gram_fiyat = tv["GRAMALTIN"]["fiyat"]
+        gram_degisim = tv["GRAMALTIN"]["degisim"]
+    elif "GRAM_ALTIN" in milliyet:
         gram_fiyat = milliyet["GRAM_ALTIN"]["satis"]
         gram_degisim = milliyet["GRAM_ALTIN"]["degisim"]
     elif "XAUUSD" in ham:
