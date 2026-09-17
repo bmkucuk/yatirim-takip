@@ -1677,6 +1677,38 @@ def piyasalar_sira_kaydet():
     return jsonify({"basarili": True})
 
 
+@app.route("/cron/log-debug")
+def cron_log_debug():
+    """Geçici tanılama uç noktası: cron'ların (genel + ABD) gerçekten çalışıp
+    çalışmadığını ve son fiyat_gecmisi kayıtlarını login gerektirmeden görmek için.
+    CRON_KEY ile korunur."""
+    key = request.args.get("key", "")
+    if key != os.environ.get("CRON_KEY", ""):
+        return "yetkisiz", 403
+
+    with get_db() as conn:
+        loglar = conn.execute(
+            "SELECT tarih, sonuc, detay FROM price_fetch_log ORDER BY id DESC LIMIT 10"
+        ).fetchall()
+        abd_semboller = conn.execute(
+            "SELECT DISTINCT sembol FROM islemler WHERE tur='ABD'"
+        ).fetchall()
+        abd_son_fiyatlar = conn.execute("""
+            SELECT sembol, MAX(tarih) as son_tarih, fiyat
+            FROM fiyat_gecmisi
+            WHERE sembol IN (SELECT DISTINCT sembol FROM islemler WHERE tur='ABD')
+            GROUP BY sembol
+            ORDER BY sembol
+        """).fetchall()
+
+    return jsonify({
+        "sunucu_saati_tr": datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S"),
+        "abd_sembolleri": [r["sembol"] for r in abd_semboller],
+        "abd_son_fiyat_tarihleri": [dict(r) for r in abd_son_fiyatlar],
+        "son_loglar": [dict(r) for r in loglar],
+    })
+
+
 @app.route("/piyasalar/tv-debug")
 def piyasalar_tv_debug():
     """Geçici tanılama uç noktası: TradingView scanner API çağrılarının her screener
