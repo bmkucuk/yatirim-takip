@@ -10,7 +10,6 @@
 <div class="card form-card">
   <h3>➕ Yeni İşlem Ekle</h3>
   <form method="POST" action="{{ url_for('islem_ekle') }}" class="islem-form">
-    <input type="hidden" name="tur" id="tur-hidden" value="FON">
     <div class="form-row" style="flex-wrap:wrap;align-items:flex-start">
 
       <!-- Sembol + Ad -->
@@ -22,6 +21,16 @@
           <div id="sembol-dropdown" class="sembol-dropdown"></div>
         </div>
         <div id="sembol-ad" style="font-size:0.75rem;color:var(--accent);margin-top:0.25rem;min-height:1.1rem;line-height:1.1rem"></div>
+      </div>
+
+      <!-- Tür (Para Birimini de belirler: ABD seçilince Fiyat alanı $ olur) -->
+      <div class="form-group" style="flex:1;min-width:140px">
+        <label>Tür</label>
+        <select name="tur" id="tur-select" onchange="turDegisti(this.value)">
+          <option value="FON">📊 Yatırım Fonu</option>
+          <option value="BIST">📈 Borsa TR (BIST)</option>
+          <option value="ABD">🇺🇸 Borsa USA</option>
+        </select>
       </div>
 
       <!-- Al/Sat -->
@@ -427,8 +436,14 @@ const sembolInput = document.getElementById('sembol-input');
 const sembolDd = document.getElementById('sembol-dropdown');
 const fiyatInput = document.getElementById('fiyat-input');
 const sonFiyatBadge = document.getElementById('son-fiyat-badge');
-const turHidden = document.getElementById('tur-hidden');
+const turHidden = document.getElementById('tur-select');
 let acTimer, secilenPiyasa = '';
+
+// Tür elle değiştirildiğinde (otomatik tespit yanlışsa veya sembol listede
+// yoksa kullanıcı burayı doğrudan değiştirebilir) Fiyat etiketini güncelle.
+function turDegisti(tur) {
+  document.getElementById('fiyat-label').textContent = tur === 'ABD' ? 'Fiyat ($)' : 'Fiyat (₺)';
+}
 
 function sonFiyatGetir(sembol, tur) {
   if (!sembol) return;
