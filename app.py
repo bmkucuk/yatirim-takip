@@ -1360,6 +1360,40 @@ def islem_sil(islem_id):
     flash("İşlem silindi.", "success")
     return redirect(url_for("islemler"))
 
+@app.route("/admin/fon-islemleri-temizle")
+@login_required
+def fon_islemleri_temizle():
+    """Tüm FON işlemlerini ve FON fiyat geçmişini siler (Fon İçerik sayfası etkilenmez).
+    Geri alınamaz: ?onay=evet gerekir, silmeden önce DB yedeği alınır."""
+    if request.args.get("onay") != "evet":
+        with get_db() as conn:
+            n_islem = conn.execute("SELECT COUNT(*) c FROM islemler WHERE tur='FON'").fetchone()["c"]
+        flash(f"{n_islem} FON işlemi silinecek. Onaylamak için adresin sonuna ?onay=evet ekleyin.", "error")
+        return redirect(url_for("islemler"))
+
+    import sqlite3
+    yedek_yol = f"{DB_PATH}.fon-yedek-{datetime.now(ZoneInfo('Europe/Istanbul')).strftime('%Y%m%d-%H%M%S')}"
+    src = sqlite3.connect(DB_PATH)
+    dst = sqlite3.connect(yedek_yol)
+    with dst:
+        src.backup(dst)
+    dst.close()
+    src.close()
+
+    with get_db() as conn:
+        semboller = {r["sembol"] for r in conn.execute(
+            "SELECT DISTINCT sembol FROM islemler WHERE tur='FON'").fetchall()}
+        semboller |= {r["sembol"] for r in conn.execute(
+            "SELECT sembol FROM fiyat_takip_ekstra WHERE tur='FON'").fetchall()}
+        n_islem = conn.execute("DELETE FROM islemler WHERE tur='FON'").rowcount
+        n_fiyat = 0
+        for s in semboller:
+            n_fiyat += conn.execute("DELETE FROM fiyat_gecmisi WHERE sembol=?", (s,)).rowcount
+        conn.execute("DELETE FROM fiyat_takip_ekstra WHERE tur='FON'")
+    flash(f"✅ {n_islem} FON işlemi ve {n_fiyat} fiyat kaydı ({len(semboller)} fon) silindi. "
+          f"Yedek: {yedek_yol}", "success")
+    return redirect(url_for("islemler"))
+
 # ── Fiyat Geçmişi ────────────────────────────────────────────────────────────
 
 @app.route("/fiyatlar")
