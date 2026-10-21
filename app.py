@@ -1360,19 +1360,23 @@ def islem_sil(islem_id):
     flash("İşlem silindi.", "success")
     return redirect(url_for("islemler"))
 
-@app.route("/admin/fon-islemleri-temizle")
+@app.route("/admin/fon-islemleri-temizle", defaults={"tur": "FON"})
+@app.route("/admin/islem-temizle/<tur>")
 @login_required
-def fon_islemleri_temizle():
-    """Tüm FON işlemlerini ve FON fiyat geçmişini siler (Fon İçerik sayfası etkilenmez).
+def tur_islemleri_temizle(tur):
+    """Seçilen türün (FON veya BIST) tüm işlemlerini ve fiyat geçmişini siler.
     Geri alınamaz: ?onay=evet gerekir, silmeden önce DB yedeği alınır."""
+    tur = tur.upper()
+    if tur not in ("FON", "BIST"):
+        return "geçersiz tür", 400
     if request.args.get("onay") != "evet":
         with get_db() as conn:
-            n_islem = conn.execute("SELECT COUNT(*) c FROM islemler WHERE tur='FON'").fetchone()["c"]
-        flash(f"{n_islem} FON işlemi silinecek. Onaylamak için adresin sonuna ?onay=evet ekleyin.", "error")
+            n_islem = conn.execute("SELECT COUNT(*) c FROM islemler WHERE tur=?", (tur,)).fetchone()["c"]
+        flash(f"{n_islem} {tur} işlemi silinecek. Onaylamak için adresin sonuna ?onay=evet ekleyin.", "error")
         return redirect(url_for("islemler"))
 
     import sqlite3
-    yedek_yol = f"{DB_PATH}.fon-yedek-{datetime.now(ZoneInfo('Europe/Istanbul')).strftime('%Y%m%d-%H%M%S')}"
+    yedek_yol = f"{DB_PATH}.{tur.lower()}-yedek-{datetime.now(ZoneInfo('Europe/Istanbul')).strftime('%Y%m%d-%H%M%S')}"
     src = sqlite3.connect(DB_PATH)
     dst = sqlite3.connect(yedek_yol)
     with dst:
@@ -1382,15 +1386,18 @@ def fon_islemleri_temizle():
 
     with get_db() as conn:
         semboller = {r["sembol"] for r in conn.execute(
-            "SELECT DISTINCT sembol FROM islemler WHERE tur='FON'").fetchall()}
+            "SELECT DISTINCT sembol FROM islemler WHERE tur=?", (tur,)).fetchall()}
         semboller |= {r["sembol"] for r in conn.execute(
-            "SELECT sembol FROM fiyat_takip_ekstra WHERE tur='FON'").fetchall()}
-        n_islem = conn.execute("DELETE FROM islemler WHERE tur='FON'").rowcount
+            "SELECT sembol FROM fiyat_takip_ekstra WHERE tur=?", (tur,)).fetchall()}
+        # Başka türde de işlem gören aynı kodlu sembolün fiyatına dokunma
+        semboller -= {r["sembol"] for r in conn.execute(
+            "SELECT DISTINCT sembol FROM islemler WHERE tur<>?", (tur,)).fetchall()}
+        n_islem = conn.execute("DELETE FROM islemler WHERE tur=?", (tur,)).rowcount
         n_fiyat = 0
-        for s in semboller:
-            n_fiyat += conn.execute("DELETE FROM fiyat_gecmisi WHERE sembol=?", (s,)).rowcount
-        conn.execute("DELETE FROM fiyat_takip_ekstra WHERE tur='FON'")
-    flash(f"✅ {n_islem} FON işlemi ve {n_fiyat} fiyat kaydı ({len(semboller)} fon) silindi. "
+        for s_ in semboller:
+            n_fiyat += conn.execute("DELETE FROM fiyat_gecmisi WHERE sembol=?", (s_,)).rowcount
+        conn.execute("DELETE FROM fiyat_takip_ekstra WHERE tur=?", (tur,))
+    flash(f"✅ {n_islem} {tur} işlemi ve {n_fiyat} fiyat kaydı ({len(semboller)} sembol) silindi. "
           f"Yedek: {yedek_yol}", "success")
     return redirect(url_for("islemler"))
 
@@ -1458,7 +1465,7 @@ def fiyatlar_takip_ekle():
     user_id = session["user_id"]
     sembol = (request.form.get("sembol") or "").strip().upper()
     tur = (request.form.get("tur") or "").strip().upper()
-    if not sembol or tur not in ("FON", "BIST", "ABD"):
+    if not sembol or tur not in ("FON", "ABD"):
         flash("Sembol ve tür gerekli.", "error")
         return redirect(url_for("fiyatlar"))
     with get_db() as conn:
@@ -4449,7 +4456,7 @@ ASISTAN_TOOLS = [
             "type": "object",
             "properties": {
                 "sembol": {"type": "string", "description": "Örn. 'TLY', 'THYAO'"},
-                "tur": {"type": "string", "enum": ["FON", "BIST", "ABD"]},
+                "tur": {"type": "string", "enum": ["FON", "ABD"]},
                 "hesap": {"type": "string"},
                 "tarih_bas": {"type": "string", "description": "YYYY-MM-DD"},
                 "tarih_bit": {"type": "string", "description": "YYYY-MM-DD"},
@@ -4478,7 +4485,7 @@ ASISTAN_TOOLS = [
             "type": "object",
             "properties": {
                 "sembol": {"type": "string"},
-                "tur": {"type": "string", "enum": ["FON", "BIST", "ABD"], "description": "FON=yatırım fonu, BIST=Türk hissesi, ABD=Amerikan hissesi"},
+                "tur": {"type": "string", "enum": ["FON", "ABD"], "description": "FON=yatırım fonu, BIST=Türk hissesi, ABD=Amerikan hissesi"},
                 "alissat": {"type": "string", "enum": ["Alış", "Satış"]},
                 "adet": {"type": "number"},
                 "fiyat": {"type": "number", "description": "Birim fiyat (adet başına)"},
@@ -4497,7 +4504,7 @@ ASISTAN_TOOLS = [
             "properties": {
                 "islem_id": {"type": "integer"},
                 "sembol": {"type": "string"},
-                "tur": {"type": "string", "enum": ["FON", "BIST", "ABD"]},
+                "tur": {"type": "string", "enum": ["FON", "ABD"]},
                 "alissat": {"type": "string", "enum": ["Alış", "Satış"]},
                 "adet": {"type": "number"},
                 "fiyat": {"type": "number"},
