@@ -2842,19 +2842,34 @@ def fiyat_guncelle_manuel():
     hisse_sembolleri = [r["sembol"] for r in tum if r["tur"] in ("ABD", "BIST", "HISSE")]
     tur_map = {r["sembol"]: r["tur"] for r in tum}
 
-    sonuc = fetch_all_prices(fon_sembolleri, hisse_sembolleri, tur_map=tur_map)
-
+    # ÖNCE hızlı olan ABD/BIST (Yahoo), SONRA yavaş TEFAS fonları: fon çekimi TEFAS'ın
+    # 11sn/istek sınırı yüzünden dakikalarca sürebiliyor; bağlantı kopsa bile hisseler
+    # çoktan kaydedilmiş olsun.
     basarili = 0
-    for sembol, tarih, fiyat in sonuc.get("prices", []):
-        with get_db() as conn:
-            conn.execute("""
-                INSERT OR REPLACE INTO fiyat_gecmisi (sembol, tarih, fiyat)
-                VALUES (?,?,?)
-            """, (sembol, tarih, fiyat))
-        basarili += 1
+    kaynaklar, hatalar = [], []
+    for fon_l, hisse_l in (([], hisse_sembolleri), (fon_sembolleri, [])):
+        if not fon_l and not hisse_l:
+            continue
+        sonuc = fetch_all_prices(fon_l, hisse_l, tur_map=tur_map)
+        for sembol, tarih, fiyat in sonuc.get("prices", []):
+            with get_db() as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO fiyat_gecmisi (sembol, tarih, fiyat)
+                    VALUES (?,?,?)
+                """, (sembol, tarih, fiyat))
+            basarili += 1
+        kaynaklar.append(sonuc.get("method", "?"))
+        if sonuc.get("errors"):
+            hatalar.append(sonuc["errors"])
 
-    return jsonify({"ok": True, "guncellenen": basarili, "kaynak": sonuc.get("method","?"),
-                     "hatalar": sonuc.get("errors","")})
+    simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
+    with get_db() as conn:
+        conn.execute("INSERT INTO price_fetch_log (tarih,sonuc,detay) VALUES (?,?,?)",
+                     (simdi, "Manuel-Dashboard",
+                      f"{basarili} fiyat. " + "; ".join(hatalar)))
+
+    return jsonify({"ok": True, "guncellenen": basarili, "kaynak": " | ".join(kaynaklar) or "?",
+                     "hatalar": "; ".join(hatalar)})
 
 
 @app.route("/cron/guncelle")
