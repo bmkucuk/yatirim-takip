@@ -1615,7 +1615,7 @@ PIYASA_KART_META = {
     "EUR":       {"ikon": "💶", "birim": "₺", "ondalik": 4},
     "PETROL":    {"ikon": "🛢️", "birim": "$", "ondalik": 2},
 }
-PIYASA_VARSAYILAN_SIRA = ["XAUSD", "IAU", "GRAMALTIN", "XAGUSD", "ALTINS1", "BIST100", "USD", "EUR", "PETROL", "MAKAS"]
+PIYASA_VARSAYILAN_SIRA = ["XAUSD", "IAU", "GRAMALTIN", "XAGUSD", "ALTINS1", "USD", "EUR", "PETROL", "MAKAS"]
 
 # Kart tıklandığında açılacak TradingView grafik sayfaları.
 PIYASA_TV_URL = {
@@ -1643,6 +1643,8 @@ def piyasa_kartlarini_olustur(veriler, user_id):
 
     kartlar = []
     for kod in sira:
+        if kod == "BIST100":  # kaldırıldı (kayıtlı eski sıralamalarda kalmış olabilir)
+            continue
         if kod == "MAKAS":
             makas = veriler.get("MAKAS")
             if not makas:
