@@ -259,6 +259,39 @@ def fetch_hisse_toplu(semboller, tur_map=None):
     return {}
 
 
+
+_TV_ABD_BORSALAR = ("NASDAQ", "NYSE", "AMEX", "NYSEARCA", "BATS")
+
+
+def fetch_abd_tradingview(semboller):
+    """ABD hisse/ETF anlık fiyatlarını TradingView scanner'dan çeker (borsa öneki
+    bilinmediği için NASDAQ/NYSE/AMEX/... hepsi tek istekte denenir).
+    Döner: {sembol: fiyat}."""
+    semboller = [s for s in semboller if s]
+    if not semboller:
+        return {}
+    tickerlar = [f"{b}:{s}" for s in semboller for b in _TV_ABD_BORSALAR]
+    veriler = _tv_scan_grup("america", tickerlar)
+    sonuc = {}
+    for s in semboller:
+        for b in _TV_ABD_BORSALAR:
+            v = veriler.get(f"{b}:{s}")
+            if v:
+                sonuc[s] = v[0]
+                break
+    return sonuc
+
+
+def _abd_islem_tarihi():
+    """ABD'de güncel/son işlem günü (New York saatiyle, hafta sonu -> Cuma)."""
+    from datetime import datetime as _dt, timedelta as _td
+    from zoneinfo import ZoneInfo as _Z
+    d = _dt.now(_Z("America/New_York")).date()
+    while d.weekday() >= 5:
+        d -= _td(days=1)
+    return d.strftime("%Y-%m-%d")
+
+
 def fetch_hisse_fiyatlari(semboller, tur_map=None):
     """Yahoo Finance direkt HTTP ile BIST ve ABD hisse fiyatları.
     tur_map: {sembol: tur} — tur bilgisi varsa BIST için .IS ekle, ABD için ekleme.
@@ -271,6 +304,13 @@ def fetch_hisse_fiyatlari(semboller, tur_map=None):
     import requests as req
     results = {}
     basarisiz = []
+    # ABD: önce TradingView'den ANLIK fiyat (tek istek); bulunamayanlar Yahoo'ya düşer.
+    abd_tv = fetch_abd_tradingview([s for s in semboller if (tur_map or {}).get(s) == "ABD"])
+    if abd_tv:
+        tv_tarih = _abd_islem_tarihi()
+        for s_, f_ in abd_tv.items():
+            results[s_] = {tv_tarih: round(float(f_), 4)}
+    semboller = [s for s in semboller if s not in abd_tv]
     for i, sembol in enumerate(semboller):
         if i > 0:
             time.sleep(0.6)  # Yahoo'yu art arda hızlı istekle boğmayalım
@@ -312,7 +352,7 @@ def fetch_hisse_fiyatlari(semboller, tur_map=None):
                 pass
         if not basarili_mi:
             basarisiz.append(sembol)
-    return results, ("Yahoo-Finance" if results else None), basarisiz
+    return results, (("TradingView+Yahoo" if abd_tv else "Yahoo-Finance") if results else None), basarisiz
 
 def fetch_hisse_detay_toplu(semboller):
     """Yahoo v7/finance/quote ile toplu anlık fiyat + günlük değişim (%) + şirket adı — tek istekte.
