@@ -209,6 +209,35 @@ def init_db():
         conn.execute("ALTER TABLE fon_getiri_cache ADD COLUMN getiri_yilbasi REAL")
     except Exception:
         pass
+    _tek_seferlik_smh_islemi(conn)
+
+
+def _tek_seferlik_smh_islemi(conn):
+    """Bir kez eklenen veri: 29.10.2026 VanEck Semiconductor ETF (SMH) limit alış.
+    Kayıt tek kullanıcılı ABD işlemleri olan hesaba eklenir; bir kez çalışır,
+    sonradan silinirse tekrar eklenmez."""
+    anahtar = "smh_limit_alis_2026_10_29"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    uids = [r["user_id"] for r in conn.execute(
+        "SELECT DISTINCT user_id FROM islemler WHERE tur='ABD'").fetchall()]
+    if len(uids) != 1:
+        return
+    uid = uids[0]
+    son = conn.execute(
+        "SELECT hesap, araciKurum FROM islemler WHERE user_id=? AND tur='ABD' ORDER BY id DESC LIMIT 1",
+        (uid,)).fetchone()
+    hesap = son["hesap"] or ""
+    aracikurum = son["araciKurum"] or "Midas"
+    adet, fiyat, tarih = 5.0, 560.0, "2026-10-29"
+    conn.execute("""
+        INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
+    """, (uid, "SMH", "ABD", hesap, aracikurum, "Alış", adet, fiyat, adet * fiyat, tarih))
+    conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
+                 ("SMH", tarih, fiyat))
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
 
 
 def hash_pw(pw):
