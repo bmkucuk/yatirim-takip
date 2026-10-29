@@ -209,7 +209,25 @@ def init_db():
         conn.execute("ALTER TABLE fon_getiri_cache ADD COLUMN getiri_yilbasi REAL")
     except Exception:
         pass
+    try:
+        conn.execute("ALTER TABLE islemler ADD COLUMN komisyon REAL DEFAULT 0")
+    except Exception:
+        pass
     _tek_seferlik_smh_islemi(conn)
+    _tek_seferlik_smh_komisyon(conn)
+
+
+def _tek_seferlik_smh_komisyon(conn):
+    """29.10.2026 SMH alımının işlem ücreti ($1,50) kaydı."""
+    anahtar = "smh_komisyon_2026_10_29"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    conn.execute("""
+        UPDATE islemler SET komisyon=1.5
+        WHERE sembol='SMH' AND tur='ABD' AND tarih='2026-10-29' AND alissat='Alış' AND adet=5
+    """)
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
 
 
 def _tek_seferlik_smh_islemi(conn):
@@ -232,9 +250,9 @@ def _tek_seferlik_smh_islemi(conn):
     aracikurum = son["araciKurum"] or "Midas"
     adet, fiyat, tarih = 5.0, 560.0, "2026-10-29"
     conn.execute("""
-        INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih)
-        VALUES (?,?,?,?,?,?,?,?,?,?)
-    """, (uid, "SMH", "ABD", hesap, aracikurum, "Alış", adet, fiyat, adet * fiyat, tarih))
+        INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih,komisyon)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+    """, (uid, "SMH", "ABD", hesap, aracikurum, "Alış", adet, fiyat, adet * fiyat, tarih, 1.5))
     conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
                  ("SMH", tarih, fiyat))
     conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
