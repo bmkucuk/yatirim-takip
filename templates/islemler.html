@@ -73,12 +73,6 @@
         <input type="number" name="adet" step="any" min="0" placeholder="100000" required>
       </div>
 
-      <!-- Komisyon -->
-      <div class="form-group" style="flex:1;min-width:110px">
-        <label id="komisyon-label">Komisyon</label>
-        <input type="number" name="komisyon" step="any" min="0" value="0" placeholder="0">
-      </div>
-
       <!-- Fiyat -->
       <div class="form-group" style="flex:1;min-width:120px">
         <label id="fiyat-label">Fiyat (₺)</label>
@@ -268,7 +262,7 @@ function tarihBasDegisti(deger) {
       <button class="btn-edit"
         onclick="duzenleBas({{ i.id }}, '{{ i.sembol }}', '{{ i.tur }}', '{{ i.alissat }}',
           '{{ i.hesap or '' }}', '{{ i.araciKurum or '' }}', '{{ i.tarih }}',
-          {{ i.adet }}, {{ i.fiyat }}, {{ i.komisyon or 0 }})">Düzenle</button>
+          {{ i.adet }}, {{ i.fiyat }})">Düzenle</button>
       <a href="{{ url_for('islem_sil', islem_id=i.id) }}"
          onclick="return confirm('Bu işlemi silmek istediğinize emin misiniz?')"
          class="btn-del">Sil</a>
@@ -356,10 +350,6 @@ function tarihBasDegisti(deger) {
         <div class="form-group">
           <label id="edit-fiyat-label">Fiyat (₺)</label>
           <input type="number" name="fiyat" id="edit-fiyat" step="any" min="0" required>
-        </div>
-        <div class="form-group">
-          <label>Komisyon</label>
-          <input type="number" name="komisyon" id="edit-komisyon" step="any" min="0" value="0">
         </div>
         <div class="form-group form-group-action">
           <label>&nbsp;</label>
@@ -525,8 +515,7 @@ document.addEventListener('click', e => {
   if (!sembolInput.contains(e.target)) sembolDd.style.display = 'none';
 });
 
-function duzenleBas(id, sembol, tur, alissat, hesap, araciKurum, tarih, adet, fiyat, komisyon) {
-  document.getElementById('edit-komisyon').value = komisyon || 0;
+function duzenleBas(id, sembol, tur, alissat, hesap, araciKurum, tarih, adet, fiyat) {
   document.getElementById('edit-id').value = id;
   document.getElementById('edit-sembol').value = sembol;
   document.getElementById('edit-tur').value = tur;

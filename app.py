@@ -216,7 +216,29 @@ def init_db():
     _tek_seferlik_smh_islemi(conn)
     _tek_seferlik_smh_komisyon(conn)
     _tek_seferlik_smh_tutar(conn)
+    _tek_seferlik_abd_komisyon_geriye_donuk(conn)
     conn.commit()
+
+
+ABD_ISLEM_KOMISYONU = 1.5  # USD, alış ve satışta sabit
+
+def _komisyon_hesapla(tur):
+    """Borsa USA işlemlerinde her alış/satışta sabit $1,50 komisyon; diğerlerinde 0."""
+    return ABD_ISLEM_KOMISYONU if tur == "ABD" else 0.0
+
+
+def _tek_seferlik_abd_komisyon_geriye_donuk(conn):
+    """Mevcut tüm Borsa USA işlemlerine $1,50 komisyonu uygular (maliyet ve tutar güncellenir)."""
+    anahtar = "abd_komisyon_geriye_donuk_1_5"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    conn.execute("""
+        UPDATE islemler SET komisyon=?,
+            tutar = CASE WHEN alissat='Alış' THEN adet*fiyat + ? ELSE adet*fiyat - ? END
+        WHERE tur='ABD' AND (komisyon IS NULL OR komisyon=0)
+    """, (ABD_ISLEM_KOMISYONU, ABD_ISLEM_KOMISYONU, ABD_ISLEM_KOMISYONU))
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
 
 
 def _islem_tutari(adet, fiyat, alissat, komisyon):
@@ -1370,7 +1392,7 @@ def islem_ekle():
     alissat = request.form["alissat"]
     adet = float(request.form["adet"].replace(",","."))
     fiyat = float(request.form["fiyat"].replace(",","."))
-    komisyon = float((request.form.get("komisyon") or "0").replace(",","."))
+    komisyon = _komisyon_hesapla(tur)
     tarih = request.form["tarih"]
     tutar = _islem_tutari(adet, fiyat, alissat, komisyon)
 
@@ -1410,7 +1432,7 @@ def islem_duzenle():
     alissat = request.form["alissat"]
     adet = float(request.form["adet"].replace(",","."))
     fiyat = float(request.form["fiyat"].replace(",","."))
-    komisyon = float((request.form.get("komisyon") or "0").replace(",","."))
+    komisyon = _komisyon_hesapla(tur)
     tarih = request.form["tarih"]
     tutar = _islem_tutari(adet, fiyat, alissat, komisyon)
     with get_db() as conn:
@@ -4805,12 +4827,13 @@ def execute_asistan_tool(tool_adi, girdi, user_id):
         tarih = girdi.get("tarih") or bugun().isoformat()
         hesap = girdi.get("hesap") or ""
         araci_kurum = girdi.get("araci_kurum") or ""
-        tutar = adet * fiyat
+        komisyon = _komisyon_hesapla(tur)
+        tutar = _islem_tutari(adet, fiyat, alissat, komisyon)
         with get_db() as conn:
             cur = conn.execute("""
-                INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
-            """, (user_id, sembol, tur, hesap, araci_kurum, alissat, adet, fiyat, tutar, tarih))
+                INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih,komisyon)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            """, (user_id, sembol, tur, hesap, araci_kurum, alissat, adet, fiyat, tutar, tarih, komisyon))
             islem_id = cur.lastrowid
             conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
                          (sembol, tarih, fiyat))
