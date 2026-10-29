@@ -215,6 +215,28 @@ def init_db():
         pass
     _tek_seferlik_smh_islemi(conn)
     _tek_seferlik_smh_komisyon(conn)
+    _tek_seferlik_smh_tutar(conn)
+    conn.commit()
+
+
+def _islem_tutari(adet, fiyat, alissat, komisyon):
+    """Alışta komisyon maliyete eklenir (toplam ödeme), satışta net tahsilattan düşülür.
+    Böylece maliyet ve net yatırım hesapları tutar üzerinden doğru çalışır."""
+    brut = adet * fiyat
+    return brut + komisyon if alissat == "Alış" else brut - komisyon
+
+
+def _tek_seferlik_smh_tutar(conn):
+    """29.10.2026 SMH alımının tutarını komisyon dahil (toplam ödeme) olarak günceller."""
+    anahtar = "smh_tutar_komisyonlu_2026_10_29"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    conn.execute("""
+        UPDATE islemler SET tutar = adet*fiyat + komisyon
+        WHERE sembol='SMH' AND tur='ABD' AND tarih='2026-10-29' AND alissat='Alış' AND adet=5
+    """)
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
 
 
 def _tek_seferlik_smh_komisyon(conn):
@@ -248,11 +270,12 @@ def _tek_seferlik_smh_islemi(conn):
         (uid,)).fetchone()
     hesap = son["hesap"] or ""
     aracikurum = son["araciKurum"] or "Midas"
-    adet, fiyat, tarih = 5.0, 560.0, "2026-10-29"
+    adet, fiyat, tarih, komisyon = 5.0, 560.0, "2026-10-29", 1.5
     conn.execute("""
         INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih,komisyon)
         VALUES (?,?,?,?,?,?,?,?,?,?,?)
-    """, (uid, "SMH", "ABD", hesap, aracikurum, "Alış", adet, fiyat, adet * fiyat, tarih, 1.5))
+    """, (uid, "SMH", "ABD", hesap, aracikurum, "Alış", adet, fiyat,
+          _islem_tutari(adet, fiyat, "Alış", komisyon), tarih, komisyon))
     conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
                  ("SMH", tarih, fiyat))
     conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
@@ -1347,14 +1370,15 @@ def islem_ekle():
     alissat = request.form["alissat"]
     adet = float(request.form["adet"].replace(",","."))
     fiyat = float(request.form["fiyat"].replace(",","."))
+    komisyon = float((request.form.get("komisyon") or "0").replace(",","."))
     tarih = request.form["tarih"]
-    tutar = adet * fiyat
+    tutar = _islem_tutari(adet, fiyat, alissat, komisyon)
 
     with get_db() as conn:
         conn.execute("""
-            INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
-        """, (user_id, sembol, tur, hesap, araciKurum, alissat, adet, fiyat, tutar, tarih))
+            INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih,komisyon)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        """, (user_id, sembol, tur, hesap, araciKurum, alissat, adet, fiyat, tutar, tarih, komisyon))
 
         # Fiyat geçmişine de ekle (bu tarih için fiyat yoksa)
         conn.execute("""
@@ -1386,13 +1410,14 @@ def islem_duzenle():
     alissat = request.form["alissat"]
     adet = float(request.form["adet"].replace(",","."))
     fiyat = float(request.form["fiyat"].replace(",","."))
+    komisyon = float((request.form.get("komisyon") or "0").replace(",","."))
     tarih = request.form["tarih"]
-    tutar = adet * fiyat
+    tutar = _islem_tutari(adet, fiyat, alissat, komisyon)
     with get_db() as conn:
         conn.execute("""
             UPDATE islemler SET sembol=?,tur=?,hesap=?,araciKurum=?,alissat=?,
-            adet=?,fiyat=?,tutar=?,tarih=? WHERE id=? AND user_id=?
-        """, (sembol, tur, hesap, araciKurum, alissat, adet, fiyat, tutar, tarih, islem_id, user_id))
+            adet=?,fiyat=?,tutar=?,tarih=?,komisyon=? WHERE id=? AND user_id=?
+        """, (sembol, tur, hesap, araciKurum, alissat, adet, fiyat, tutar, tarih, komisyon, islem_id, user_id))
         conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
                      (sembol, tarih, fiyat))
     flash(f"{sembol} işlemi güncellendi.", "success")
