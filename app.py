@@ -217,6 +217,7 @@ def init_db():
     _tek_seferlik_smh_komisyon(conn)
     _tek_seferlik_smh_tutar(conn)
     _tek_seferlik_abd_komisyon_geriye_donuk(conn)
+    _tek_seferlik_smh_2_adet_2026_10_30(conn)
     conn.commit()
 
 
@@ -238,6 +239,33 @@ def _tek_seferlik_abd_komisyon_geriye_donuk(conn):
             tutar = CASE WHEN alissat='Alış' THEN adet*fiyat + ? ELSE adet*fiyat - ? END
         WHERE tur='ABD' AND (komisyon IS NULL OR komisyon=0)
     """, (ABD_ISLEM_KOMISYONU, ABD_ISLEM_KOMISYONU, ABD_ISLEM_KOMISYONU))
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
+
+
+def _tek_seferlik_smh_2_adet_2026_10_30(conn):
+    """30.10.2026 SMH limit alış: 2 adet x $532,14 + $1,50 komisyon (tek seferlik)."""
+    anahtar = "smh_alis_2_adet_2026_10_30"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    uids = [r["user_id"] for r in conn.execute(
+        "SELECT DISTINCT user_id FROM islemler WHERE tur='ABD'").fetchall()]
+    if len(uids) != 1:
+        return
+    uid = uids[0]
+    son = conn.execute(
+        "SELECT hesap, araciKurum FROM islemler WHERE user_id=? AND tur='ABD' ORDER BY id DESC LIMIT 1",
+        (uid,)).fetchone()
+    hesap = son["hesap"] or ""
+    aracikurum = son["araciKurum"] or "Midas"
+    adet, fiyat, tarih, komisyon = 2.0, 532.14, "2026-10-30", ABD_ISLEM_KOMISYONU
+    conn.execute("""
+        INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih,komisyon)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+    """, (uid, "SMH", "ABD", hesap, aracikurum, "Alış", adet, fiyat,
+          _islem_tutari(adet, fiyat, "Alış", komisyon), tarih, komisyon))
+    conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
+                 ("SMH", tarih, fiyat))
     conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
 
 
