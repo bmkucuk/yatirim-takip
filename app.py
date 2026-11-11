@@ -218,6 +218,7 @@ def init_db():
     _tek_seferlik_smh_tutar(conn)
     _tek_seferlik_abd_komisyon_geriye_donuk(conn)
     _tek_seferlik_smh_2_adet_2026_10_30(conn)
+    _tek_seferlik_smh_3_adet_2026_11_11(conn)
     conn.commit()
 
 
@@ -259,6 +260,33 @@ def _tek_seferlik_smh_2_adet_2026_10_30(conn):
     hesap = son["hesap"] or ""
     aracikurum = son["araciKurum"] or "Midas"
     adet, fiyat, tarih, komisyon = 2.0, 532.14, "2026-10-30", ABD_ISLEM_KOMISYONU
+    conn.execute("""
+        INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih,komisyon)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+    """, (uid, "SMH", "ABD", hesap, aracikurum, "Alış", adet, fiyat,
+          _islem_tutari(adet, fiyat, "Alış", komisyon), tarih, komisyon))
+    conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
+                 ("SMH", tarih, fiyat))
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
+
+
+def _tek_seferlik_smh_3_adet_2026_11_11(conn):
+    """11.11.2026 SMH alış: 3 adet x $513,50 + $1,50 komisyon (tek seferlik)."""
+    anahtar = "smh_alis_3_adet_2026_11_11"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    uids = [r["user_id"] for r in conn.execute(
+        "SELECT DISTINCT user_id FROM islemler WHERE tur='ABD'").fetchall()]
+    if len(uids) != 1:
+        return
+    uid = uids[0]
+    son = conn.execute(
+        "SELECT hesap, araciKurum FROM islemler WHERE user_id=? AND tur='ABD' ORDER BY id DESC LIMIT 1",
+        (uid,)).fetchone()
+    hesap = son["hesap"] or ""
+    aracikurum = son["araciKurum"] or "Midas"
+    adet, fiyat, tarih, komisyon = 3.0, 513.50, "2026-11-11", ABD_ISLEM_KOMISYONU
     conn.execute("""
         INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih,komisyon)
         VALUES (?,?,?,?,?,?,?,?,?,?,?)
