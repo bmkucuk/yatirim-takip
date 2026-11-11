@@ -218,6 +218,7 @@ async function tarihteDegerHesapla() {
       <th>Sembol</th>
       <th>Son Fiyat</th>
       <th>Adet</th>
+      <th>Ort. Maliyet</th>
       <th>Maliyet</th>
       <th style="text-align:center">Günlük</th>
       <th>Haftalık</th>
@@ -246,6 +247,7 @@ async function tarihteDegerHesapla() {
     </td>
     <td>{{ "{:.4f}".format(p.son_fiyat).rstrip('0').rstrip('.') | replace(".",",") }} {{ para }}</td>
     <td>{{ "{:,.0f}".format(p.kalan_adet).replace(",",".") }}</td>
+    <td>{{ ("{:,.2f}".format(p.alis_maliyet / p.kalan_adet).replace(",","X").replace(".",",").replace("X",".") ~ " " ~ para) if p.kalan_adet else "—" }}</td>
     <td>{{ "{:,.2f}".format(p.alis_maliyet).replace(",","X").replace(".",",").replace("X",".") }} {{ para }}</td>
     <td class="{{ 'pos' if p.gunluk_tl >= 0 else 'neg' }}" style="text-align:center">
       {{ ("▲ " if p.gunluk_tl>=0 else "▼ ") }}{{ "{:,.0f}".format(p.gunluk_tl|abs).replace(",",".") }} {{ para }}<br>
