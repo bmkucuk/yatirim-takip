@@ -74,28 +74,30 @@
 <!-- Nakit Bakiye -->
 <div id="tab-nakit" class="tab-content card" style="display:none">
   <h3>💵 Nakit Bakiye</h3>
-  <p class="card-desc">Hesabınızdaki bekleyen nakit tutarları girin. Toplam portföye otomatik eklenir.</p>
+  <p class="card-desc">Her aracı kurumdaki nakit tutarları ayrı ayrı girin. Toplam portföye otomatik eklenir.</p>
   <form method="POST" action="{{ url_for('ayarlar') }}">
     <input type="hidden" name="action" value="nakit_guncelle">
-    <div class="form-row" style="gap:1.5rem;align-items:flex-end">
+    {% for a in aracilar %}
+    <div class="form-row" style="gap:1.5rem;align-items:flex-end;margin-bottom:0.75rem">
+      <div class="form-group" style="min-width:110px"><label><strong>{{ a.ad }}</strong></label></div>
       <div class="form-group">
         <label>USD Nakit ($)</label>
-        <input type="number" name="nakit_USD" step="0.01" min="0"
-          value="{{ nakit.get('USD', 0) }}"
+        <input type="number" name="nakit_{{ a.id }}_USD" step="0.01" min="0"
+          value="{{ nakit_detay.get(a.ad, {}).get('USD', 0) }}"
           style="background:var(--card2);border:1px solid var(--border);color:var(--text);
                  padding:8px 12px;border-radius:7px;font-size:14px;width:160px">
       </div>
       <div class="form-group">
         <label>TRY Nakit (₺)</label>
-        <input type="number" name="nakit_TRY" step="0.01" min="0"
-          value="{{ nakit.get('TRY', 0) }}"
+        <input type="number" name="nakit_{{ a.id }}_TRY" step="0.01" min="0"
+          value="{{ nakit_detay.get(a.ad, {}).get('TRY', 0) }}"
           style="background:var(--card2);border:1px solid var(--border);color:var(--text);
                  padding:8px 12px;border-radius:7px;font-size:14px;width:160px">
       </div>
-      <div class="form-group">
-        <label>&nbsp;</label>
-        <button type="submit" class="btn-primary">Kaydet</button>
-      </div>
+    </div>
+    {% endfor %}
+    <div class="form-group">
+      <button type="submit" class="btn-primary">Kaydet</button>
     </div>
   </form>
 </div>

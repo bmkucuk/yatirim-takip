@@ -97,8 +97,9 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             para_birimi TEXT NOT NULL,
+            araciKurum TEXT NOT NULL DEFAULT '',
             tutar REAL NOT NULL DEFAULT 0,
-            UNIQUE(user_id, para_birimi)
+            UNIQUE(user_id, para_birimi, araciKurum)
         );
         CREATE TABLE IF NOT EXISTS kiyaslama_portfoy (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -213,6 +214,20 @@ def init_db():
         conn.execute("ALTER TABLE islemler ADD COLUMN komisyon REAL DEFAULT 0")
     except Exception:
         pass
+    # nakit_bakiye: aracı kurum bazına geçiş (eski kayıtlar Midas'a atanır)
+    _cols = [r[1] for r in conn.execute("PRAGMA table_info(nakit_bakiye)").fetchall()]
+    if "araciKurum" not in _cols:
+        conn.execute("ALTER TABLE nakit_bakiye RENAME TO nakit_bakiye_eski")
+        conn.execute("""CREATE TABLE nakit_bakiye (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            para_birimi TEXT NOT NULL,
+            araciKurum TEXT NOT NULL DEFAULT '',
+            tutar REAL NOT NULL DEFAULT 0,
+            UNIQUE(user_id, para_birimi, araciKurum))""")
+        conn.execute("""INSERT INTO nakit_bakiye (id,user_id,para_birimi,araciKurum,tutar)
+                        SELECT id,user_id,para_birimi,'Midas',tutar FROM nakit_bakiye_eski""")
+        conn.execute("DROP TABLE nakit_bakiye_eski")
     _tek_seferlik_smh_islemi(conn)
     _tek_seferlik_smh_komisyon(conn)
     _tek_seferlik_smh_tutar(conn)
@@ -371,8 +386,8 @@ def _tek_seferlik_nakit_2026_11_12(conn):
     uid = uids[0]
     for pb, tutar in (("TRY", 369236.03), ("USD", 15609.82)):
         conn.execute("""
-            INSERT INTO nakit_bakiye (user_id, para_birimi, tutar) VALUES (?,?,?)
-            ON CONFLICT(user_id, para_birimi) DO UPDATE SET tutar=excluded.tutar
+            INSERT INTO nakit_bakiye (user_id, para_birimi, araciKurum, tutar) VALUES (?,?,'Midas',?)
+            ON CONFLICT(user_id, para_birimi, araciKurum) DO UPDATE SET tutar=excluded.tutar
         """, (uid, pb, tutar))
     conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
 
@@ -1434,7 +1449,7 @@ def dashboard():
         son_log = conn.execute(
             "SELECT * FROM price_fetch_log ORDER BY id DESC LIMIT 1").fetchone()
         nakit_rows = conn.execute(
-            "SELECT para_birimi, tutar FROM nakit_bakiye WHERE user_id=?", (user_id,)).fetchall()
+            "SELECT para_birimi, SUM(tutar) AS tutar FROM nakit_bakiye WHERE user_id=? GROUP BY para_birimi", (user_id,)).fetchall()
     nakit = {r["para_birimi"]: r["tutar"] for r in nakit_rows}
     nakit_usd = nakit.get("USD", 0.0)
     nakit_try = nakit.get("TRY", 0.0)
@@ -2102,18 +2117,21 @@ def ayarlar():
             with get_db() as conn:
                 conn.execute("DELETE FROM aracilar WHERE id=? AND user_id=?", (aid, user_id))
         elif action == "nakit_guncelle":
-            for pb in ["USD", "TRY"]:
-                tutar_str = request.form.get(f"nakit_{pb}", "0").replace(",", ".").strip()
-                try:
-                    tutar = float(tutar_str)
-                except ValueError:
-                    tutar = 0.0
-                with get_db() as conn:
-                    conn.execute("""
-                        INSERT INTO nakit_bakiye (user_id, para_birimi, tutar)
-                        VALUES (?,?,?)
-                        ON CONFLICT(user_id, para_birimi) DO UPDATE SET tutar=excluded.tutar
-                    """, (user_id, pb, tutar))
+            with get_db() as conn:
+                _ar = conn.execute("SELECT id, ad FROM aracilar WHERE user_id=?", (user_id,)).fetchall()
+            for a in _ar:
+                for pb in ["USD", "TRY"]:
+                    tutar_str = request.form.get(f"nakit_{a['id']}_{pb}", "0").replace(",", ".").strip()
+                    try:
+                        tutar = float(tutar_str)
+                    except ValueError:
+                        tutar = 0.0
+                    with get_db() as conn:
+                        conn.execute("""
+                            INSERT INTO nakit_bakiye (user_id, para_birimi, araciKurum, tutar)
+                            VALUES (?,?,?,?)
+                            ON CONFLICT(user_id, para_birimi, araciKurum) DO UPDATE SET tutar=excluded.tutar
+                        """, (user_id, pb, a["ad"], tutar))
             flash("Nakit bakiyeler güncellendi.", "success")
         elif action == "fon_vergi_durum_degistir":
             kod = request.form.get("fon_kodu", "").strip().upper()
@@ -2165,7 +2183,7 @@ def ayarlar():
         aracilar = conn.execute("SELECT * FROM aracilar WHERE user_id=? ORDER BY ad", (user_id,)).fetchall()
 
     with get_db() as conn:
-        nakit_rows = conn.execute("SELECT para_birimi, tutar FROM nakit_bakiye WHERE user_id=?", (user_id,)).fetchall()
+        nakit_rows = conn.execute("SELECT para_birimi, SUM(tutar) AS tutar FROM nakit_bakiye WHERE user_id=? GROUP BY para_birimi", (user_id,)).fetchall()
     nakit = {r["para_birimi"]: r["tutar"] for r in nakit_rows}
 
     with get_db() as conn:
@@ -2178,7 +2196,11 @@ def ayarlar():
     vergisiz_set = fon_vergisiz_kodlari()
     fon_vergi_listesi = [{"kod": r["kod"], "vergisiz": r["kod"] in vergisiz_set} for r in bilinen_fonlar]
 
-    return render_template("ayarlar.html", hesaplar=hesaplar, aracilar=aracilar, nakit=nakit,
+    nakit_detay = {}
+    with get_db() as conn:
+        for r in conn.execute("SELECT araciKurum, para_birimi, tutar FROM nakit_bakiye WHERE user_id=?", (user_id,)).fetchall():
+            nakit_detay.setdefault(r["araciKurum"], {})[r["para_birimi"]] = r["tutar"]
+    return render_template("ayarlar.html", hesaplar=hesaplar, aracilar=aracilar, nakit=nakit, nakit_detay=nakit_detay,
                             fon_vergi_listesi=fon_vergi_listesi)
 
 # ── API ──────────────────────────────────────────────────────────────────────
@@ -4786,11 +4808,12 @@ ASISTAN_TOOLS = [
     },
     {
         "name": "nakit_guncelle",
-        "description": "USD veya TRY nakit bakiyesini yeni bir değere ayarlar (mevcut değerin üzerine yazar).",
+        "description": "USD veya TRY nakit bakiyesini bir aracı kurumda yeni bir değere ayarlar (mevcut değerin üzerine yazar).",
         "input_schema": {
             "type": "object",
             "properties": {
                 "para_birimi": {"type": "string", "enum": ["USD", "TRY"]},
+                "araci_kurum": {"type": "string", "description": "Aracı kurum adı, verilmezse Midas"},
                 "tutar": {"type": "number"},
             },
             "required": ["para_birimi", "tutar"],
@@ -4907,7 +4930,7 @@ def execute_asistan_tool(tool_adi, girdi, user_id):
         abd_ana_usd = toplam_net_yatirim(user_id, "ABD", hesap_filtre)
         with get_db() as conn:
             nakit_rows = conn.execute(
-                "SELECT para_birimi, tutar FROM nakit_bakiye WHERE user_id=?", (user_id,)
+                "SELECT para_birimi, SUM(tutar) AS tutar FROM nakit_bakiye WHERE user_id=? GROUP BY para_birimi", (user_id,)
             ).fetchall()
         nakit = {r["para_birimi"]: r["tutar"] for r in nakit_rows}
         nakit_usd_tl = nakit.get("USD", 0) * usd_try if usd_try else 0
@@ -4965,7 +4988,7 @@ def execute_asistan_tool(tool_adi, girdi, user_id):
     if tool_adi == "nakit_bakiye_getir":
         with get_db() as conn:
             rows = conn.execute(
-                "SELECT para_birimi, tutar FROM nakit_bakiye WHERE user_id=?", (user_id,)
+                "SELECT para_birimi, SUM(tutar) AS tutar FROM nakit_bakiye WHERE user_id=? GROUP BY para_birimi", (user_id,)
             ).fetchall()
         return {r["para_birimi"]: r["tutar"] for r in rows} or {"USD": 0, "TRY": 0}
 
@@ -5039,12 +5062,13 @@ def execute_asistan_tool(tool_adi, girdi, user_id):
     if tool_adi == "nakit_guncelle":
         pb = girdi["para_birimi"]
         tutar = float(girdi["tutar"])
+        araci = (girdi.get("araci_kurum") or "Midas").strip()
         with get_db() as conn:
             conn.execute("""
-                INSERT INTO nakit_bakiye (user_id, para_birimi, tutar) VALUES (?,?,?)
-                ON CONFLICT(user_id, para_birimi) DO UPDATE SET tutar=excluded.tutar
-            """, (user_id, pb, tutar))
-        return {"guncellendi": True, "para_birimi": pb, "tutar": tutar}
+                INSERT INTO nakit_bakiye (user_id, para_birimi, araciKurum, tutar) VALUES (?,?,?,?)
+                ON CONFLICT(user_id, para_birimi, araciKurum) DO UPDATE SET tutar=excluded.tutar
+            """, (user_id, pb, araci, tutar))
+        return {"guncellendi": True, "para_birimi": pb, "araci_kurum": araci, "tutar": tutar}
 
     if tool_adi == "hesap_ekle":
         ad = girdi["ad"].strip()
