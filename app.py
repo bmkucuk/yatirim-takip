@@ -219,6 +219,7 @@ def init_db():
     _tek_seferlik_abd_komisyon_geriye_donuk(conn)
     _tek_seferlik_smh_2_adet_2026_10_30(conn)
     _tek_seferlik_smh_3_adet_2026_11_11(conn)
+    _tek_seferlik_bist_2026_11_12(conn)
     conn.commit()
 
 
@@ -294,6 +295,36 @@ def _tek_seferlik_smh_3_adet_2026_11_11(conn):
           _islem_tutari(adet, fiyat, "Alış", komisyon), tarih, komisyon))
     conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
                  ("SMH", tarih, fiyat))
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
+
+
+def _tek_seferlik_bist_2026_11_12(conn):
+    """12.11.2026 bildirilen BIST işlemleri (tek seferlik):
+    ZPX30 1.000 adet x 191,50 (5 Kas), ALTIN.S1 1.000 adet x 70,80 (4 Kas), ALTIN.S1 1.000 adet x 71,80 (10 Kas)."""
+    anahtar = "bist_2026_11_12_uc_islem"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    uids = [r["user_id"] for r in conn.execute("SELECT DISTINCT user_id FROM islemler").fetchall()]
+    if len(uids) != 1:
+        return
+    uid = uids[0]
+    son = conn.execute(
+        "SELECT hesap FROM islemler WHERE user_id=? ORDER BY id DESC LIMIT 1", (uid,)).fetchone()
+    hesap = (son["hesap"] if son else "") or ""
+    islemler_listesi = [
+        ("ZPX30", "2026-11-05", 1000.0, 191.50),
+        ("ALTIN.S1", "2026-11-04", 1000.0, 70.80),
+        ("ALTIN.S1", "2026-11-10", 1000.0, 71.80),
+    ]
+    for sembol, tarih, adet, fiyat in islemler_listesi:
+        conn.execute("""
+            INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih,komisyon)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        """, (uid, sembol, "BIST", hesap, "Midas", "Alış", adet, fiyat,
+              _islem_tutari(adet, fiyat, "Alış", 0.0), tarih, 0.0))
+        conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
+                     (sembol, tarih, fiyat))
     conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
 
 

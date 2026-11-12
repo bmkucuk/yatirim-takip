@@ -282,14 +282,19 @@ def fetch_abd_tradingview(semboller):
     return sonuc
 
 
+# Uygulamadaki BIST sembolü -> TradingView'deki kod (farklı yazılanlar için)
+_BIST_TV_ALIAS = {"ALTIN.S1": "ALTIN"}
+
+
 def fetch_bist_tradingview(semboller):
     """BIST hisse anlık fiyatlarını TradingView scanner'dan (turkey ekranı) çeker.
     Döner: {sembol: fiyat}."""
     semboller = [s for s in semboller if s]
     if not semboller:
         return {}
-    veriler = _tv_scan_grup("turkey", [f"BIST:{s}" for s in semboller])
-    return {s: veriler[f"BIST:{s}"][0] for s in semboller if f"BIST:{s}" in veriler}
+    kodlar = {s: _BIST_TV_ALIAS.get(s, s) for s in semboller}
+    veriler = _tv_scan_grup("turkey", [f"BIST:{k}" for k in kodlar.values()])
+    return {s: veriler[f"BIST:{k}"][0] for s, k in kodlar.items() if f"BIST:{k}" in veriler}
 
 
 def _abd_islem_tarihi():
