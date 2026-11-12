@@ -220,6 +220,7 @@ def init_db():
     _tek_seferlik_smh_2_adet_2026_10_30(conn)
     _tek_seferlik_smh_3_adet_2026_11_11(conn)
     _tek_seferlik_bist_2026_11_12(conn)
+    _tek_seferlik_dly_2026_11_12(conn)
     conn.commit()
 
 
@@ -325,6 +326,35 @@ def _tek_seferlik_bist_2026_11_12(conn):
               _islem_tutari(adet, fiyat, "Alış", 0.0), tarih, 0.0))
         conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
                      (sembol, tarih, fiyat))
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
+
+
+def _tek_seferlik_dly_2026_11_12(conn):
+    """DLY (Deniz Portföy Para Piyasası (TL) Fonu) DenizBank işlemleri, hesap Murat (tek seferlik)."""
+    anahtar = "dly_denizbank_6_islem_2026_11_12"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    uids = [r["user_id"] for r in conn.execute("SELECT DISTINCT user_id FROM islemler").fetchall()]
+    if len(uids) != 1:
+        return
+    uid = uids[0]
+    liste = [
+        ("2026-10-09", "Alış", 219710.0, 6.372033),
+        ("2026-10-21", "Satış", 31028.0, 6.445962),
+        ("2026-10-22", "Alış", 30996.0, 6.45227),
+        ("2026-11-04", "Satış", 109839.0, 6.530329),
+        ("2026-11-06", "Alış", 5643.0, 6.544201),
+        ("2026-11-06", "Alış", 191008.0, 6.544201),
+    ]
+    for tarih, alissat, adet, fiyat in liste:
+        conn.execute("""
+            INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih,komisyon)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        """, (uid, "DLY", "FON", "Murat", "DenizBank", alissat, adet, fiyat,
+              _islem_tutari(adet, fiyat, alissat, 0.0), tarih, 0.0))
+        conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
+                     ("DLY", tarih, fiyat))
     conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
 
 
