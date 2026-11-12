@@ -337,7 +337,7 @@ def fetch_hisse_fiyatlari(semboller, tur_map=None):
             time.sleep(0.6)  # Yahoo'yu art arda hızlı istekle boğmayalım
         tur = (tur_map or {}).get(sembol, "")
         if tur == "BIST":
-            yahoo_sembol = f"{sembol}.IS" if not sembol.endswith(".IS") else sembol
+            yahoo_sembol = f"{_BIST_TV_ALIAS.get(sembol, sembol)}.IS"
         elif tur == "ABD":
             yahoo_sembol = sembol
         else:

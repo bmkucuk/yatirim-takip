@@ -1749,7 +1749,8 @@ def fiyat_guncelle():
 
     # BIST + ABD → Yahoo Finance
     def yahoo_fiyat(sembol, tur):
-        yahoo_s = f"{sembol}.IS" if tur == "BIST" else sembol
+        from price_fetcher import _BIST_TV_ALIAS
+        yahoo_s = f"{_BIST_TV_ALIAS.get(sembol, sembol)}.IS" if tur == "BIST" else sembol
         try:
             r = req.get(
                 f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_s}?interval=1d&range=2d",
@@ -1784,7 +1785,10 @@ def fiyat_guncelle():
                      (simdi, "Güncelleme",
                       f"{basarili} fiyat güncellendi. " + (f"Hata: {','.join(hatalar)}" if hatalar else "")))
 
-    flash(f"✅ {basarili} fiyat güncellendi.", "success")
+    if hatalar:
+        flash(f"✅ {basarili} fiyat güncellendi. ⚠️ Alınamayan: {', '.join(hatalar)}", "error")
+    else:
+        flash(f"✅ {basarili} fiyat güncellendi.", "success")
     return redirect(url_for("fiyatlar"))
 
 # ── Ayarlar ──────────────────────────────────────────────────────────────────
