@@ -35,10 +35,9 @@
     style="background:var(--accent);color:#000;border:none;padding:5px 14px;border-radius:20px;
            font-size:0.8rem;font-weight:700;cursor:pointer">Hesapla</button>
   <span id="tgd-sonuc" style="font-size:0.95rem;font-weight:700"></span>
-  <span id="tgd-detay" style="font-size:0.75rem;color:var(--text2);width:100%"></span>
+  <span id="tgd-detay" style="font-size:0.75rem;color:var(--text2)"></span>
 
-  <div style="width:100%;border-top:1px solid var(--border);margin:6px 0"></div>
-
+  <span style="width:1px;align-self:stretch;background:var(--border);margin:0 6px"></span>
   <span style="font-size:0.85rem;color:var(--text2)">📆 İki tarih arasındaki toplam getiri:</span>
   <input type="date" id="dg-tarih1" style="background:var(--card2);border:1px solid var(--border);
          color:var(--text);padding:5px 10px;border-radius:6px;font-size:0.85rem">
@@ -49,7 +48,7 @@
     style="background:var(--accent);color:#000;border:none;padding:5px 14px;border-radius:20px;
            font-size:0.8rem;font-weight:700;cursor:pointer">Hesapla</button>
   <span id="dg-sonuc" style="font-size:0.95rem;font-weight:700"></span>
-  <span id="dg-detay" style="font-size:0.75rem;color:var(--text2);width:100%"></span>
+  <span id="dg-detay" style="font-size:0.75rem;color:var(--text2)"></span>
 </div>
 
 <script>
@@ -149,9 +148,6 @@ async function tarihteDegerHesapla() {
 </div>
 
 {% macro bolum_ozet(deger, kar, gunluk, para, deger_tl, kar_tl, gunluk_tl=none, baslik=none, gunluk_tarih=none) %}
-{% if baslik %}
-<div style="font-size:0.78rem;color:var(--text2);font-weight:600;margin-bottom:0.35rem">{{ baslik }} özeti</div>
-{% endif %}
 <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:0.75rem">
   <div class="summary-card" style="padding:0.6rem 1rem;text-align:center">
     <div class="card-label" style="font-size:0.72rem">Toplam Değer</div>
@@ -202,16 +198,17 @@ async function tarihteDegerHesapla() {
 </div>
 {% endmacro %}
 
+{% macro bolum_baslik(baslik, renk, anahtar, adet) %}
+<div class="section-header" onclick="bolumAc('{{ anahtar }}')" style="border-left:3px solid {{ renk }};padding-left:0.75rem;margin:1.5rem 0 0.5rem;cursor:pointer;user-select:none">
+  <span id="ok-{{ anahtar }}" style="display:inline-block;width:1rem;color:var(--text2);transition:transform .2s">▾</span>
+  <span style="font-weight:700;font-size:1rem">{{ baslik }}</span>
+  <span style="color:var(--text2);font-size:0.85rem;margin-left:1rem">{{ adet }} pozisyon</span>
+</div>
+{% endmacro %}
+
 {% macro portfoy_tablosu(pozisyonlar, para, baslik, renk, anahtar) %}
 {% if pozisyonlar %}
 {% set toplam_deger = pozisyonlar|sum(attribute='mevcut_deger') %}
-<div class="section-header" onclick="bolumAc('{{ anahtar }}')" style="border-left:3px solid {{ renk }};padding-left:0.75rem;margin:1.5rem 0 0.75rem;cursor:pointer;user-select:none">
-  <span id="ok-{{ anahtar }}" style="display:inline-block;width:1rem;color:var(--text2);transition:transform .2s">▾</span>
-  <span style="font-weight:700;font-size:1rem">{{ baslik }}</span>
-  <span style="color:var(--text2);font-size:0.85rem;margin-left:1rem">
-    {{ pozisyonlar|length }} pozisyon
-  </span>
-</div>
 <div id="tablo-{{ anahtar }}" class="table-wrap">
 <table class="data-table">
   <thead>
@@ -298,21 +295,24 @@ async function tarihteDegerHesapla() {
 
 <!-- Yatırım Fonları -->
 {% if fon_portfoy %}
-{{ bolum_ozet(fon_deger, fon_kar, fon_portfoy|sum(attribute='gunluk_tl'), "₺", none, none, baslik="📊 Yatırım Fonları", gunluk_tarih=fon_gunluk_tarihi) }}
-{% endif %}
+{{ bolum_baslik("📊 Yatırım Fonları", "var(--accent)", "fon", fon_portfoy|length) }}
+{{ bolum_ozet(fon_deger, fon_kar, fon_portfoy|sum(attribute='gunluk_tl'), "₺", none, none, gunluk_tarih=fon_gunluk_tarihi) }}
 {{ portfoy_tablosu(fon_portfoy, "₺", "📊 Yatırım Fonları", "var(--accent)", "fon") }}
+{% endif %}
 
 <!-- BIST -->
 {% if bist_portfoy %}
-{{ bolum_ozet(bist_deger, bist_kar, bist_portfoy|sum(attribute='gunluk_tl'), "₺", none, none, baslik="📈 Borsa TR (BIST)") }}
-{% endif %}
+{{ bolum_baslik("📈 Borsa TR (BIST)", "var(--pos)", "bist", bist_portfoy|length) }}
+{{ bolum_ozet(bist_deger, bist_kar, bist_portfoy|sum(attribute='gunluk_tl'), "₺", none, none) }}
 {{ portfoy_tablosu(bist_portfoy, "₺", "📈 Borsa TR (BIST)", "var(--pos)", "bist") }}
+{% endif %}
 
 <!-- ABD -->
 {% if abd_portfoy %}
-{{ bolum_ozet(abd_deger_usd, abd_kar_usd, abd_portfoy|sum(attribute='gunluk_tl'), "$", abd_deger_tl, abd_kar_tl, gunluk_tl=abd_gunluk_tl, baslik="🇺🇸 Borsa USA", gunluk_tarih=abd_gunluk_tarihi) }}
-{% endif %}
+{{ bolum_baslik("🇺🇸 Borsa USA", "#58a6ff", "abd", abd_portfoy|length) }}
+{{ bolum_ozet(abd_deger_usd, abd_kar_usd, abd_portfoy|sum(attribute='gunluk_tl'), "$", abd_deger_tl, abd_kar_tl, gunluk_tl=abd_gunluk_tl, gunluk_tarih=abd_gunluk_tarihi) }}
 {{ portfoy_tablosu(abd_portfoy, "$", "🇺🇸 Borsa USA", "#58a6ff", "abd") }}
+{% endif %}
 
 {% if not fon_portfoy and not bist_portfoy and not abd_portfoy %}
 <div class="empty-state">
