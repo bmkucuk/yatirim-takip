@@ -238,6 +238,7 @@ def init_db():
     _tek_seferlik_dly_2026_11_12(conn)
     _tek_seferlik_nakit_2026_11_12(conn)
     _tek_seferlik_zpx30_satis_2026_11_12(conn)
+    _tek_seferlik_midas_nakit_2026_11_12b(conn)
     conn.commit()
 
 
@@ -416,6 +417,25 @@ def _tek_seferlik_zpx30_satis_2026_11_12(conn):
           _islem_tutari(adet, fiyat, "Satış", 0.0), tarih, 0.0))
     conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
                  ("ZPX30", tarih, fiyat))
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
+
+
+def _tek_seferlik_midas_nakit_2026_11_12b(conn):
+    """Midas nakit güncellemesi (12.11.2026, ikinci): TL 499.186,03, USD 15.609,82."""
+    anahtar = "midas_nakit_2026_11_12b"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    uids = [r["user_id"] for r in conn.execute("SELECT DISTINCT user_id FROM islemler").fetchall()]
+    if len(uids) != 1:
+        return
+    uid = uids[0]
+    for pb, tutar in (("TRY", 499186.03), ("USD", 15609.82)):
+        conn.execute("""
+            INSERT INTO nakit_bakiye (user_id, para_birimi, araciKurum, tutar)
+            VALUES (?,?,'Midas',?)
+            ON CONFLICT(user_id, para_birimi, araciKurum) DO UPDATE SET tutar=excluded.tutar
+        """, (uid, pb, tutar))
     conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
 
 
