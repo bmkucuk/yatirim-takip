@@ -202,16 +202,17 @@ async function tarihteDegerHesapla() {
 </div>
 {% endmacro %}
 
-{% macro portfoy_tablosu(pozisyonlar, para, baslik, renk) %}
+{% macro portfoy_tablosu(pozisyonlar, para, baslik, renk, anahtar) %}
 {% if pozisyonlar %}
 {% set toplam_deger = pozisyonlar|sum(attribute='mevcut_deger') %}
-<div class="section-header" style="border-left:3px solid {{ renk }};padding-left:0.75rem;margin:1.5rem 0 0.75rem">
+<div class="section-header" onclick="bolumAc('{{ anahtar }}')" style="border-left:3px solid {{ renk }};padding-left:0.75rem;margin:1.5rem 0 0.75rem;cursor:pointer;user-select:none">
+  <span id="ok-{{ anahtar }}" style="display:inline-block;width:1rem;color:var(--text2);transition:transform .2s">▾</span>
   <span style="font-weight:700;font-size:1rem">{{ baslik }}</span>
   <span style="color:var(--text2);font-size:0.85rem;margin-left:1rem">
     {{ pozisyonlar|length }} pozisyon
   </span>
 </div>
-<div class="table-wrap">
+<div id="tablo-{{ anahtar }}" class="table-wrap">
 <table class="data-table">
   <thead>
     <tr>
@@ -299,19 +300,19 @@ async function tarihteDegerHesapla() {
 {% if fon_portfoy %}
 {{ bolum_ozet(fon_deger, fon_kar, fon_portfoy|sum(attribute='gunluk_tl'), "₺", none, none, baslik="📊 Yatırım Fonları", gunluk_tarih=fon_gunluk_tarihi) }}
 {% endif %}
-{{ portfoy_tablosu(fon_portfoy, "₺", "📊 Yatırım Fonları", "var(--accent)") }}
+{{ portfoy_tablosu(fon_portfoy, "₺", "📊 Yatırım Fonları", "var(--accent)", "fon") }}
 
 <!-- BIST -->
 {% if bist_portfoy %}
 {{ bolum_ozet(bist_deger, bist_kar, bist_portfoy|sum(attribute='gunluk_tl'), "₺", none, none, baslik="📈 Borsa TR (BIST)") }}
 {% endif %}
-{{ portfoy_tablosu(bist_portfoy, "₺", "📈 Borsa TR (BIST)", "var(--pos)") }}
+{{ portfoy_tablosu(bist_portfoy, "₺", "📈 Borsa TR (BIST)", "var(--pos)", "bist") }}
 
 <!-- ABD -->
 {% if abd_portfoy %}
 {{ bolum_ozet(abd_deger_usd, abd_kar_usd, abd_portfoy|sum(attribute='gunluk_tl'), "$", abd_deger_tl, abd_kar_tl, gunluk_tl=abd_gunluk_tl, baslik="🇺🇸 Borsa USA", gunluk_tarih=abd_gunluk_tarihi) }}
 {% endif %}
-{{ portfoy_tablosu(abd_portfoy, "$", "🇺🇸 Borsa USA", "#58a6ff") }}
+{{ portfoy_tablosu(abd_portfoy, "$", "🇺🇸 Borsa USA", "#58a6ff", "abd") }}
 
 {% if not fon_portfoy and not bist_portfoy and not abd_portfoy %}
 <div class="empty-state">
@@ -545,4 +546,28 @@ async function fiyatlariGuncelle() {
 }
 </script>
 
+<script>
+// Pozisyon tablosu aç/kapa: durum tarayıcıda hatırlanır (localStorage, hata olursa sessizce atlanır)
+function bolumAc(k) {
+  var el = document.getElementById('tablo-' + k);
+  var ok = document.getElementById('ok-' + k);
+  if (!el) return;
+  var kapali = el.style.display !== 'none';
+  el.style.display = kapali ? 'none' : '';
+  if (ok) ok.style.transform = kapali ? 'rotate(-90deg)' : '';
+  try { localStorage.setItem('bolum-' + k, kapali ? 'kapali' : 'acik'); } catch (e) {}
+}
+(function () {
+  ['fon', 'bist', 'abd'].forEach(function (k) {
+    var durum = null;
+    try { durum = localStorage.getItem('bolum-' + k); } catch (e) {}
+    if (durum === 'kapali') {
+      var el = document.getElementById('tablo-' + k);
+      var ok = document.getElementById('ok-' + k);
+      if (el) el.style.display = 'none';
+      if (ok) ok.style.transform = 'rotate(-90deg)';
+    }
+  });
+})();
+</script>
 {% endblock %}
