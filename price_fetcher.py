@@ -282,6 +282,16 @@ def fetch_abd_tradingview(semboller):
     return sonuc
 
 
+def fetch_bist_tradingview(semboller):
+    """BIST hisse anlık fiyatlarını TradingView scanner'dan (turkey ekranı) çeker.
+    Döner: {sembol: fiyat}."""
+    semboller = [s for s in semboller if s]
+    if not semboller:
+        return {}
+    veriler = _tv_scan_grup("turkey", [f"BIST:{s}" for s in semboller])
+    return {s: veriler[f"BIST:{s}"][0] for s in semboller if f"BIST:{s}" in veriler}
+
+
 def _abd_islem_tarihi():
     """ABD'de güncel/son işlem günü (New York saatiyle, hafta sonu -> Cuma)."""
     from datetime import datetime as _dt, timedelta as _td
@@ -311,6 +321,12 @@ def fetch_hisse_fiyatlari(semboller, tur_map=None):
         for s_, f_ in abd_tv.items():
             results[s_] = {tv_tarih: round(float(f_), 4)}
     semboller = [s for s in semboller if s not in abd_tv]
+    # BIST: anlık fiyat TradingView'den; geçmiş için Yahoo döngüsü aynen çalışır.
+    bist_tv = fetch_bist_tradingview([s for s in semboller if (tur_map or {}).get(s) == "BIST"])
+    if bist_tv:
+        bist_tarih = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d")
+        for s_, f_ in bist_tv.items():
+            results.setdefault(s_, {})[bist_tarih] = round(float(f_), 4)
     for i, sembol in enumerate(semboller):
         if i > 0:
             time.sleep(0.6)  # Yahoo'yu art arda hızlı istekle boğmayalım
@@ -350,9 +366,9 @@ def fetch_hisse_fiyatlari(semboller, tur_map=None):
                     break
             except Exception:
                 pass
-        if not basarili_mi:
+        if not basarili_mi and sembol not in bist_tv:
             basarisiz.append(sembol)
-    return results, (("TradingView+Yahoo" if abd_tv else "Yahoo-Finance") if results else None), basarisiz
+    return results, (("TradingView+Yahoo" if (abd_tv or bist_tv) else "Yahoo-Finance") if results else None), basarisiz
 
 def fetch_hisse_detay_toplu(semboller):
     """Yahoo v7/finance/quote ile toplu anlık fiyat + günlük değişim (%) + şirket adı — tek istekte.

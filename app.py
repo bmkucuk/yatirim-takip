@@ -1733,9 +1733,13 @@ def fiyat_guncelle():
             pass
         return None
 
+    from price_fetcher import fetch_bist_tradingview
+    bist_tv = fetch_bist_tradingview(bist_sembolleri)
     for sembol in bist_sembolleri + abd_sembolleri:
         tur = "BIST" if sembol in bist_sembolleri else "ABD"
-        fiyat = yahoo_fiyat(sembol, tur)
+        fiyat = bist_tv.get(sembol) if tur == "BIST" else None
+        if fiyat is None:
+            fiyat = yahoo_fiyat(sembol, tur)
         if fiyat:
             with get_db() as conn:
                 conn.execute("INSERT OR REPLACE INTO fiyat_gecmisi (sembol,tarih,fiyat) VALUES (?,?,?)",
@@ -4482,6 +4486,13 @@ def api_son_fiyat():
         except Exception as e:
             return jsonify({"hata": f"TEFAS: {str(e)[:60]}", "tur": tur})
 
+    # 3a) BIST → önce TradingView (anlık)
+    if tur == "BIST":
+        from price_fetcher import fetch_bist_tradingview
+        _bv = fetch_bist_tradingview([sembol]).get(sembol)
+        if _bv:
+            return jsonify({"fiyat": _bv, "tarih": str(bugun()), "kaynak": "TradingView"})
+
     # 3) BIST ve ABD → Yahoo Finance (direkt requests)
     if tur in ("BIST", "ABD"):
         import requests as req
@@ -4637,7 +4648,7 @@ ASISTAN_TOOLS = [
             "type": "object",
             "properties": {
                 "sembol": {"type": "string"},
-                "tur": {"type": "string", "enum": ["FON", "ABD"], "description": "FON=yatırım fonu, BIST=Türk hissesi, ABD=Amerikan hissesi"},
+                "tur": {"type": "string", "enum": ["FON", "BIST", "ABD"], "description": "FON=yatırım fonu, BIST=Türk hissesi, ABD=Amerikan hissesi"},
                 "alissat": {"type": "string", "enum": ["Alış", "Satış"]},
                 "adet": {"type": "number"},
                 "fiyat": {"type": "number", "description": "Birim fiyat (adet başına)"},
