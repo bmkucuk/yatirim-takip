@@ -117,7 +117,7 @@ async function tarihteDegerHesapla() {
 <!-- Genel Özet -->
 <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
   <div class="summary-card" style="text-align:center">
-    <div class="card-label">💰 Toplam Portföy (TL)</div>
+    <div class="card-label">💰 Toplam Portföy (TL) <span style="font-weight:400;opacity:0.75;font-size:0.8em">· nakitler dahil</span></div>
     <div class="card-value" style="color:var(--accent);font-weight:800">
       {{ "{:,.0f}".format(genel_toplam_tl).replace(",",".") }} ₺
     </div>
