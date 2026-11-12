@@ -1436,6 +1436,17 @@ def dashboard():
     abd_ana_para_usd = toplam_net_yatirim(user_id, "ABD",  hesap_filtre)
 
     fon_kar         = fon_deger - fon_ana_para
+    # Fon kartı NET: her fon için (tüm zamanlar kar) vergisiz değilse ve kar pozitifse %17,5 stopaj düşülür
+    with get_db() as conn:
+        if hesap_filtre == "Hepsi":
+            _fon_rows = conn.execute("""SELECT sembol, SUM(CASE WHEN alissat='Alış' THEN tutar ELSE -tutar END) AS net
+                FROM islemler WHERE user_id=? AND tur='FON' GROUP BY sembol""", (user_id,)).fetchall()
+        else:
+            _fon_rows = conn.execute("""SELECT sembol, SUM(CASE WHEN alissat='Alış' THEN tutar ELSE -tutar END) AS net
+                FROM islemler WHERE user_id=? AND tur='FON' AND hesap=? GROUP BY sembol""", (user_id, hesap_filtre)).fetchall()
+    _fon_mevcut = {p["sembol"]: p["mevcut_deger"] for p in fon_portfoy}
+    fon_kar_net = sum(net_kar(r["sembol"], "FON", _fon_mevcut.get(r["sembol"], 0.0) - (r["net"] or 0.0))
+                      for r in _fon_rows)
     bist_kar        = bist_deger - bist_ana_para
     abd_kar_usd     = abd_deger_usd - abd_ana_para_usd
     abd_kar_tl      = abd_kar_usd * usd_try if usd_try else 0
@@ -1463,7 +1474,7 @@ def dashboard():
         abd_deger_usd=abd_deger_usd, abd_deger_tl=abd_deger_tl,
         genel_toplam_tl=genel_toplam_tl, genel_gunluk_tl=genel_gunluk_tl,
         genel_kar_tl=genel_kar_tl,
-        fon_kar=fon_kar, bist_kar=bist_kar,
+        fon_kar=fon_kar, fon_kar_net=fon_kar_net, fon_ana_para=fon_ana_para, bist_kar=bist_kar,
         abd_kar_usd=abd_kar_usd, abd_kar_tl=abd_kar_tl,
         nakit_usd=nakit_usd, nakit_try=nakit_try, nakit_usd_tl=nakit_usd_tl,
         abd_gunluk_tl=abd_gunluk_tl,

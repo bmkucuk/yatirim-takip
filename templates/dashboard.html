@@ -147,7 +147,7 @@ async function tarihteDegerHesapla() {
   </div>
 </div>
 
-{% macro bolum_ozet(deger, kar, gunluk, para, deger_tl, kar_tl, gunluk_tl=none, baslik=none, gunluk_tarih=none) %}
+{% macro bolum_ozet(deger, kar, gunluk, para, deger_tl, kar_tl, gunluk_tl=none, baslik=none, gunluk_tarih=none, ana_para=none, kar_etiket=none) %}
 <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:0.75rem">
   <div class="summary-card" style="padding:0.6rem 1rem;text-align:center">
     <div class="card-label" style="font-size:0.72rem">Toplam Değer</div>
@@ -179,11 +179,11 @@ async function tarihteDegerHesapla() {
     {% endif %}
   </div>
   <div class="summary-card" style="padding:0.6rem 1rem;text-align:center">
-    <div class="card-label" style="font-size:0.72rem">Toplam Kar/Zarar</div>
+    <div class="card-label" style="font-size:0.72rem">{{ kar_etiket or "Toplam Kar/Zarar" }}</div>
     <div class="card-value {{ 'pos' if kar >= 0 else 'neg' }}" style="font-size:1rem">
       {{ ("▲ " if kar>=0 else "▼ ") }}{{ "{:,.2f}".format(kar|abs).replace(",",".") }} {{ para }}
     </div>
-    {% set maliyet = deger - kar %}
+    {% set maliyet = ana_para if ana_para is not none else (deger - kar) %}
     {% if maliyet > 0 %}
     <div class="card-value {{ 'pos' if kar>=0 else 'neg' }}" style="font-size:1rem;margin-top:0.2rem">
       %{{ "{:.2f}".format((kar / maliyet * 100)|abs).replace(".",",") }}
@@ -296,7 +296,7 @@ async function tarihteDegerHesapla() {
 <!-- Yatırım Fonları -->
 {% if fon_portfoy %}
 {{ bolum_baslik("📊 Yatırım Fonları", "var(--accent)", "fon", fon_portfoy|length) }}
-{{ bolum_ozet(fon_deger, fon_kar, fon_portfoy|sum(attribute='gunluk_tl'), "₺", none, none, gunluk_tarih=fon_gunluk_tarihi) }}
+{{ bolum_ozet(fon_deger, fon_kar_net, fon_portfoy|sum(attribute='gunluk_tl'), "₺", none, none, gunluk_tarih=fon_gunluk_tarihi, ana_para=fon_ana_para, kar_etiket="Toplam Kar/Zarar (NET · %17,5 stopaj düşülmüş)") }}
 {{ portfoy_tablosu(fon_portfoy, "₺", "📊 Yatırım Fonları", "var(--accent)", "fon") }}
 {% endif %}
 
