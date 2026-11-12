@@ -237,6 +237,7 @@ def init_db():
     _tek_seferlik_bist_2026_11_12(conn)
     _tek_seferlik_dly_2026_11_12(conn)
     _tek_seferlik_nakit_2026_11_12(conn)
+    _tek_seferlik_zpx30_satis_2026_11_12(conn)
     conn.commit()
 
 
@@ -389,6 +390,32 @@ def _tek_seferlik_nakit_2026_11_12(conn):
             INSERT INTO nakit_bakiye (user_id, para_birimi, araciKurum, tutar) VALUES (?,?,'Midas',?)
             ON CONFLICT(user_id, para_birimi, araciKurum) DO UPDATE SET tutar=excluded.tutar
         """, (uid, pb, tutar))
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
+
+
+def _tek_seferlik_zpx30_satis_2026_11_12(conn):
+    """12.11.2026 ZPX30 satış: 1.000 pay x 199,75 (BIST, komisyon yok, tek seferlik)."""
+    anahtar = "zpx30_satis_1000_2026_11_12"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    uids = [r["user_id"] for r in conn.execute("SELECT DISTINCT user_id FROM islemler").fetchall()]
+    if len(uids) != 1:
+        return
+    uid = uids[0]
+    son = conn.execute(
+        "SELECT hesap, araciKurum FROM islemler WHERE user_id=? AND tur='BIST' ORDER BY id DESC LIMIT 1",
+        (uid,)).fetchone()
+    hesap = (son["hesap"] if son else "") or ""
+    aracikurum = (son["araciKurum"] if son else "") or "Midas"
+    adet, fiyat, tarih = 1000.0, 199.75, "2026-11-12"
+    conn.execute("""
+        INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih,komisyon)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+    """, (uid, "ZPX30", "BIST", hesap, aracikurum, "Satış", adet, fiyat,
+          _islem_tutari(adet, fiyat, "Satış", 0.0), tarih, 0.0))
+    conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
+                 ("ZPX30", tarih, fiyat))
     conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
 
 
