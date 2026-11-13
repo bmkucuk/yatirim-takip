@@ -239,6 +239,7 @@ def init_db():
     _tek_seferlik_nakit_2026_11_12(conn)
     _tek_seferlik_zpx30_satis_2026_11_12(conn)
     _tek_seferlik_midas_nakit_2026_11_12b(conn)
+    _tek_seferlik_dly_gecmis_fiyat_2026_11_13(conn)
     conn.commit()
 
 
@@ -436,6 +437,24 @@ def _tek_seferlik_midas_nakit_2026_11_12b(conn):
             VALUES (?,?,'Midas',?)
             ON CONFLICT(user_id, para_birimi, araciKurum) DO UPDATE SET tutar=excluded.tutar
         """, (uid, pb, tutar))
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
+
+
+def _tek_seferlik_dly_gecmis_fiyat_2026_11_13(conn):
+    """DLY için eksik TEFAS fiyat geçmişi (2-12 Kas). Günlük getiri doğru önceki günü baz alsın diye."""
+    anahtar = "dly_gecmis_fiyat_2026_11_13"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    fiyatlar = [
+        ("2026-11-02", 6.518363), ("2026-11-03", 6.523585), ("2026-11-04", 6.530329),
+        ("2026-11-05", 6.537663), ("2026-11-06", 6.544201), ("2026-11-09", 6.562822),
+        ("2026-11-10", 6.569089), ("2026-11-11", 6.575795), ("2026-11-12", 6.582152),
+        ("2026-11-13", 6.588544),
+    ]
+    for tarih, fiyat in fiyatlar:
+        conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
+                     ("DLY", tarih, fiyat))
     conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
 
 
