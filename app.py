@@ -3247,13 +3247,33 @@ def cron_guncelle():
             """, (sembol, tarih, fiyat))
         basarili += 1
 
+    # Fon fiyat geçmişindeki boşlukları kapat: her fon için son 10 günün TEFAS fiyatlarını
+    # çek (tek istek/fon) ve eksik günleri ekle. Günlük getiri bu geçmişe bağlı.
+    from price_fetcher import tefas_aralik_cek
+    from datetime import date as _date, timedelta as _td
+    _bugun = datetime.now(ZoneInfo("Europe/Istanbul")).date()
+    _gecmis_eklenen, _gecmis_hata = 0, []
+    for _fon in fon_sembolleri:
+        try:
+            _aralik = tefas_aralik_cek(_fon, _bugun - _td(days=10), _bugun)
+            with get_db() as conn:
+                for _t, _f in (_aralik or {}).items():
+                    _cur = conn.execute(
+                        "INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
+                        (_fon, str(_t), _f))
+                    _gecmis_eklenen += _cur.rowcount if _cur.rowcount and _cur.rowcount > 0 else 0
+        except Exception as e:
+            _gecmis_hata.append(f"{_fon}: {e}")
+
     simdi = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
     with get_db() as conn:
         conn.execute("""
             INSERT INTO price_fetch_log (tarih, sonuc, detay)
             VALUES (?,?,?)
         """, (simdi, sonuc.get("method","?"),
-              f"{basarili} fiyat güncellendi (cron). {sonuc.get('errors','')}"))
+              f"{basarili} fiyat güncellendi (cron). {sonuc.get('errors','')} "
+              f"Fon geçmişi: {_gecmis_eklenen} eksik gün eklendi"
+              + (f", hatalar: {'; '.join(_gecmis_hata)}" if _gecmis_hata else "")))
 
     # Fon İçerik Analizi sayfasındaki TEFAS getiri cache'ini de tazele.
     # TEFAS dakikada 6 istekle sınırlı olduğu için fon başına ~55 saniye aralıklarla
