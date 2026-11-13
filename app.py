@@ -240,6 +240,7 @@ def init_db():
     _tek_seferlik_zpx30_satis_2026_11_12(conn)
     _tek_seferlik_midas_nakit_2026_11_12b(conn)
     _tek_seferlik_dly_gecmis_fiyat_2026_11_13(conn)
+    _tek_seferlik_dly_alis_2026_11_13(conn)
     conn.commit()
 
 
@@ -5298,3 +5299,24 @@ def api_asistan_onayla():
     except Exception as e:
         return jsonify({"tip": "hata", "mesaj": f"Asistan hatası: {e}"}), 500
     return jsonify(sonuc)
+
+
+def _tek_seferlik_dly_alis_2026_11_13(conn):
+    """DLY (DenizBank, hesap Murat) 75.672 adet alış, 13.11.2026 TEFAS fiyatı 6,588544 (tek seferlik)."""
+    anahtar = "dly_alis_75672_2026_11_13"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    uids = [r["user_id"] for r in conn.execute("SELECT DISTINCT user_id FROM islemler").fetchall()]
+    if len(uids) != 1:
+        return
+    uid = uids[0]
+    adet, fiyat, tarih, alissat = 75672.0, 6.588544, "2026-11-13", "Alış"
+    conn.execute("""
+        INSERT INTO islemler (user_id,sembol,tur,hesap,araciKurum,alissat,adet,fiyat,tutar,tarih,komisyon)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+    """, (uid, "DLY", "FON", "Murat", "DenizBank", alissat, adet, fiyat,
+          _islem_tutari(adet, fiyat, alissat, 0.0), tarih, 0.0))
+    conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
+                 ("DLY", tarih, fiyat))
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
