@@ -241,6 +241,7 @@ def init_db():
     _tek_seferlik_midas_nakit_2026_11_12b(conn)
     _tek_seferlik_dly_gecmis_fiyat_2026_11_13(conn)
     _tek_seferlik_dly_alis_2026_11_13(conn)
+    _tek_seferlik_dly_alis_fiyat_duzelt_2026_11_13(conn)
     conn.commit()
 
 
@@ -5319,4 +5320,24 @@ def _tek_seferlik_dly_alis_2026_11_13(conn):
           _islem_tutari(adet, fiyat, alissat, 0.0), tarih, 0.0))
     conn.execute("INSERT OR IGNORE INTO fiyat_gecmisi (sembol, tarih, fiyat) VALUES (?,?,?)",
                  ("DLY", tarih, fiyat))
+    conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
+
+
+def _tek_seferlik_dly_alis_fiyat_duzelt_2026_11_13(conn):
+    """13.11.2026 DLY 75.672 adet alışının fiyatı 6,6072930 olarak düzeltildi (tek seferlik)."""
+    anahtar = "dly_alis_fiyat_duzelt_6_6072930_2026_11_13"
+    conn.execute("CREATE TABLE IF NOT EXISTS tek_seferlik_gocler (ad TEXT PRIMARY KEY)")
+    if conn.execute("SELECT 1 FROM tek_seferlik_gocler WHERE ad=?", (anahtar,)).fetchone():
+        return
+    yeni_fiyat = 6.6072930
+    satirlar = conn.execute("""
+        SELECT id, adet, alissat FROM islemler
+        WHERE sembol='DLY' AND tur='FON' AND tarih='2026-11-13' AND alissat='Alış'
+          AND adet=75672 AND hesap='Murat' AND araciKurum='DenizBank'
+    """).fetchall()
+    if not satirlar:
+        return
+    for r in satirlar:
+        conn.execute("UPDATE islemler SET fiyat=?, tutar=? WHERE id=?",
+                     (yeni_fiyat, _islem_tutari(r["adet"], yeni_fiyat, r["alissat"], 0.0), r["id"]))
     conn.execute("INSERT INTO tek_seferlik_gocler (ad) VALUES (?)", (anahtar,))
